@@ -20,6 +20,7 @@ const Dashboard = () => {
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
+  const [pendingCount, setPendingCount] = useState(0);
 
   const [depositData, setDepositData] = useState({
     amount: "",
@@ -79,6 +80,9 @@ const Dashboard = () => {
           (t) => t.memberId === user?.id,
         );
         setTransactions(userTransactions.slice(0, 10));
+
+        const pending = userTransactions.filter((t) => t.status === "pending");
+        setPendingCount(pending.length);
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -104,7 +108,7 @@ const Dashboard = () => {
   };
 
   useEffect(() => {
-    if (!isAdmin && user?.id) {
+    if (user?.id) {
       refreshData();
     }
   }, [user?.id]);
@@ -137,17 +141,41 @@ const Dashboard = () => {
   const handleDeposit = async (e) => {
     e.preventDefault();
     const amount = parseFloat(depositData.amount);
+
+    console.log("💰 Deposit attempt:", { amount, user });
+
     if (isNaN(amount) || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
     setLoading(true);
     try {
-      const transaction = {
-        memberId: user.id,
-        memberName: user.name || user.full_name || user.username,
-        accountNumber: user.accountNumber || user.membership_number || "N/A",
+      // Get fresh user data
+      console.log("🔍 Fetching user profile...");
+      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileData = await profileResponse.json();
+      console.log("📥 Profile data:", profileData);
+
+      const currentUser = profileData.members?.find((m) => m.id === user?.id);
+
+      if (!currentUser) {
+        toast.error("User profile not found. Please refresh and try again.");
+        setLoading(false);
+        return;
+      }
+
+      console.log("👤 Current user:", currentUser);
+
+      const transactionData = {
+        memberId: currentUser.id,
+        memberName: currentUser.name || user.name || "User",
+        accountNumber: currentUser.accountNumber || "N/A",
         type: "deposit",
         amount: amount,
         date: new Date().toISOString().split("T")[0],
@@ -155,24 +183,57 @@ const Dashboard = () => {
         description: depositData.description || "Deposit request",
       };
 
+      console.log(
+        "📤 Sending transaction:",
+        JSON.stringify(transactionData, null, 2),
+      );
+
       const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transaction),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(transactionData),
       });
 
-      const data = await response.json();
+      console.log("📥 Response status:", response.status);
+
+      const responseText = await response.text();
+      console.log("📥 Raw response:", responseText);
+
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error("❌ Failed to parse JSON:", parseError);
+        toast.error(
+          "Server returned invalid response. Please check server logs.",
+        );
+        setLoading(false);
+        return;
+      }
+
+      console.log("📥 Parsed response:", data);
+
       if (response.ok) {
-        toast.success("✅ Deposit request submitted for approval!");
+        toast.success("✅ Deposit request submitted for admin approval!");
         setShowDepositModal(false);
         setDepositData({ amount: "", description: "" });
-        refreshData();
+        await refreshData();
+        toast.success("⏳ Your deposit is pending admin approval");
       } else {
-        toast.error(data.error || data.message || "Failed to submit deposit");
+        // Show the actual error message from the server
+        const errorMsg =
+          data.error || data.message || `Server error: ${response.status}`;
+        toast.error(`❌ ${errorMsg}`);
+        console.error("❌ Error response:", data);
       }
     } catch (error) {
-      console.error("Error submitting deposit:", error);
-      toast.error("Failed to submit deposit");
+      console.error("❌ Error submitting deposit:", error);
+      // Show the actual error message
+      const errorMsg = error.message || "Failed to submit deposit";
+      toast.error(`❌ ${errorMsg}`);
     } finally {
       setLoading(false);
     }
@@ -181,22 +242,35 @@ const Dashboard = () => {
   const handleWithdraw = async (e) => {
     e.preventDefault();
     const amount = parseFloat(withdrawData.amount);
+
     if (isNaN(amount) || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
     if (amount > balance) {
-      toast.error("Insufficient balance");
+      toast.error(
+        `Insufficient balance! Available: ${formatCurrency(balance)}`,
+      );
+      return;
+    }
+
+    if (!user?.id) {
+      toast.error("User not authenticated");
       return;
     }
 
     setLoading(true);
     try {
-      const transaction = {
-        memberId: user.id,
-        memberName: user.name || user.full_name || user.username,
-        accountNumber: user.accountNumber || user.membership_number || "N/A",
+      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileData = await profileResponse.json();
+      const currentUser = profileData.members?.find((m) => m.id === user?.id);
+
+      const transactionData = {
+        memberId: currentUser?.id || user.id,
+        memberName: currentUser?.name || user.name || "User",
+        accountNumber:
+          currentUser?.accountNumber || user.accountNumber || "N/A",
         type: "withdrawal",
         amount: amount,
         date: new Date().toISOString().split("T")[0],
@@ -204,26 +278,42 @@ const Dashboard = () => {
         description: withdrawData.description || "Withdrawal request",
       };
 
+      console.log("📤 Sending withdrawal:", transactionData);
+
       const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transaction),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(transactionData),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        toast.error("Server returned invalid response");
+        setLoading(false);
+        return;
+      }
+
       if (response.ok) {
-        toast.success("✅ Withdrawal request submitted for approval!");
+        toast.success("✅ Withdrawal request submitted for admin approval!");
         setShowWithdrawModal(false);
         setWithdrawData({ amount: "", description: "" });
-        refreshData();
+        await refreshData();
+        toast.success("⏳ Your withdrawal is pending admin approval");
       } else {
-        toast.error(
-          data.error || data.message || "Failed to submit withdrawal",
-        );
+        const errorMsg =
+          data.error || data.message || `Server error: ${response.status}`;
+        toast.error(`❌ ${errorMsg}`);
+        console.error("❌ Error response:", data);
       }
     } catch (error) {
-      console.error("Error submitting withdrawal:", error);
-      toast.error("Failed to submit withdrawal");
+      console.error("❌ Error submitting withdrawal:", error);
+      toast.error(`❌ ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -232,13 +322,16 @@ const Dashboard = () => {
   const handleTransfer = async (e) => {
     e.preventDefault();
     const amount = parseFloat(transferData.amount);
+
     if (isNaN(amount) || amount <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
 
     if (amount > balance) {
-      toast.error("Insufficient balance");
+      toast.error(
+        `Insufficient balance! Available: ${formatCurrency(balance)}`,
+      );
       return;
     }
 
@@ -255,15 +348,24 @@ const Dashboard = () => {
       return;
     }
 
+    if (!user?.id) {
+      toast.error("User not authenticated");
+      return;
+    }
+
     setLoading(true);
     try {
-      const transfer = {
-        fromMemberId: user.id,
+      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileData = await profileResponse.json();
+      const currentUser = profileData.members?.find((m) => m.id === user?.id);
+
+      const transferPayload = {
+        fromMemberId: currentUser?.id || user.id,
         toMemberId: toMember.id,
-        fromMemberName: user.name || user.full_name || user.username,
-        toMemberName: toMember.name || toMember.full_name,
+        fromMemberName: currentUser?.name || user.name || "User",
+        toMemberName: toMember.name || toMember.full_name || "Recipient",
         fromAccountNumber:
-          user.accountNumber || user.membership_number || "N/A",
+          currentUser?.accountNumber || user.accountNumber || "N/A",
         toAccountNumber:
           toMember.accountNumber || toMember.membership_number || "N/A",
         amount: amount,
@@ -273,24 +375,42 @@ const Dashboard = () => {
           `Transfer to ${toMember.name || toMember.full_name}`,
       };
 
+      console.log("📤 Sending transfer:", transferPayload);
+
       const response = await fetch(`${API_BASE_URL}/api/transfers.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(transfer),
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(transferPayload),
       });
 
-      const data = await response.json();
+      const responseText = await response.text();
+      let data;
+      try {
+        data = JSON.parse(responseText);
+      } catch (parseError) {
+        toast.error("Server returned invalid response");
+        setLoading(false);
+        return;
+      }
+
       if (response.ok) {
-        toast.success("✅ Transfer request submitted for approval!");
+        toast.success("✅ Transfer request submitted for admin approval!");
         setShowTransferModal(false);
         setTransferData({ toMemberId: "", amount: "", description: "" });
-        refreshData();
+        await refreshData();
+        toast.success("⏳ Your transfer is pending admin approval");
       } else {
-        toast.error(data.error || data.message || "Failed to submit transfer");
+        const errorMsg =
+          data.error || data.message || `Server error: ${response.status}`;
+        toast.error(`❌ ${errorMsg}`);
+        console.error("❌ Error response:", data);
       }
     } catch (error) {
-      console.error("Error submitting transfer:", error);
-      toast.error("Failed to submit transfer");
+      console.error("❌ Error submitting transfer:", error);
+      toast.error(`❌ ${error.message}`);
     } finally {
       setLoading(false);
     }
@@ -302,18 +422,30 @@ const Dashboard = () => {
     toast.success("Logged out successfully");
   };
 
-  const getStatusColor = (status) => {
+  const getStatusBadgeStyle = (status) => {
     switch (status) {
       case "approved":
       case "completed":
-        return "#34d399";
+        return {
+          backgroundColor: "rgba(16, 185, 129, 0.2)",
+          color: "#34d399",
+        };
       case "pending":
-        return "#fbbf24";
+        return {
+          backgroundColor: "rgba(234, 179, 8, 0.2)",
+          color: "#fbbf24",
+        };
       case "rejected":
       case "failed":
-        return "#f87171";
+        return {
+          backgroundColor: "rgba(239, 68, 68, 0.2)",
+          color: "#f87171",
+        };
       default:
-        return "#9ca3af";
+        return {
+          backgroundColor: "rgba(156, 163, 175, 0.2)",
+          color: "#9ca3af",
+        };
     }
   };
 
@@ -510,16 +642,6 @@ const Dashboard = () => {
               alignItems: "center",
               gap: "8px",
             }}
-            onMouseEnter={(e) => {
-              if (!refreshing) {
-                e.target.style.backgroundColor = "rgba(59, 130, 246, 0.25)";
-              }
-            }}
-            onMouseLeave={(e) => {
-              if (!refreshing) {
-                e.target.style.backgroundColor = "rgba(59, 130, 246, 0.15)";
-              }
-            }}
           >
             {refreshing ? (
               <>
@@ -541,12 +663,6 @@ const Dashboard = () => {
               fontSize: "14px",
               fontWeight: "500",
               transition: "all 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "rgba(239, 68, 68, 0.25)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
             }}
           >
             🚪 Logout
@@ -663,7 +779,7 @@ const Dashboard = () => {
                 backgroundColor: "rgba(234, 179, 8, 0.2)",
               }}
             >
-              <span style={{ fontSize: "24px" }}>👤</span>
+              <span style={{ fontSize: "24px" }}>⏳</span>
             </div>
             <div>
               <p
@@ -673,17 +789,17 @@ const Dashboard = () => {
                   margin: "0 0 4px 0",
                 }}
               >
-                Member
+                Pending
               </p>
               <p
                 style={{
                   fontSize: "22px",
                   fontWeight: "bold",
-                  color: "white",
+                  color: "#fbbf24",
                   margin: 0,
                 }}
               >
-                {displayName}
+                {pendingCount}
               </p>
             </div>
           </div>
@@ -848,12 +964,6 @@ const Dashboard = () => {
               fontWeight: "600",
               transition: "all 0.3s",
             }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "rgba(16, 185, 129, 0.25)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "rgba(16, 185, 129, 0.15)";
-            }}
           >
             👥 Manage Members
           </button>
@@ -871,14 +981,22 @@ const Dashboard = () => {
               fontWeight: "600",
               transition: "all 0.3s",
             }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "rgba(59, 130, 246, 0.25)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "rgba(59, 130, 246, 0.15)";
-            }}
           >
             ⏳ Pending Approvals
+            {pendingCount > 0 && (
+              <span
+                style={{
+                  marginLeft: "8px",
+                  backgroundColor: "#ef4444",
+                  color: "white",
+                  fontSize: "11px",
+                  padding: "2px 8px",
+                  borderRadius: "50%",
+                }}
+              >
+                {pendingCount}
+              </span>
+            )}
           </button>
 
           <button
@@ -893,12 +1011,6 @@ const Dashboard = () => {
               fontSize: "15px",
               fontWeight: "600",
               transition: "all 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "rgba(139, 92, 246, 0.25)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "rgba(139, 92, 246, 0.15)";
             }}
           >
             📊 View Reports
@@ -955,6 +1067,8 @@ const Dashboard = () => {
                 <div>
                   <div style={{ color: "white", fontSize: "14px" }}>
                     {t.type.charAt(0).toUpperCase() + t.type.slice(1)}
+                    {t.type === "transfer" &&
+                      ` to ${t.toMemberName || "Recipient"}`}
                   </div>
                   <div style={{ color: "#9ca3af", fontSize: "12px" }}>
                     {t.description || "No description"}
@@ -983,16 +1097,11 @@ const Dashboard = () => {
                       padding: "2px 10px",
                       borderRadius: "12px",
                       fontSize: "10px",
-                      backgroundColor:
-                        t.status === "approved" || t.status === "completed"
-                          ? "rgba(16, 185, 129, 0.2)"
-                          : t.status === "pending"
-                            ? "rgba(234, 179, 8, 0.2)"
-                            : "rgba(239, 68, 68, 0.2)",
-                      color: getStatusColor(t.status),
+                      ...getStatusBadgeStyle(t.status),
                     }}
                   >
                     {t.status}
+                    {t.status === "pending" && " ⏳"}
                   </span>
                 </div>
               </div>
@@ -1039,6 +1148,15 @@ const Dashboard = () => {
                   min="1"
                   step="0.01"
                 />
+                <div
+                  style={{
+                    color: "#9ca3af",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                  }}
+                >
+                  💡 This will be reviewed by an admin before approval
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Description</label>
@@ -1108,6 +1226,15 @@ const Dashboard = () => {
                   }}
                 >
                   Available balance: {formatCurrency(balance)}
+                </div>
+                <div
+                  style={{
+                    color: "#fbbf24",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                  }}
+                >
+                  ⏳ This will be reviewed by an admin before approval
                 </div>
               </div>
               <div className="form-group">
@@ -1200,6 +1327,15 @@ const Dashboard = () => {
                   }}
                 >
                   Available balance: {formatCurrency(balance)}
+                </div>
+                <div
+                  style={{
+                    color: "#fbbf24",
+                    fontSize: "12px",
+                    marginTop: "4px",
+                  }}
+                >
+                  ⏳ This will be reviewed by an admin before approval
                 </div>
               </div>
               <div className="form-group">
