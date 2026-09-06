@@ -16,6 +16,8 @@ const AdminReports = () => {
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
+  const [filteredTransactions, setFilteredTransactions] = useState([]);
+  const [filteredMembers, setFilteredMembers] = useState([]);
   const [reportData, setReportData] = useState({
     overview: {
       total_sales: 0,
@@ -37,6 +39,13 @@ const AdminReports = () => {
   useEffect(() => {
     fetchData();
   }, []);
+
+  // Apply filters whenever transactions, dateRange, or selectedReportType changes
+  useEffect(() => {
+    if (transactions.length > 0) {
+      applyFilters();
+    }
+  }, [transactions, dateRange, startDate, endDate, selectedReportType]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -81,35 +90,6 @@ const AdminReports = () => {
       // Calculate monthly data
       const monthlyData = calculateMonthlyData(transactionsList);
 
-      // Format members for display
-      const formattedMembers = membersList.map((m) => ({
-        id: m.id,
-        name: m.name || "Unknown",
-        email: m.email || "N/A",
-        joined: m.joinDate || m.join_date || "N/A",
-        contributions: transactionsList.filter(
-          (t) => t.memberId === m.id && t.status === "approved",
-        ).length,
-        total: transactionsList
-          .filter(
-            (t) =>
-              t.memberId === m.id &&
-              t.status === "approved" &&
-              (t.type === "deposit" || t.type === "transfer"),
-          )
-          .reduce((sum, t) => sum + t.amount, 0),
-      }));
-
-      // Format transactions for display
-      const formattedTransactions = transactionsList.slice(0, 50).map((t) => ({
-        id: t.id,
-        type: t.type || "unknown",
-        amount: t.amount || 0,
-        customer: t.memberName || "Unknown",
-        date: t.date || new Date().toISOString(),
-        status: t.status || "pending",
-      }));
-
       setReportData({
         overview: {
           total_sales: totalSales,
@@ -123,11 +103,12 @@ const AdminReports = () => {
           average_daily: transactionsList.length > 0 ? totalSales / 30 : 0,
         },
         monthly: monthlyData,
-        members: formattedMembers
-          .sort((a, b) => b.total - a.total)
-          .slice(0, 10),
-        transactions: formattedTransactions,
+        members: membersList,
+        transactions: transactionsList,
       });
+
+      // Initial filter application
+      applyFiltersWithData(transactionsList, membersList);
     } catch (error) {
       console.error("Error fetching report data:", error);
       toast.error("Failed to fetch report data");
@@ -136,7 +117,186 @@ const AdminReports = () => {
     }
   };
 
-  const calculateMonthlyData = (transactions) => {
+  const applyFilters = () => {
+    applyFiltersWithData(transactions, members);
+  };
+
+  const applyFiltersWithData = (transactionsList, membersList) => {
+    // Filter transactions by date range
+    let filtered = [...transactionsList];
+    const now = new Date();
+
+    console.log("Applying filters - Date Range:", dateRange);
+    console.log("Total transactions before filter:", filtered.length);
+
+    if (dateRange !== "custom") {
+      const start = new Date();
+      const end = new Date();
+
+      switch (dateRange) {
+        case "today":
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: Today -", start, "to", end);
+          break;
+        case "this_week":
+          // Get start of week (Monday)
+          const dayOfWeek = start.getDay();
+          const diff = start.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
+          start.setDate(diff);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: This Week -", start, "to", end);
+          break;
+        case "this_month":
+          start.setDate(1);
+          start.setHours(0, 0, 0, 0);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: This Month -", start, "to", end);
+          break;
+        case "last_month":
+          start.setMonth(now.getMonth() - 1);
+          start.setDate(1);
+          start.setHours(0, 0, 0, 0);
+          end.setMonth(now.getMonth());
+          end.setDate(0);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: Last Month -", start, "to", end);
+          break;
+        case "this_quarter":
+          const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
+          start.setMonth(quarterMonth);
+          start.setDate(1);
+          start.setHours(0, 0, 0, 0);
+          end.setMonth(quarterMonth + 3);
+          end.setDate(0);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: This Quarter -", start, "to", end);
+          break;
+        case "this_year":
+          start.setMonth(0);
+          start.setDate(1);
+          start.setHours(0, 0, 0, 0);
+          end.setMonth(11);
+          end.setDate(31);
+          end.setHours(23, 59, 59, 999);
+          console.log("Filter: This Year -", start, "to", end);
+          break;
+        default:
+          break;
+      }
+
+      filtered = filtered.filter((t) => {
+        if (!t.date) return false;
+        const transactionDate = new Date(t.date);
+        return transactionDate >= start && transactionDate <= end;
+      });
+    } else {
+      // Custom date range
+      let start = null;
+      let end = null;
+
+      if (startDate) {
+        start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+      }
+      if (endDate) {
+        end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+      }
+
+      filtered = filtered.filter((t) => {
+        if (!t.date) return false;
+        const transactionDate = new Date(t.date);
+        let valid = true;
+        if (start) valid = valid && transactionDate >= start;
+        if (end) valid = valid && transactionDate <= end;
+        return valid;
+      });
+    }
+
+    console.log("Transactions after date filter:", filtered.length);
+
+    // Filter by transaction type
+    if (selectedReportType !== "all") {
+      filtered = filtered.filter((t) => t.type === selectedReportType);
+      console.log("Transactions after type filter:", filtered.length);
+    }
+
+    // Store filtered transactions
+    setFilteredTransactions(filtered);
+
+    // Filter members based on filtered transactions
+    const memberIds = new Set(filtered.map((t) => t.memberId));
+    const filteredMembersList = membersList.filter(
+      (m) => memberIds.has(m.id) || filtered.length === 0,
+    );
+    setFilteredMembers(filteredMembersList);
+
+    // Update overview stats with filtered data
+    const totalDeposits = filtered
+      .filter((t) => t.type === "deposit" && t.status === "approved")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalWithdrawals = filtered
+      .filter((t) => t.type === "withdrawal" && t.status === "approved")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalTransfers = filtered
+      .filter((t) => t.type === "transfer" && t.status === "approved")
+      .reduce((sum, t) => sum + t.amount, 0);
+
+    const totalSales = totalDeposits + totalTransfers;
+
+    // Update overview stats
+    setReportData((prev) => ({
+      ...prev,
+      overview: {
+        ...prev.overview,
+        total_sales: totalSales,
+        total_deposits: totalDeposits,
+        total_withdrawals: totalWithdrawals,
+        total_transfers: totalTransfers,
+        pending_approvals: filtered.filter((t) => t.status === "pending")
+          .length,
+        average_daily: filtered.length > 0 ? totalSales / 30 : 0,
+      },
+    }));
+
+    // Update members list with filtered data
+    const formattedMembers = filteredMembersList.map((m) => ({
+      id: m.id,
+      name: m.name || "Unknown",
+      email: m.email || "N/A",
+      joined: m.joinDate || m.join_date || "N/A",
+      contributions: filtered.filter(
+        (t) => t.memberId === m.id && t.status === "approved",
+      ).length,
+      total: filtered
+        .filter(
+          (t) =>
+            t.memberId === m.id &&
+            t.status === "approved" &&
+            (t.type === "deposit" || t.type === "transfer"),
+        )
+        .reduce((sum, t) => sum + t.amount, 0),
+    }));
+
+    setReportData((prev) => ({
+      ...prev,
+      members: formattedMembers.sort((a, b) => b.total - a.total).slice(0, 10),
+      transactions: filtered.slice(0, 50).map((t) => ({
+        id: t.id,
+        type: t.type || "unknown",
+        amount: t.amount || 0,
+        customer: t.memberName || "Unknown",
+        date: t.date || new Date().toISOString(),
+        status: t.status || "pending",
+      })),
+    }));
+  };
+
+  const calculateMonthlyData = (transactionsList) => {
     const months = [
       "Jan",
       "Feb",
@@ -159,7 +319,11 @@ const AdminReports = () => {
       transfers: 0,
     }));
 
-    transactions.forEach((t) => {
+    // Use filtered transactions if available, otherwise use all
+    const dataToUse =
+      filteredTransactions.length > 0 ? filteredTransactions : transactionsList;
+
+    dataToUse.forEach((t) => {
       if (t.date && t.status === "approved") {
         const date = new Date(t.date);
         const monthIndex = date.getMonth();
@@ -241,6 +405,13 @@ const AdminReports = () => {
     }
   };
 
+  // Get current monthly data based on filters
+  const getCurrentMonthlyData = () => {
+    const dataToUse =
+      filteredTransactions.length > 0 ? filteredTransactions : transactions;
+    return calculateMonthlyData(dataToUse);
+  };
+
   if (loading) {
     return (
       <div
@@ -273,10 +444,8 @@ const AdminReports = () => {
     );
   }
 
-  const maxMonthlyValue = Math.max(
-    ...reportData.monthly.map((m) => m.sales),
-    1,
-  );
+  const monthlyData = getCurrentMonthlyData();
+  const maxMonthlyValue = Math.max(...monthlyData.map((m) => m.sales), 1);
 
   return (
     <div
@@ -491,6 +660,19 @@ const AdminReports = () => {
           gap: 8px;
           flex-wrap: wrap;
         }
+        .filter-label {
+          font-size: 13px;
+          color: #94a3b8;
+          margin-right: 4px;
+        }
+        .filter-indicator {
+          font-size: 12px;
+          color: #94a3b8;
+          padding: 4px 12px;
+          background: rgba(255,255,255,0.05);
+          border-radius: 6px;
+          border: 1px solid rgba(255,255,255,0.05);
+        }
         @media (max-width: 768px) {
           .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -584,19 +766,22 @@ const AdminReports = () => {
 
         {/* Filters */}
         <div className="filter-controls no-print">
-          <select
-            className="filter-select"
-            value={dateRange}
-            onChange={(e) => handleDateRangeChange(e.target.value)}
-          >
-            <option value="today">Today</option>
-            <option value="this_week">This Week</option>
-            <option value="this_month">This Month</option>
-            <option value="last_month">Last Month</option>
-            <option value="this_quarter">This Quarter</option>
-            <option value="this_year">This Year</option>
-            <option value="custom">Custom Range</option>
-          </select>
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span className="filter-label">Date:</span>
+            <select
+              className="filter-select"
+              value={dateRange}
+              onChange={(e) => handleDateRangeChange(e.target.value)}
+            >
+              <option value="today">Today</option>
+              <option value="this_week">This Week</option>
+              <option value="this_month">This Month</option>
+              <option value="last_month">Last Month</option>
+              <option value="this_quarter">This Quarter</option>
+              <option value="this_year">This Year</option>
+              <option value="custom">Custom Range</option>
+            </select>
+          </div>
           {dateRange === "custom" && (
             <>
               <input
@@ -605,6 +790,7 @@ const AdminReports = () => {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
+              <span style={{ color: "#94a3b8" }}>to</span>
               <input
                 type="date"
                 className="date-input"
@@ -613,16 +799,35 @@ const AdminReports = () => {
               />
             </>
           )}
-          <select
-            className="filter-select"
-            value={selectedReportType}
-            onChange={(e) => setSelectedReportType(e.target.value)}
+          <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+            <span className="filter-label">Type:</span>
+            <select
+              className="filter-select"
+              value={selectedReportType}
+              onChange={(e) => setSelectedReportType(e.target.value)}
+            >
+              <option value="all">All Transactions</option>
+              <option value="deposit">Deposits</option>
+              <option value="withdrawal">Withdrawals</option>
+              <option value="transfer">Transfers</option>
+            </select>
+          </div>
+          <button
+            className="btn-export"
+            onClick={() => {
+              setDateRange("this_month");
+              setSelectedReportType("all");
+              setStartDate("");
+              setEndDate("");
+              toast.success("Filters reset");
+            }}
+            style={{ background: "rgba(255,255,255,0.1)" }}
           >
-            <option value="all">All Transactions</option>
-            <option value="deposit">Deposits</option>
-            <option value="withdrawal">Withdrawals</option>
-            <option value="transfer">Transfers</option>
-          </select>
+            🔄 Reset Filters
+          </button>
+          <span className="filter-indicator">
+            Showing {reportData.transactions.length} transactions
+          </span>
         </div>
 
         {/* Stats Cards */}
@@ -789,17 +994,11 @@ const AdminReports = () => {
             <div className="report-card">
               <div className="report-card-title">📈 Monthly Performance</div>
               <div className="chart-bars">
-                {reportData.monthly.map((month) => {
+                {monthlyData.map((month) => {
                   const height =
                     maxMonthlyValue > 0
                       ? (month.sales / maxMonthlyValue) * 100
                       : 0;
-                  const colors = {
-                    sales: "#34d399",
-                    deposits: "#60a5fa",
-                    withdrawals: "#f87171",
-                    transfers: "#a78bfa",
-                  };
                   return (
                     <div key={month.month} className="chart-bar-wrapper">
                       <div className="chart-bar-value">
@@ -809,7 +1008,7 @@ const AdminReports = () => {
                         className="chart-bar"
                         style={{
                           height: `${Math.max(height, 8)}%`,
-                          background: `linear-gradient(to top, ${colors.sales}, ${colors.sales}dd)`,
+                          background: `linear-gradient(to top, #34d399, #34d399dd)`,
                         }}
                       />
                       <div className="chart-bar-label">{month.month}</div>
@@ -846,66 +1045,18 @@ const AdminReports = () => {
                   ></span>
                   Sales
                 </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "12px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "2px",
-                      background: "#60a5fa",
-                    }}
-                  ></span>
-                  Deposits
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "12px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "2px",
-                      background: "#f87171",
-                    }}
-                  ></span>
-                  Withdrawals
-                </div>
-                <div
-                  style={{
-                    display: "flex",
-                    alignItems: "center",
-                    gap: "6px",
-                    fontSize: "12px",
-                    color: "#94a3b8",
-                  }}
-                >
-                  <span
-                    style={{
-                      display: "inline-block",
-                      width: "12px",
-                      height: "12px",
-                      borderRadius: "2px",
-                      background: "#a78bfa",
-                    }}
-                  ></span>
-                  Transfers
-                </div>
+              </div>
+              <div
+                style={{
+                  marginTop: "12px",
+                  fontSize: "13px",
+                  color: "#94a3b8",
+                  textAlign: "center",
+                }}
+              >
+                Showing data for {dateRange.replace(/_/g, " ")}
+                {selectedReportType !== "all" &&
+                  ` (${selectedReportType}s only)`}
               </div>
             </div>
           </div>
@@ -956,7 +1107,7 @@ const AdminReports = () => {
                           colSpan="6"
                           style={{ textAlign: "center", color: "#94a3b8" }}
                         >
-                          No members found
+                          No members found for the selected filters
                         </td>
                       </tr>
                     )}
@@ -1018,7 +1169,7 @@ const AdminReports = () => {
                           colSpan="5"
                           style={{ textAlign: "center", color: "#94a3b8" }}
                         >
-                          No transactions found
+                          No transactions found for the selected filters
                         </td>
                       </tr>
                     )}

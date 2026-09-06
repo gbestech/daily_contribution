@@ -55,15 +55,6 @@ const AdminDashboard = () => {
     }).format(amount);
   };
 
-  // Format currency without ₦ symbol (for display in inputs)
-  const formatNumber = (amount) => {
-    if (!amount && amount !== 0) return "0";
-    return new Intl.NumberFormat("en-NG", {
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
-
   // Test API connection
   const testApiConnection = async () => {
     try {
@@ -85,10 +76,8 @@ const AdminDashboard = () => {
     setError(null);
     try {
       await fetchAllData();
-      toast.success("Data refreshed successfully!");
     } catch (error) {
       console.error("Error refreshing data:", error);
-      toast.error("Failed to refresh data");
     } finally {
       setLoading(false);
     }
@@ -311,10 +300,10 @@ const AdminDashboard = () => {
   ];
 
   const colorMap = {
-    emerald: "bg-green-500/20 text-green-400",
-    gold: "bg-yellow-500/20 text-yellow-400",
-    blue: "bg-blue-500/20 text-blue-400",
-    purple: "bg-purple-500/20 text-purple-400",
+    emerald: { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" },
+    gold: { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" },
+    blue: { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" },
+    purple: { bg: "rgba(139, 92, 246, 0.2)", color: "#a78bfa" },
   };
 
   const filteredMembers = members.filter(
@@ -578,6 +567,7 @@ const AdminDashboard = () => {
         );
         setTransactions(updatedTransactions);
         alert(`✅ Transaction approved successfully!`);
+        refreshData();
       } else {
         alert(data.message || "Failed to approve transaction");
       }
@@ -605,6 +595,7 @@ const AdminDashboard = () => {
         );
         setTransactions(updatedTransactions);
         alert(`❌ Transaction rejected!`);
+        refreshData();
       } else {
         alert(data.message || "Failed to reject transaction");
       }
@@ -641,6 +632,7 @@ const AdminDashboard = () => {
         setShowEditModal(false);
         setSelectedMember(null);
         alert("✅ Member updated successfully!");
+        refreshData();
       } else {
         alert(data.message || "Failed to update member");
       }
@@ -662,6 +654,7 @@ const AdminDashboard = () => {
         if (response.ok) {
           setMembers(members.filter((member) => member.id !== id));
           alert("✅ Member deleted successfully!");
+          refreshData();
         } else {
           const data = await response.json();
           alert(data.message || "Failed to delete member");
@@ -755,8 +748,234 @@ const AdminDashboard = () => {
         padding: "24px",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
+        overflow: "hidden",
       }}
     >
+      <style>{`
+        @keyframes spin {
+          to { transform: rotate(360deg); }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; transform: translateY(10px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(0,0,0,0.7);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 16px;
+        }
+        .modal-content {
+          background-color: #1e293b;
+          border-radius: 16px;
+          padding: 32px;
+          max-width: 500px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          border: 1px solid rgba(255,255,255,0.1);
+          animation: fadeIn 0.3s ease;
+        }
+        .modal-content::-webkit-scrollbar {
+          width: 6px;
+        }
+        .modal-content::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 3px;
+        }
+        .modal-content::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 3px;
+        }
+        .modal-content::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.3);
+        }
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 16px;
+        }
+        .modal-title {
+          font-size: 18px;
+          font-weight: bold;
+          color: white;
+        }
+        .modal-close {
+          background: none;
+          border: none;
+          color: #94a3b8;
+          cursor: pointer;
+          padding: 4px;
+          font-size: 24px;
+          transition: color 0.2s;
+        }
+        .modal-close:hover {
+          color: white;
+        }
+        .form-group {
+          margin-bottom: 16px;
+        }
+        .form-label {
+          display: block;
+          font-size: 14px;
+          font-weight: 500;
+          color: #d1d5db;
+          margin-bottom: 6px;
+        }
+        .form-input {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background-color: rgba(255,255,255,0.05);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.2s;
+          box-sizing: border-box;
+        }
+        .form-input:focus {
+          border-color: #10b981;
+        }
+        .form-input::placeholder {
+          color: #6b7280;
+        }
+        .form-select {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background-color: rgba(255,255,255,0.05);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.2s;
+          cursor: pointer;
+        }
+        .form-select:focus {
+          border-color: #10b981;
+        }
+        .form-select option {
+          background-color: #1e293b;
+          color: white;
+        }
+        .btn-submit {
+          width: 100%;
+          padding: 12px;
+          border-radius: 8px;
+          border: none;
+          background: linear-gradient(to right, #059669, #0d9488);
+          color: white;
+          font-size: 16px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-submit:hover {
+          opacity: 0.9;
+          transform: scale(1.01);
+        }
+        .btn-submit:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .btn-cancel {
+          width: 100%;
+          padding: 12px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: transparent;
+          color: white;
+          font-size: 16px;
+          cursor: pointer;
+          transition: all 0.2s;
+        }
+        .btn-cancel:hover {
+          background-color: rgba(255,255,255,0.05);
+        }
+        .modal-buttons {
+          display: flex;
+          gap: 12px;
+          margin-top: 16px;
+        }
+        .modal-buttons button {
+          flex: 1;
+        }
+        .refresh-spinner {
+          display: inline-block;
+          animation: spin 1s linear infinite;
+        }
+        .table-container {
+          overflow-x: auto;
+          max-height: 500px;
+          overflow-y: auto;
+        }
+        .table-container::-webkit-scrollbar {
+          width: 6px;
+          height: 6px;
+        }
+        .table-container::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.05);
+          border-radius: 3px;
+        }
+        .table-container::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.2);
+          border-radius: 3px;
+        }
+        .table-container::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.3);
+        }
+        table {
+          width: 100%;
+          border-collapse: collapse;
+          min-width: 700px;
+        }
+        th {
+          padding: 12px 20px;
+          text-align: left;
+          font-size: 12px;
+          font-weight: 600;
+          color: #9ca3af;
+          background-color: rgba(255, 255, 255, 0.08);
+          position: sticky;
+          top: 0;
+          z-index: 10;
+        }
+        td {
+          padding: 12px 20px;
+          border-top: 1px solid rgba(255, 255, 255, 0.05);
+        }
+        .stat-card {
+          background-color: rgba(255, 255, 255, 0.05);
+          backdrop-filter: blur(10px);
+          border-radius: 12px;
+          padding: 20px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          transition: all 0.3s;
+        }
+        .stat-card:hover {
+          transform: translateY(-2px);
+          border-color: rgba(255, 255, 255, 0.2);
+          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+        }
+        .action-button {
+          transition: all 0.2s;
+          cursor: pointer;
+        }
+        .action-button:hover {
+          transform: scale(1.05);
+        }
+        .search-input:focus {
+          border-color: #10b981 !important;
+        }
+      `}</style>
+
       {/* Header */}
       <div
         style={{
@@ -823,6 +1042,10 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
+              transition: "all 0.3s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "#2563eb";
             }}
           >
             💳 New Transaction
@@ -838,6 +1061,10 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
+              transition: "all 0.3s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "#7c3aed";
             }}
           >
             🔄 Transfer
@@ -853,6 +1080,10 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
+              transition: "all 0.3s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "#059669";
             }}
           >
             ➕ New Member
@@ -870,23 +1101,14 @@ const AdminDashboard = () => {
         }}
       >
         {stats.map((stat, index) => (
-          <div
-            key={index}
-            style={{
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              backdropFilter: "blur(10px)",
-              borderRadius: "12px",
-              padding: "20px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
-            }}
-          >
+          <div key={index} className="stat-card">
             <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
               <div
                 style={{
                   padding: "12px",
                   borderRadius: "12px",
-                  backgroundColor: colorMap[stat.color].split(" ")[0],
-                  color: colorMap[stat.color].split(" ")[1],
+                  backgroundColor: colorMap[stat.color].bg,
+                  color: colorMap[stat.color].color,
                 }}
               >
                 <span style={{ fontSize: "24px" }}>{stat.icon}</span>
@@ -944,6 +1166,7 @@ const AdminDashboard = () => {
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
+            transition: "all 0.3s",
           }}
         >
           👥 Members
@@ -964,6 +1187,7 @@ const AdminDashboard = () => {
             fontSize: "14px",
             fontWeight: "600",
             position: "relative",
+            transition: "all 0.3s",
           }}
         >
           ⏳ Pending Approvals
@@ -979,6 +1203,8 @@ const AdminDashboard = () => {
                 fontWeight: "bold",
                 padding: "2px 6px",
                 borderRadius: "50%",
+                minWidth: "18px",
+                textAlign: "center",
               }}
             >
               {pendingTransactions.length}
@@ -1000,6 +1226,7 @@ const AdminDashboard = () => {
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
+            transition: "all 0.3s",
           }}
         >
           📊 All Transactions
@@ -1020,6 +1247,7 @@ const AdminDashboard = () => {
           >
             <input
               type="text"
+              className="search-input"
               placeholder="🔍 Search by name, email, or account number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1032,6 +1260,13 @@ const AdminDashboard = () => {
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 outline: "none",
                 fontSize: "14px",
+                transition: "border-color 0.3s",
+              }}
+              onFocus={(e) => {
+                e.target.style.borderColor = "#10b981";
+              }}
+              onBlur={(e) => {
+                e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
               }}
             />
           </div>
@@ -1117,20 +1352,11 @@ const AdminDashboard = () => {
               overflow: "hidden",
             }}
           >
-            <div style={{ overflowX: "auto" }}>
-              <table style={{ width: "100%", borderCollapse: "collapse" }}>
-                <thead style={{ backgroundColor: "rgba(255, 255, 255, 0.08)" }}>
+            <div className="table-container">
+              <table>
+                <thead>
                   <tr>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                        width: "40px",
-                      }}
-                    >
+                    <th style={{ width: "40px" }}>
                       <input
                         type="checkbox"
                         checked={selectAll}
@@ -1143,83 +1369,12 @@ const AdminDashboard = () => {
                         }}
                       />
                     </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Account
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Member
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Contact
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Type
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Status
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Balance
-                    </th>
-                    <th
-                      style={{
-                        padding: "12px 20px",
-                        textAlign: "left",
-                        fontSize: "12px",
-                        fontWeight: "600",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      Actions
-                    </th>
+                    <th>Member</th>
+                    <th>Contact</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th>Balance</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1228,14 +1383,17 @@ const AdminDashboard = () => {
                       key={member.id}
                       style={{
                         borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+                        transition: "background-color 0.2s",
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor =
+                          "rgba(255,255,255,0.03)";
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = "transparent";
                       }}
                     >
-                      <td
-                        style={{
-                          padding: "12px 20px",
-                          textAlign: "center",
-                        }}
-                      >
+                      <td style={{ textAlign: "center" }}>
                         <input
                           type="checkbox"
                           checked={selectedMembers.includes(member.id)}
@@ -1248,16 +1406,7 @@ const AdminDashboard = () => {
                           }}
                         />
                       </td>
-                      <td
-                        style={{
-                          padding: "12px 20px",
-                          color: "#60a5fa",
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {member.accountNumber}
-                      </td>
-                      <td style={{ padding: "12px 20px" }}>
+                      <td>
                         <div style={{ display: "flex", alignItems: "center" }}>
                           <div
                             style={{
@@ -1270,6 +1419,7 @@ const AdminDashboard = () => {
                               justifyContent: "center",
                               color: "#34d399",
                               fontWeight: "bold",
+                              flexShrink: 0,
                             }}
                           >
                             {member.name?.charAt(0) || "U"}
@@ -1282,13 +1432,13 @@ const AdminDashboard = () => {
                           </div>
                         </div>
                       </td>
-                      <td style={{ padding: "12px 20px" }}>
+                      <td>
                         <div style={{ color: "#d1d5db" }}>{member.email}</div>
                         <div style={{ fontSize: "12px", color: "#9ca3af" }}>
                           {member.phone}
                         </div>
                       </td>
-                      <td style={{ padding: "12px 20px" }}>
+                      <td>
                         <span
                           style={{
                             padding: "4px 12px",
@@ -1311,7 +1461,7 @@ const AdminDashboard = () => {
                           {member.membershipType}
                         </span>
                       </td>
-                      <td style={{ padding: "12px 20px" }}>
+                      <td>
                         <span
                           style={{
                             padding: "4px 12px",
@@ -1332,45 +1482,50 @@ const AdminDashboard = () => {
                       </td>
                       <td
                         style={{
-                          padding: "12px 20px",
                           color: "#34d399",
                           fontWeight: "600",
                         }}
                       >
                         {formatCurrency(member.balance)}
                       </td>
-                      <td style={{ padding: "12px 20px" }}>
+                      <td>
                         <div style={{ display: "flex", gap: "6px" }}>
                           <button
                             onClick={() => handleViewMember(member)}
+                            className="action-button"
                             style={{
                               color: "#60a5fa",
                               background: "none",
                               border: "none",
-                              cursor: "pointer",
+                              fontSize: "16px",
                             }}
+                            title="View Member"
                           >
                             👁️
                           </button>
                           <button
                             onClick={() => handleEditMember(member)}
+                            className="action-button"
                             style={{
                               color: "#34d399",
                               background: "none",
                               border: "none",
-                              cursor: "pointer",
+                              fontSize: "16px",
                             }}
+                            title="Edit Member"
                           >
                             ✏️
                           </button>
                           <button
                             onClick={() => handleDeleteMember(member.id)}
+                            className="action-button"
                             style={{
                               color: "#f87171",
                               background: "none",
                               border: "none",
-                              cursor: "pointer",
+                              fontSize: "16px",
                             }}
+                            title="Delete Member"
                           >
                             🗑️
                           </button>
@@ -1405,94 +1560,38 @@ const AdminDashboard = () => {
               ⏳ Pending Approvals ({pendingTransactions.length})
             </h3>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ backgroundColor: "rgba(255, 255, 255, 0.08)" }}>
+          <div className="table-container">
+            <table>
+              <thead>
                 <tr>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    ID
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Member
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Type
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Amount
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Date
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Actions
-                  </th>
+                  <th>ID</th>
+                  <th>Member</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Date</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingTransactions.map((transaction) => (
                   <tr
                     key={transaction.id}
-                    style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}
+                    style={{
+                      borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        "rgba(255,255,255,0.03)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                   >
-                    <td
-                      style={{
-                        padding: "12px 20px",
-                        color: "#9ca3af",
-                        fontFamily: "monospace",
-                      }}
-                    >
+                    <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
                       #{transaction.id}
                     </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td>
                       <div style={{ color: "white" }}>
                         {transaction.memberName}
                       </div>
@@ -1506,7 +1605,7 @@ const AdminDashboard = () => {
                         {transaction.accountNumber}
                       </div>
                     </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td>
                       <span
                         style={{
                           padding: "4px 12px",
@@ -1515,29 +1614,25 @@ const AdminDashboard = () => {
                           backgroundColor:
                             transaction.type === "deposit"
                               ? "rgba(16, 185, 129, 0.2)"
-                              : "rgba(239, 68, 68, 0.2)",
+                              : transaction.type === "transfer"
+                                ? "rgba(139, 92, 246, 0.2)"
+                                : "rgba(239, 68, 68, 0.2)",
                           color:
                             transaction.type === "deposit"
                               ? "#34d399"
-                              : "#f87171",
+                              : transaction.type === "transfer"
+                                ? "#a78bfa"
+                                : "#f87171",
                         }}
                       >
                         {transaction.type.toUpperCase()}
                       </span>
                     </td>
-                    <td
-                      style={{
-                        padding: "12px 20px",
-                        color: "white",
-                        fontWeight: "600",
-                      }}
-                    >
+                    <td style={{ color: "white", fontWeight: "600" }}>
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ padding: "12px 20px", color: "#9ca3af" }}>
-                      {transaction.date}
-                    </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td style={{ color: "#9ca3af" }}>{transaction.date}</td>
+                    <td>
                       <div style={{ display: "flex", gap: "8px" }}>
                         <button
                           onClick={() =>
@@ -1550,6 +1645,11 @@ const AdminDashboard = () => {
                             border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
+                            transition: "all 0.2s",
+                            fontWeight: "500",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = "#059669";
                           }}
                         >
                           ✅ Approve
@@ -1565,6 +1665,11 @@ const AdminDashboard = () => {
                             border: "none",
                             borderRadius: "6px",
                             cursor: "pointer",
+                            transition: "all 0.2s",
+                            fontWeight: "500",
+                          }}
+                          onMouseEnter={(e) => {
+                            e.target.style.backgroundColor = "#dc2626";
                           }}
                         >
                           ❌ Reject
@@ -1599,94 +1704,38 @@ const AdminDashboard = () => {
               📊 All Transactions ({transactions.length})
             </h3>
           </div>
-          <div style={{ overflowX: "auto" }}>
-            <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead style={{ backgroundColor: "rgba(255, 255, 255, 0.08)" }}>
+          <div className="table-container">
+            <table>
+              <thead>
                 <tr>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    ID
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Member
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Type
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Amount
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Status
-                  </th>
-                  <th
-                    style={{
-                      padding: "12px 20px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      fontWeight: "600",
-                      color: "#9ca3af",
-                    }}
-                  >
-                    Date
-                  </th>
+                  <th>ID</th>
+                  <th>Member</th>
+                  <th>Type</th>
+                  <th>Amount</th>
+                  <th>Status</th>
+                  <th>Date</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((transaction) => (
                   <tr
                     key={transaction.id}
-                    style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}
+                    style={{
+                      borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+                      transition: "background-color 0.2s",
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor =
+                        "rgba(255,255,255,0.03)";
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = "transparent";
+                    }}
                   >
-                    <td
-                      style={{
-                        padding: "12px 20px",
-                        color: "#9ca3af",
-                        fontFamily: "monospace",
-                      }}
-                    >
+                    <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
                       #{transaction.id}
                     </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td>
                       <div style={{ color: "white" }}>
                         {transaction.memberName}
                       </div>
@@ -1700,7 +1749,7 @@ const AdminDashboard = () => {
                         {transaction.accountNumber}
                       </div>
                     </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td>
                       <span
                         style={{
                           padding: "4px 12px",
@@ -1709,26 +1758,24 @@ const AdminDashboard = () => {
                           backgroundColor:
                             transaction.type === "deposit"
                               ? "rgba(16, 185, 129, 0.2)"
-                              : "rgba(239, 68, 68, 0.2)",
+                              : transaction.type === "transfer"
+                                ? "rgba(139, 92, 246, 0.2)"
+                                : "rgba(239, 68, 68, 0.2)",
                           color:
                             transaction.type === "deposit"
                               ? "#34d399"
-                              : "#f87171",
+                              : transaction.type === "transfer"
+                                ? "#a78bfa"
+                                : "#f87171",
                         }}
                       >
                         {transaction.type.toUpperCase()}
                       </span>
                     </td>
-                    <td
-                      style={{
-                        padding: "12px 20px",
-                        color: "white",
-                        fontWeight: "600",
-                      }}
-                    >
+                    <td style={{ color: "white", fontWeight: "600" }}>
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ padding: "12px 20px" }}>
+                    <td>
                       <span
                         style={{
                           padding: "4px 12px",
@@ -1751,9 +1798,7 @@ const AdminDashboard = () => {
                         {transaction.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ padding: "12px 20px", color: "#9ca3af" }}>
-                      {transaction.date}
-                    </td>
+                    <td style={{ color: "#9ca3af" }}>{transaction.date}</td>
                   </tr>
                 ))}
               </tbody>
@@ -1762,133 +1807,62 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Modals */}
       {/* Create Member Modal */}
       {showCreateModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <h3 style={{ color: "white", margin: "0 0 24px 0" }}>
-              Create New Member
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">➕ Create New Member</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowCreateModal(false)}
+              >
+                ✕
+              </button>
+            </div>
             <form onSubmit={handleCreateMember}>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Full Name *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Full Name *</label>
                 <input
                   type="text"
+                  className="form-input"
                   required
                   value={newMember.name}
                   onChange={(e) =>
                     setNewMember({ ...newMember, name: e.target.value })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
+                  placeholder="Enter full name"
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Email *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Email *</label>
                 <input
                   type="email"
+                  className="form-input"
                   required
                   value={newMember.email}
                   onChange={(e) =>
                     setNewMember({ ...newMember, email: e.target.value })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
+                  placeholder="Enter email address"
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Phone
-                </label>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
                 <input
                   type="text"
+                  className="form-input"
                   value={newMember.phone}
                   onChange={(e) =>
                     setNewMember({ ...newMember, phone: e.target.value })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
+                  placeholder="Enter phone number"
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Membership Type
-                </label>
+              <div className="form-group">
+                <label className="form-label">Membership Type</label>
                 <select
+                  className="form-select"
                   value={newMember.membershipType}
                   onChange={(e) =>
                     setNewMember({
@@ -1896,82 +1870,34 @@ const AdminDashboard = () => {
                       membershipType: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="Standard">Standard</option>
                   <option value="Premium">Premium</option>
                   <option value="VIP">VIP</option>
                 </select>
               </div>
-              <div style={{ marginBottom: "24px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Initial Balance (₦)
-                </label>
+              <div className="form-group">
+                <label className="form-label">Initial Balance (₦)</label>
                 <input
                   type="number"
+                  className="form-input"
                   step="0.01"
                   value={newMember.balance}
                   onChange={(e) =>
                     setNewMember({ ...newMember, balance: e.target.value })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                   placeholder="0.00"
                 />
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="modal-buttons">
                 <button
                   type="button"
+                  className="btn-cancel"
                   onClick={() => setShowCreateModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "transparent",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                  }}
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#10b981",
-                    color: "white",
-                    cursor: "pointer",
-                    fontWeight: "600",
-                  }}
-                >
+                <button type="submit" className="btn-submit">
                   Create Member
                 </button>
               </div>
@@ -1982,48 +1908,23 @@ const AdminDashboard = () => {
 
       {/* Edit Member Modal */}
       {showEditModal && selectedMember && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <h3 style={{ color: "white", margin: "0 0 24px 0" }}>
-              Edit Member
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Member</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowEditModal(false)}
+              >
+                ✕
+              </button>
+            </div>
             <form onSubmit={handleUpdateMember}>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Full Name *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Full Name *</label>
                 <input
                   type="text"
+                  className="form-input"
                   required
                   value={selectedMember.name || ""}
                   onChange={(e) =>
@@ -2032,29 +1933,13 @@ const AdminDashboard = () => {
                       name: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Email *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Email *</label>
                 <input
                   type="email"
+                  className="form-input"
                   required
                   value={selectedMember.email || ""}
                   onChange={(e) =>
@@ -2063,29 +1948,13 @@ const AdminDashboard = () => {
                       email: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Phone
-                </label>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
                 <input
                   type="text"
+                  className="form-input"
                   value={selectedMember.phone || ""}
                   onChange={(e) =>
                     setSelectedMember({
@@ -2093,28 +1962,12 @@ const AdminDashboard = () => {
                       phone: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 />
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Status
-                </label>
+              <div className="form-group">
+                <label className="form-label">Status</label>
                 <select
+                  className="form-select"
                   value={selectedMember.status || "Active"}
                   onChange={(e) =>
                     setSelectedMember({
@@ -2122,32 +1975,17 @@ const AdminDashboard = () => {
                       status: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="Active">Active</option>
                   <option value="Inactive">Inactive</option>
+                  <option value="Suspended">Suspended</option>
                 </select>
               </div>
-              <div style={{ marginBottom: "24px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Balance (₦)
-                </label>
+              <div className="form-group">
+                <label className="form-label">Balance (₦)</label>
                 <input
                   type="number"
+                  className="form-input"
                   step="0.01"
                   value={selectedMember.balance || 0}
                   onChange={(e) =>
@@ -2156,47 +1994,21 @@ const AdminDashboard = () => {
                       balance: parseFloat(e.target.value),
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 />
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="modal-buttons">
                 <button
                   type="button"
+                  className="btn-cancel"
                   onClick={() => setShowEditModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "transparent",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  className="btn-submit"
                   style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    cursor: "pointer",
-                    fontWeight: "600",
+                    background: "linear-gradient(to right, #3b82f6, #2563eb)",
                   }}
                 >
                   Update Member
@@ -2207,60 +2019,167 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* View Member Modal */}
+      {/* View Member Modal - Account number visible here */}
       {showViewModal && selectedMember && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-            }}
-          >
-            <h3 style={{ color: "white", margin: "0 0 24px 0" }}>
-              Member Details
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">👤 Member Details</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowViewModal(false)}
+              >
+                ✕
+              </button>
+            </div>
             <div style={{ color: "#d1d5db" }}>
-              <p>
-                <strong>Name:</strong> {selectedMember.name}
-              </p>
-              <p>
-                <strong>Email:</strong> {selectedMember.email}
-              </p>
-              <p>
-                <strong>Phone:</strong> {selectedMember.phone}
-              </p>
-              <p>
-                <strong>Account:</strong> {selectedMember.accountNumber}
-              </p>
-              <p>
-                <strong>Type:</strong> {selectedMember.membershipType}
-              </p>
-              <p>
-                <strong>Status:</strong> {selectedMember.status}
-              </p>
-              <p>
-                <strong>Balance:</strong>{" "}
-                {formatCurrency(selectedMember.balance)}
-              </p>
-              <p>
-                <strong>Joined:</strong> {selectedMember.joinDate}
-              </p>
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "16px",
+                  marginBottom: "20px",
+                }}
+              >
+                <div
+                  style={{
+                    height: "60px",
+                    width: "60px",
+                    borderRadius: "50%",
+                    backgroundColor: "rgba(16, 185, 129, 0.2)",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    color: "#34d399",
+                    fontSize: "24px",
+                    fontWeight: "bold",
+                  }}
+                >
+                  {selectedMember.name?.charAt(0) || "U"}
+                </div>
+                <div>
+                  <h3 style={{ color: "white", margin: 0 }}>
+                    {selectedMember.name}
+                  </h3>
+                  <span
+                    style={{
+                      padding: "4px 12px",
+                      fontSize: "12px",
+                      borderRadius: "20px",
+                      backgroundColor:
+                        selectedMember.status === "Active"
+                          ? "rgba(16, 185, 129, 0.2)"
+                          : "rgba(239, 68, 68, 0.2)",
+                      color:
+                        selectedMember.status === "Active"
+                          ? "#34d399"
+                          : "#f87171",
+                    }}
+                  >
+                    {selectedMember.status}
+                  </span>
+                </div>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "12px",
+                }}
+              >
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Account Number
+                  </p>
+                  <p
+                    style={{
+                      color: "#60a5fa",
+                      fontFamily: "monospace",
+                      margin: 0,
+                    }}
+                  >
+                    {selectedMember.accountNumber}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Membership Type
+                  </p>
+                  <p style={{ color: "white", margin: 0 }}>
+                    {selectedMember.membershipType}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Email
+                  </p>
+                  <p style={{ color: "white", margin: 0 }}>
+                    {selectedMember.email}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Phone
+                  </p>
+                  <p style={{ color: "white", margin: 0 }}>
+                    {selectedMember.phone || "N/A"}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Balance
+                  </p>
+                  <p
+                    style={{ color: "#34d399", fontWeight: "bold", margin: 0 }}
+                  >
+                    {formatCurrency(selectedMember.balance)}
+                  </p>
+                </div>
+                <div>
+                  <p
+                    style={{
+                      color: "#9ca3af",
+                      fontSize: "12px",
+                      margin: "0 0 2px 0",
+                    }}
+                  >
+                    Joined
+                  </p>
+                  <p style={{ color: "white", margin: 0 }}>
+                    {selectedMember.joinDate}
+                  </p>
+                </div>
+              </div>
             </div>
             <div
               style={{
@@ -2272,13 +2191,17 @@ const AdminDashboard = () => {
               <button
                 onClick={() => setShowViewModal(false)}
                 style={{
-                  padding: "10px 20px",
+                  padding: "10px 24px",
                   borderRadius: "8px",
                   border: "none",
                   backgroundColor: "#3b82f6",
                   color: "white",
                   cursor: "pointer",
                   fontWeight: "600",
+                  transition: "all 0.2s",
+                }}
+                onMouseEnter={(e) => {
+                  e.target.style.backgroundColor = "#2563eb";
                 }}
               >
                 Close
@@ -2290,45 +2213,22 @@ const AdminDashboard = () => {
 
       {/* Transaction Modal */}
       {showTransactionModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-            }}
-          >
-            <h3 style={{ color: "white", margin: "0 0 24px 0" }}>
-              New Transaction
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">💳 New Transaction</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowTransactionModal(false)}
+              >
+                ✕
+              </button>
+            </div>
             <form onSubmit={handleTransaction}>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Member *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Member *</label>
                 <select
+                  className="form-select"
                   required
                   value={transactionData.memberId}
                   onChange={(e) =>
@@ -2337,40 +2237,19 @@ const AdminDashboard = () => {
                       memberId: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="">Select Member</option>
                   {members.map((member) => (
-                    <option
-                      key={member.id}
-                      value={member.id}
-                      style={{ backgroundColor: "#1e293b", color: "white" }}
-                    >
-                      {member.name} - {member.accountNumber} (
-                      {formatCurrency(member.balance)})
+                    <option key={member.id} value={member.id}>
+                      {member.name} - {formatCurrency(member.balance)}
                     </option>
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Type *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Type *</label>
                 <select
+                  className="form-select"
                   required
                   value={transactionData.type}
                   onChange={(e) =>
@@ -2379,32 +2258,16 @@ const AdminDashboard = () => {
                       type: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="deposit">Deposit</option>
                   <option value="withdrawal">Withdrawal</option>
                 </select>
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Amount (₦) *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Amount (₦) *</label>
                 <input
                   type="number"
+                  className="form-input"
                   required
                   step="0.01"
                   min="1"
@@ -2415,29 +2278,13 @@ const AdminDashboard = () => {
                       amount: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                   placeholder="0.00"
                 />
               </div>
-              <div style={{ marginBottom: "24px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Description
-                </label>
+              <div className="form-group">
+                <label className="form-label">Description</label>
                 <textarea
+                  className="form-input"
                   value={transactionData.description}
                   onChange={(e) =>
                     setTransactionData({
@@ -2445,48 +2292,23 @@ const AdminDashboard = () => {
                       description: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                    minHeight: "80px",
-                  }}
+                  placeholder="Enter description"
+                  style={{ minHeight: "80px", resize: "vertical" }}
                 />
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="modal-buttons">
                 <button
                   type="button"
+                  className="btn-cancel"
                   onClick={() => setShowTransactionModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "transparent",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  className="btn-submit"
                   style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    cursor: "pointer",
-                    fontWeight: "600",
+                    background: "linear-gradient(to right, #3b82f6, #2563eb)",
                   }}
                 >
                   Submit Transaction
@@ -2499,45 +2321,22 @@ const AdminDashboard = () => {
 
       {/* Transfer Modal */}
       {showTransferModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0, 0, 0, 0.7)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "16px",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "90%",
-            }}
-          >
-            <h3 style={{ color: "white", margin: "0 0 24px 0" }}>
-              Transfer Funds
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">🔄 Transfer Funds</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowTransferModal(false)}
+              >
+                ✕
+              </button>
+            </div>
             <form onSubmit={handleTransfer}>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  From Member *
-                </label>
+              <div className="form-group">
+                <label className="form-label">From Member *</label>
                 <select
+                  className="form-select"
                   required
                   value={transferData.fromMemberId}
                   onChange={(e) =>
@@ -2546,39 +2345,19 @@ const AdminDashboard = () => {
                       fromMemberId: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="">Select Member</option>
                   {members.map((member) => (
-                    <option
-                      key={member.id}
-                      value={member.id}
-                      style={{ backgroundColor: "#1e293b", color: "white" }}
-                    >
+                    <option key={member.id} value={member.id}>
                       {member.name} - {formatCurrency(member.balance)}
                     </option>
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  To Member *
-                </label>
+              <div className="form-group">
+                <label className="form-label">To Member *</label>
                 <select
+                  className="form-select"
                   required
                   value={transferData.toMemberId}
                   onChange={(e) =>
@@ -2587,40 +2366,20 @@ const AdminDashboard = () => {
                       toMemberId: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                 >
                   <option value="">Select Member</option>
                   {members.map((member) => (
-                    <option
-                      key={member.id}
-                      value={member.id}
-                      style={{ backgroundColor: "#1e293b", color: "white" }}
-                    >
+                    <option key={member.id} value={member.id}>
                       {member.name}
                     </option>
                   ))}
                 </select>
               </div>
-              <div style={{ marginBottom: "16px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Amount (₦) *
-                </label>
+              <div className="form-group">
+                <label className="form-label">Amount (₦) *</label>
                 <input
                   type="number"
+                  className="form-input"
                   required
                   step="0.01"
                   min="1"
@@ -2628,29 +2387,13 @@ const AdminDashboard = () => {
                   onChange={(e) =>
                     setTransferData({ ...transferData, amount: e.target.value })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                  }}
                   placeholder="0.00"
                 />
               </div>
-              <div style={{ marginBottom: "24px" }}>
-                <label
-                  style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    display: "block",
-                    marginBottom: "6px",
-                  }}
-                >
-                  Description
-                </label>
+              <div className="form-group">
+                <label className="form-label">Description</label>
                 <textarea
+                  className="form-input"
                   value={transferData.description}
                   onChange={(e) =>
                     setTransferData({
@@ -2658,48 +2401,23 @@ const AdminDashboard = () => {
                       description: e.target.value,
                     })
                   }
-                  style={{
-                    width: "100%",
-                    padding: "10px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "rgba(255,255,255,0.05)",
-                    color: "white",
-                    minHeight: "80px",
-                  }}
+                  placeholder="Enter description"
+                  style={{ minHeight: "80px", resize: "vertical" }}
                 />
               </div>
-              <div
-                style={{
-                  display: "flex",
-                  gap: "12px",
-                  justifyContent: "flex-end",
-                }}
-              >
+              <div className="modal-buttons">
                 <button
                   type="button"
+                  className="btn-cancel"
                   onClick={() => setShowTransferModal(false)}
-                  style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    backgroundColor: "transparent",
-                    color: "#9ca3af",
-                    cursor: "pointer",
-                  }}
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
+                  className="btn-submit"
                   style={{
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    backgroundColor: "#8b5cf6",
-                    color: "white",
-                    cursor: "pointer",
-                    fontWeight: "600",
+                    background: "linear-gradient(to right, #8b5cf6, #7c3aed)",
                   }}
                 >
                   Submit Transfer
