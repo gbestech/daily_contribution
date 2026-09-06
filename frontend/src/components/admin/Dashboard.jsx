@@ -913,7 +913,7 @@ const AdminDashboard = () => {
         }
         .table-container {
           overflow-x: auto;
-          max-height: 500px;
+          max-height: 550px;
           overflow-y: auto;
         }
         .table-container::-webkit-scrollbar {
@@ -934,10 +934,10 @@ const AdminDashboard = () => {
         table {
           width: 100%;
           border-collapse: collapse;
-          min-width: 700px;
+          table-layout: fixed;
         }
         th {
-          padding: 12px 20px;
+          padding: 14px 16px;
           text-align: left;
           font-size: 12px;
           font-weight: 600;
@@ -946,9 +946,10 @@ const AdminDashboard = () => {
           position: sticky;
           top: 0;
           z-index: 10;
+          white-space: nowrap;
         }
         td {
-          padding: 12px 20px;
+          padding: 14px 16px;
           border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
         .stat-card {
@@ -967,13 +968,78 @@ const AdminDashboard = () => {
         .action-button {
           transition: all 0.2s;
           cursor: pointer;
+          padding: 4px 6px;
+          border-radius: 4px;
         }
         .action-button:hover {
-          transform: scale(1.05);
+          transform: scale(1.1);
+          background: rgba(255,255,255,0.05);
         }
         .search-input:focus {
           border-color: #10b981 !important;
         }
+        .member-name {
+          font-weight: 500;
+          color: white;
+          font-size: 14px;
+        }
+        .member-email {
+          color: #d1d5db;
+          font-size: 13px;
+        }
+        .member-phone {
+          color: #9ca3af;
+          font-size: 12px;
+        }
+        .badge {
+          padding: 4px 12px;
+          font-size: 12px;
+          border-radius: 20px;
+          font-weight: 500;
+          display: inline-block;
+          white-space: nowrap;
+        }
+        .badge-active {
+          background-color: rgba(16, 185, 129, 0.2);
+          color: #34d399;
+        }
+        .badge-inactive {
+          background-color: rgba(239, 68, 68, 0.2);
+          color: #f87171;
+        }
+        .badge-suspended {
+          background-color: rgba(234, 179, 8, 0.2);
+          color: #fbbf24;
+        }
+        .badge-standard {
+          background-color: rgba(59, 130, 246, 0.2);
+          color: #60a5fa;
+        }
+        .badge-premium {
+          background-color: rgba(234, 179, 8, 0.2);
+          color: #fbbf24;
+        }
+        .badge-vip {
+          background-color: rgba(168, 85, 247, 0.2);
+          color: #a78bfa;
+        }
+        .balance-amount {
+          color: #34d399;
+          font-weight: 600;
+          font-size: 15px;
+        }
+        .actions-cell {
+          display: flex;
+          gap: 4px;
+          align-items: center;
+        }
+        .col-checkbox { width: 5%; }
+        .col-member { width: 20%; }
+        .col-contact { width: 20%; }
+        .col-type { width: 12%; }
+        .col-status { width: 12%; }
+        .col-balance { width: 15%; text-align: right; }
+        .col-actions { width: 16%; }
       `}</style>
 
       {/* Header */}
@@ -1255,11 +1321,11 @@ const AdminDashboard = () => {
                 width: "100%",
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
                 color: "white",
-                padding: "10px 16px",
+                padding: "12px 18px",
                 borderRadius: "8px",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 outline: "none",
-                fontSize: "14px",
+                fontSize: "15px",
                 transition: "border-color 0.3s",
               }}
               onFocus={(e) => {
@@ -1356,7 +1422,7 @@ const AdminDashboard = () => {
               <table>
                 <thead>
                   <tr>
-                    <th style={{ width: "40px" }}>
+                    <th className="col-checkbox">
                       <input
                         type="checkbox"
                         checked={selectAll}
@@ -1369,12 +1435,12 @@ const AdminDashboard = () => {
                         }}
                       />
                     </th>
-                    <th>Member</th>
-                    <th>Contact</th>
-                    <th>Type</th>
-                    <th>Status</th>
-                    <th>Balance</th>
-                    <th>Actions</th>
+                    <th className="col-member">Member</th>
+                    <th className="col-contact">Contact</th>
+                    <th className="col-type">Type</th>
+                    <th className="col-status">Status</th>
+                    <th className="col-balance">Balance</th>
+                    <th className="col-actions">Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1407,89 +1473,63 @@ const AdminDashboard = () => {
                         />
                       </td>
                       <td>
-                        <div style={{ display: "flex", alignItems: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
+                          }}
+                        >
                           <div
                             style={{
-                              height: "40px",
-                              width: "40px",
+                              height: "44px",
+                              width: "44px",
                               borderRadius: "50%",
                               backgroundColor: "rgba(16, 185, 129, 0.2)",
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
                               color: "#34d399",
+                              fontSize: "18px",
                               fontWeight: "bold",
                               flexShrink: 0,
                             }}
                           >
                             {member.name?.charAt(0) || "U"}
                           </div>
-                          <div style={{ marginLeft: "12px" }}>
-                            <div style={{ color: "white" }}>{member.name}</div>
-                            <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                              Joined: {member.joinDate}
-                            </div>
+                          <div>
+                            <div className="member-name">{member.name}</div>
                           </div>
                         </div>
                       </td>
                       <td>
-                        <div style={{ color: "#d1d5db" }}>{member.email}</div>
-                        <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                          {member.phone}
+                        <div className="member-email">{member.email}</div>
+                        <div className="member-phone">
+                          {member.phone || "No phone"}
                         </div>
                       </td>
                       <td>
                         <span
-                          style={{
-                            padding: "4px 12px",
-                            fontSize: "12px",
-                            borderRadius: "20px",
-                            backgroundColor:
-                              member.membershipType === "Premium"
-                                ? "rgba(234, 179, 8, 0.2)"
-                                : member.membershipType === "VIP"
-                                  ? "rgba(168, 85, 247, 0.2)"
-                                  : "rgba(59, 130, 246, 0.2)",
-                            color:
-                              member.membershipType === "Premium"
-                                ? "#fbbf24"
-                                : member.membershipType === "VIP"
-                                  ? "#a78bfa"
-                                  : "#60a5fa",
-                          }}
+                          className={`badge badge-${member.membershipType?.toLowerCase() || "standard"}`}
                         >
                           {member.membershipType}
                         </span>
                       </td>
                       <td>
                         <span
-                          style={{
-                            padding: "4px 12px",
-                            fontSize: "12px",
-                            borderRadius: "20px",
-                            backgroundColor:
-                              member.status === "Active"
-                                ? "rgba(16, 185, 129, 0.2)"
-                                : "rgba(239, 68, 68, 0.2)",
-                            color:
-                              member.status === "Active"
-                                ? "#34d399"
-                                : "#f87171",
-                          }}
+                          className={`badge badge-${member.status?.toLowerCase() || "active"}`}
                         >
                           {member.status}
                         </span>
                       </td>
                       <td
-                        style={{
-                          color: "#34d399",
-                          fontWeight: "600",
-                        }}
+                        className="balance-amount"
+                        style={{ textAlign: "right" }}
                       >
                         {formatCurrency(member.balance)}
                       </td>
                       <td>
-                        <div style={{ display: "flex", gap: "6px" }}>
+                        <div className="actions-cell">
                           <button
                             onClick={() => handleViewMember(member)}
                             className="action-button"
@@ -1497,7 +1537,7 @@ const AdminDashboard = () => {
                               color: "#60a5fa",
                               background: "none",
                               border: "none",
-                              fontSize: "16px",
+                              fontSize: "18px",
                             }}
                             title="View Member"
                           >
@@ -1510,7 +1550,7 @@ const AdminDashboard = () => {
                               color: "#34d399",
                               background: "none",
                               border: "none",
-                              fontSize: "16px",
+                              fontSize: "18px",
                             }}
                             title="Edit Member"
                           >
@@ -1523,7 +1563,7 @@ const AdminDashboard = () => {
                               color: "#f87171",
                               background: "none",
                               border: "none",
-                              fontSize: "16px",
+                              fontSize: "18px",
                             }}
                             title="Delete Member"
                           >
@@ -2019,7 +2059,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* View Member Modal - Account number visible here */}
+      {/* View Member Modal */}
       {showViewModal && selectedMember && (
         <div className="modal-overlay">
           <div className="modal-content">
