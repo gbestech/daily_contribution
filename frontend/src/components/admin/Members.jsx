@@ -7,17 +7,25 @@ const API_BASE_URL = "http://localhost:8000";
 const AdminMembers = () => {
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
-  const [commissionData, setCommissionData] = useState({});
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
+  const [editPassword, setEditPassword] = useState("");
+  const [showRoleModal, setShowRoleModal] = useState(false);
+  const [roleAssignment, setRoleAssignment] = useState({
+    memberId: "",
+    role: "member",
+  });
   const [newMember, setNewMember] = useState({
-    full_name: "",
+    firstName: "",
+    lastName: "",
     email: "",
     phone: "",
     password: "",
+    role: "member",
+    status: "Active",
     initial_balance: "",
   });
   const [selectedMemberTransactions, setSelectedMemberTransactions] =
@@ -32,62 +40,61 @@ const AdminMembers = () => {
     description: "",
     status: "pending",
   });
-  const [transactionHistoryTab, setTransactionHistoryTab] =
-    useState("transactions");
 
-  // Phone number validation function - exactly 11 digits starting with 0
-  const validatePhoneNumber = (phone) => {
-    if (!phone) return false;
-    const cleanPhone = phone.replace(/\D/g, "");
-    if (cleanPhone.length !== 11) return false;
-    if (!cleanPhone.startsWith("0")) return false;
-    const validPrefixes = ["080", "081", "070", "090", "091"];
-    const firstThree = cleanPhone.substring(0, 3);
-    if (!validPrefixes.includes(firstThree)) return false;
-    return true;
+  // Generate account number
+  const generateAccountNumber = () => {
+    const prefix = "10";
+    const randomDigits = Math.floor(Math.random() * 100000000)
+      .toString()
+      .padStart(8, "0");
+    return prefix + randomDigits;
   };
 
-  const formatPhoneNumber = (phone) => {
-    if (!phone) return "N/A";
-    const clean = phone.replace(/\D/g, "");
-    if (clean.length === 11 && clean.startsWith("0")) {
-      return `${clean.substring(0, 4)} ${clean.substring(4, 7)} ${clean.substring(7)}`;
+  // Generate random number for email
+  const generateRandomNumber = () => {
+    return Math.floor(Math.random() * 90000) + 10000;
+  };
+
+  // Validate phone number
+  const validatePhone = (phone) => {
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length !== 11) {
+      return {
+        valid: false,
+        message: "Phone number must be exactly 11 digits",
+      };
     }
-    return phone;
-  };
-
-  const generateEmailFromName = (fullName) => {
-    if (!fullName || fullName.trim() === "") return "";
-    const name = fullName.trim();
-    const nameParts = name.split(/\s+/);
-    const firstName = nameParts[0].toLowerCase();
-    const lastName =
-      nameParts.length > 1 ? nameParts[nameParts.length - 1].toLowerCase() : "";
-    let email = firstName;
-    if (lastName && lastName !== firstName) {
-      email = `${firstName}.${lastName}`;
+    if (!cleaned.startsWith("0")) {
+      return {
+        valid: false,
+        message: "Phone number must start with 0 (e.g., 080XXXXXXXX)",
+      };
     }
-    return `${email}@osittech.com`;
+    return { valid: true, cleaned };
   };
 
-  const isPhoneNumberExists = (phone, excludeId = null) => {
-    if (!phone) return false;
-    const cleanPhone = phone.replace(/\D/g, "");
-    return members.some((m) => {
-      const memberPhone = m.phone ? m.phone.replace(/\D/g, "") : "";
-      return memberPhone === cleanPhone && m.id !== excludeId;
+  // Check if phone number is unique
+  const isPhoneUnique = (phone, excludeMemberId = null) => {
+    const cleanedPhone = phone.replace(/\D/g, "");
+    return !members.some((member) => {
+      const memberPhone = (member.phone || "").replace(/\D/g, "");
+      return memberPhone === cleanedPhone && member.id !== excludeMemberId;
     });
   };
 
-  const handleFullNameChange = (e) => {
-    const fullName = e.target.value;
-    setNewMember({
-      ...newMember,
-      full_name: fullName,
-      email: generateEmailFromName(fullName),
-    });
-  };
+  // Auto-generate email when first name changes
+  useEffect(() => {
+    const firstName = newMember.firstName.trim().toLowerCase();
+    if (firstName) {
+      const randomNum = generateRandomNumber();
+      const email = `${firstName}${randomNum}@gmail.com`;
+      setNewMember((prev) => ({ ...prev, email }));
+    } else {
+      setNewMember((prev) => ({ ...prev, email: "" }));
+    }
+  }, [newMember.firstName]);
 
+  // Fetch members from API
   useEffect(() => {
     fetchMembers();
     fetchTransactions();
@@ -111,15 +118,9 @@ const AdminMembers = () => {
           balance: member.balance || 0,
           status: member.status?.toLowerCase() || "active",
           join_date: member.joinDate || new Date().toISOString().split("T")[0],
-          password: member.password || "",
-          commission_rate: member.commission_rate || 5,
-          total_commission: member.total_commission || 0,
+          role: member.role || "member",
         }));
         setMembers(formattedMembers);
-        // Fetch commission for each member
-        formattedMembers.forEach((member) => {
-          fetchMemberCommission(member.id);
-        });
       } else {
         setMembers([]);
       }
@@ -146,7 +147,6 @@ const AdminMembers = () => {
           amount: transaction.amount,
           status: transaction.status,
           description: transaction.description || "",
-          commission: transaction.commission || 0,
           created_at: transaction.date || new Date().toISOString(),
         }));
         setTransactions(formattedTransactions);
@@ -159,31 +159,7 @@ const AdminMembers = () => {
     }
   };
 
-  const fetchMemberCommission = async (memberId) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/member-commission.php?member_id=${memberId}`,
-      );
-      const data = await response.json();
-      setCommissionData((prev) => ({
-        ...prev,
-        [memberId]: data,
-      }));
-    } catch (error) {
-      console.error("Error fetching commission:", error);
-      // Set default commission data on error
-      setCommissionData((prev) => ({
-        ...prev,
-        [memberId]: {
-          total: 0,
-          monthly: 0,
-          pending: 0,
-          history: [],
-        },
-      }));
-    }
-  };
-
+  // Get member transactions
   const getMemberTransactions = (memberId) => {
     const allTransactions = transactions.filter(
       (t) => t.member_id === memberId,
@@ -194,185 +170,161 @@ const AdminMembers = () => {
     );
   };
 
-  const getMemberCommissionHistory = (memberId) => {
-    const memberCommData = commissionData[memberId];
-    if (!memberCommData) return [];
-    return memberCommData.history || [];
-  };
-
-  const getMemberTotalCommission = (memberId) => {
-    const memberCommData = commissionData[memberId];
-    if (!memberCommData) return 0;
-    return memberCommData.total || 0;
-  };
-
-  const getMemberMonthlyCommission = (memberId) => {
-    const memberCommData = commissionData[memberId];
-    if (!memberCommData) return 0;
-    return memberCommData.monthly || 0;
-  };
-
-  const getMemberPendingCommission = (memberId) => {
-    const memberCommData = commissionData[memberId];
-    if (!memberCommData) return 0;
-    return memberCommData.pending || 0;
-  };
-
-  const getMemberCommissionRate = (memberId) => {
-    const member = members.find((m) => m.id === memberId);
-    return member?.commission_rate || 5;
-  };
-
-  // Add new member
+  // Add new member - SEND PLAIN PASSWORD (backend will hash it)
   const handleAddMember = async (e) => {
     e.preventDefault();
 
-    if (!validatePhoneNumber(newMember.phone)) {
-      toast.error(
-        "Please enter a valid 11-digit phone number starting with 0 (e.g., 08012345678)",
-      );
+    if (newMember.phone) {
+      const validation = validatePhone(newMember.phone);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
+      if (!isPhoneUnique(newMember.phone)) {
+        toast.error(
+          "Phone number already exists. Please use a different number.",
+        );
+        return;
+      }
+      newMember.phone = validation.cleaned;
+    }
+
+    if (!newMember.password || newMember.password.trim().length < 6) {
+      toast.error("Password must be at least 6 characters");
       return;
     }
-
-    if (isPhoneNumberExists(newMember.phone)) {
-      toast.error(
-        "This phone number is already registered. Please use a different number.",
-      );
-      return;
-    }
-
-    if (!newMember.password || newMember.password.length < 8) {
-      toast.error(
-        "Password is required and must be at least 8 characters long",
-      );
-      return;
-    }
-
-    if (!newMember.full_name || newMember.full_name.trim().length < 2) {
-      toast.error("Full name is required and must be at least 2 characters");
-      return;
-    }
-
-    let email = newMember.email;
-    if (!email || email.trim() === "") {
-      email = generateEmailFromName(newMember.full_name);
-    }
-
-    const accountNumber = `10${Math.floor(Math.random() * 100000000)
-      .toString()
-      .padStart(8, "0")}`;
-    const memberData = {
-      accountNumber: accountNumber,
-      name: newMember.full_name,
-      email: email,
-      phone: newMember.phone,
-      membershipType: "Standard",
-      joinDate: new Date().toISOString().split("T")[0],
-      status: "Active",
-      balance: parseFloat(newMember.initial_balance) || 0,
-      password: newMember.password,
-      commission_rate: 5,
-    };
 
     try {
+      const fullName =
+        `${newMember.firstName.trim()} ${newMember.lastName.trim()}`.trim();
+      const accountNumber = generateAccountNumber();
+
+      // IMPORTANT: Send plain password - backend will hash it
+      const memberData = {
+        accountNumber: accountNumber,
+        account_number: accountNumber,
+        name: fullName,
+        full_name: fullName,
+        email: newMember.email,
+        phone: newMember.phone || "",
+        password: newMember.password, // Send plain password
+        role: newMember.role || "member",
+        status: newMember.status || "Active",
+        membership_type: "Standard",
+        join_date: new Date().toISOString().split("T")[0],
+        balance: parseFloat(newMember.initial_balance) || 0,
+      };
+
+      console.log("Sending member data (password plain):", {
+        ...memberData,
+        password: "***",
+      });
+
       const response = await fetch(`${API_BASE_URL}/api/members.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(memberData),
       });
 
       const data = await response.json();
+      console.log("Response data:", data);
+
       if (response.ok) {
-        toast.success("✅ Member created successfully!");
+        toast.success(
+          `✅ Member created successfully with role: ${newMember.role}`,
+        );
         setShowAddModal(false);
         setNewMember({
-          full_name: "",
+          firstName: "",
+          lastName: "",
           email: "",
           phone: "",
           password: "",
+          role: "member",
+          status: "Active",
           initial_balance: "",
         });
         fetchMembers();
       } else {
-        toast.error(data.message || "Failed to create member");
+        toast.error(data.message || data.error || "Failed to create member");
       }
     } catch (error) {
       console.error("Error creating member:", error);
-      toast.error("Failed to create member");
+      toast.error("Failed to create member: " + error.message);
     }
   };
 
   // Edit member
   const handleEditMember = (member) => {
-    setSelectedMember(member);
+    setSelectedMember({ ...member });
+    setEditPassword("");
     setShowEditModal(true);
   };
 
-  // Update member
+  // Update member - SEND PLAIN PASSWORD (backend will hash it)
   const handleUpdateMember = async (e) => {
     e.preventDefault();
 
-    if (selectedMember.phone && !validatePhoneNumber(selectedMember.phone)) {
-      toast.error("Please enter a valid 11-digit phone number starting with 0");
+    if (selectedMember.phone) {
+      const validation = validatePhone(selectedMember.phone);
+      if (!validation.valid) {
+        toast.error(validation.message);
+        return;
+      }
+      if (!isPhoneUnique(selectedMember.phone, selectedMember.id)) {
+        toast.error(
+          "Phone number already exists. Please use a different number.",
+        );
+        return;
+      }
+      selectedMember.phone = validation.cleaned;
+    }
+
+    if (editPassword && editPassword.trim().length < 6) {
+      toast.error("New password must be at least 6 characters");
       return;
     }
 
-    if (
-      selectedMember.phone &&
-      isPhoneNumberExists(selectedMember.phone, selectedMember.id)
-    ) {
-      toast.error("This phone number is already registered to another member.");
-      return;
-    }
+    const payload = {
+      name: selectedMember.full_name,
+      email: selectedMember.email,
+      phone: selectedMember.phone || "",
+      balance: parseFloat(selectedMember.balance) || 0,
+      status: selectedMember.status,
+      role: selectedMember.role,
+    };
 
-    if (
-      selectedMember.password &&
-      selectedMember.password.length > 0 &&
-      selectedMember.password.length < 8
-    ) {
-      toast.error("Password must be at least 8 characters long");
-      return;
-    }
-
-    if (
-      !selectedMember.full_name ||
-      selectedMember.full_name.trim().length < 2
-    ) {
-      toast.error("Full name must be at least 2 characters");
-      return;
+    // Send plain password if provided - backend will hash it
+    if (editPassword.trim()) {
+      payload.password = editPassword; // Send plain password
     }
 
     try {
-      const updateData = {
-        name: selectedMember.full_name,
-        email: selectedMember.email,
-        phone: selectedMember.phone,
-        balance: selectedMember.balance,
-        status: selectedMember.status,
-        commission_rate: selectedMember.commission_rate,
-      };
-
-      if (selectedMember.password && selectedMember.password.length >= 8) {
-        updateData.password = selectedMember.password;
-      }
-
       const response = await fetch(
         `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updateData),
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(payload),
         },
       );
 
       const data = await response.json();
+
       if (response.ok) {
         toast.success("✅ Member updated successfully!");
         setShowEditModal(false);
         setSelectedMember(null);
+        setEditPassword("");
         fetchMembers();
       } else {
-        toast.error(data.message || "Failed to update member");
+        toast.error(data.message || data.error || "Failed to update member");
       }
     } catch (error) {
       console.error("Error updating member:", error);
@@ -402,6 +354,60 @@ const AdminMembers = () => {
     }
   };
 
+  // Assign Role
+  const handleAssignRole = async () => {
+    if (!roleAssignment.memberId) {
+      toast.error("Please select a member");
+      return;
+    }
+
+    try {
+      const selectedMember = members.find(
+        (m) => m.id === parseInt(roleAssignment.memberId),
+      );
+
+      const response = await fetch(
+        `${API_BASE_URL}/api/members.php/${roleAssignment.memberId}`,
+        {
+          method: "PUT",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify({
+            role: roleAssignment.role,
+            name: selectedMember?.full_name,
+            email: selectedMember?.email,
+            phone: selectedMember?.phone || "",
+            status: selectedMember?.status,
+            balance: selectedMember?.balance || 0,
+          }),
+        },
+      );
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(`✅ Role assigned successfully: ${roleAssignment.role}`);
+        setShowRoleModal(false);
+        setRoleAssignment({ memberId: "", role: "member" });
+        fetchMembers();
+
+        if (
+          roleAssignment.role === "admin" ||
+          roleAssignment.role === "administrator"
+        ) {
+          toast.success("🔑 This member can now login as an admin!");
+        }
+      } else {
+        toast.error(data.message || "Failed to assign role");
+      }
+    } catch (error) {
+      console.error("Error assigning role:", error);
+      toast.error("Failed to assign role");
+    }
+  };
+
   // Add transaction
   const handleAddTransaction = async (e) => {
     e.preventDefault();
@@ -411,11 +417,6 @@ const AdminMembers = () => {
     );
     if (!member) {
       toast.error("Member not found");
-      return;
-    }
-
-    if (!newTransaction.amount || parseFloat(newTransaction.amount) <= 0) {
-      toast.error("Please enter a valid amount greater than 0");
       return;
     }
 
@@ -438,6 +439,7 @@ const AdminMembers = () => {
       });
 
       const data = await response.json();
+
       if (response.ok) {
         toast.success("✅ Transaction added successfully!");
         setShowAddTransactionModal(false);
@@ -511,7 +513,6 @@ const AdminMembers = () => {
     setSelectedMemberTransactions(member);
     setShowTransactionModal(true);
     setTransactionFilter("All");
-    setTransactionHistoryTab("transactions");
   };
 
   // Filter members based on search
@@ -523,7 +524,9 @@ const AdminMembers = () => {
         member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
       (member.membership_number &&
         member.membership_number.includes(searchTerm)) ||
-      (member.phone && member.phone.includes(searchTerm)),
+      (member.phone && member.phone.includes(searchTerm)) ||
+      (member.role &&
+        member.role.toLowerCase().includes(searchTerm.toLowerCase())),
   );
 
   // Get status color
@@ -537,6 +540,36 @@ const AdminMembers = () => {
         return { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" };
       default:
         return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+    }
+  };
+
+  // Get role color
+  const getRoleColor = (role) => {
+    switch (role?.toLowerCase()) {
+      case "admin":
+      case "administrator":
+        return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+      case "manager":
+        return { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
+      case "member":
+        return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+      default:
+        return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+    }
+  };
+
+  // Get role icon
+  const getRoleIcon = (role) => {
+    switch (role?.toLowerCase()) {
+      case "admin":
+      case "administrator":
+        return "👑";
+      case "manager":
+        return "📊";
+      case "member":
+        return "👤";
+      default:
+        return "👤";
     }
   };
 
@@ -587,6 +620,16 @@ const AdminMembers = () => {
     }
   };
 
+  // Format phone number for display
+  const formatPhoneDisplay = (phone) => {
+    if (!phone) return "N/A";
+    const cleaned = phone.replace(/\D/g, "");
+    if (cleaned.length === 11) {
+      return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
+    }
+    return phone;
+  };
+
   if (loading) {
     return (
       <div
@@ -632,6 +675,269 @@ const AdminMembers = () => {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        .modal-overlay {
+          position: fixed;
+          inset: 0;
+          background-color: rgba(0,0,0,0.7);
+          backdrop-filter: blur(4px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 1000;
+          padding: 16px;
+        }
+        .modal-content {
+          background-color: #1e293b;
+          border-radius: 12px;
+          padding: 32px;
+          max-width: 500px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          border: 1px solid rgba(255,255,255,0.1);
+        }
+        .modal-header {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 24px;
+        }
+        .modal-title {
+          font-size: 20px;
+          font-weight: bold;
+          color: white;
+          margin: 0;
+        }
+        .modal-close {
+          color: #9ca3af;
+          background: none;
+          border: none;
+          font-size: 28px;
+          cursor: pointer;
+          padding: 0 8px;
+        }
+        .modal-close:hover {
+          color: white;
+        }
+        .form-group {
+          margin-bottom: 16px;
+        }
+        .form-label {
+          display: block;
+          font-size: 14px;
+          font-weight: 500;
+          color: #d1d5db;
+          margin-bottom: 4px;
+        }
+        .form-input {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background-color: rgba(255,255,255,0.08);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.2s;
+          box-sizing: border-box;
+        }
+        .form-input:focus {
+          border-color: #10b981;
+        }
+        .form-input:disabled {
+          opacity: 0.6;
+          cursor: not-allowed;
+        }
+        .form-input::placeholder {
+          color: #6b7280;
+        }
+        .form-select {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background-color: rgba(255,255,255,0.08);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          transition: border-color 0.2s;
+          appearance: none;
+        }
+        .form-select:focus {
+          border-color: #10b981;
+        }
+        .form-select option {
+          background-color: #1e293b;
+          color: white;
+          padding: 8px;
+        }
+        .email-hint {
+          font-size: 12px;
+          color: #94a3b8;
+          margin-top: 4px;
+          font-style: italic;
+        }
+        .email-hint strong {
+          color: #60a5fa;
+          font-style: normal;
+        }
+        .btn-primary {
+          padding: 10px 24px;
+          border-radius: 8px;
+          border: none;
+          background: #10b981;
+          color: white;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        .btn-primary:hover {
+          background: #059669;
+        }
+        .btn-primary:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+        .btn-secondary {
+          padding: 10px 24px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: transparent;
+          color: white;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        .btn-secondary:hover {
+          background: rgba(255,255,255,0.05);
+        }
+        .btn-danger {
+          padding: 10px 24px;
+          border-radius: 8px;
+          border: none;
+          background: rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        .btn-danger:hover {
+          background: rgba(239, 68, 68, 0.25);
+        }
+        .btn-add {
+          padding: 10px 20px;
+          border-radius: 8px;
+          border: none;
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          cursor: pointer;
+          font-size: 14px;
+          font-weight: 500;
+          transition: all 0.2s;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .btn-add:hover {
+          background: rgba(16, 185, 129, 0.25);
+        }
+        .btn-edit {
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: none;
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+          transition: all 0.2s;
+          margin-right: 4px;
+        }
+        .btn-edit:hover {
+          background: rgba(59, 130, 246, 0.25);
+        }
+        .btn-role {
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: none;
+          background: rgba(139, 92, 246, 0.15);
+          color: #a78bfa;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+          transition: all 0.2s;
+          margin-right: 4px;
+        }
+        .btn-role:hover {
+          background: rgba(139, 92, 246, 0.25);
+        }
+        .btn-delete {
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: none;
+          background: rgba(239, 68, 68, 0.15);
+          color: #f87171;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+          transition: all 0.2s;
+        }
+        .btn-delete:hover {
+          background: rgba(239, 68, 68, 0.25);
+        }
+        .role-badge {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          padding: 2px 10px;
+          border-radius: 12px;
+          font-size: 11px;
+          font-weight: 500;
+        }
+        .pagination {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          padding: 16px 0;
+          margin-top: 16px;
+          flex-wrap: wrap;
+          gap: 8px;
+        }
+        .pagination-info {
+          font-size: 14px;
+          color: #94a3b8;
+        }
+        .pagination-buttons {
+          display: flex;
+          gap: 4px;
+          flex-wrap: wrap;
+        }
+        .page-btn {
+          padding: 6px 12px;
+          border-radius: 6px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background: transparent;
+          color: #94a3b8;
+          cursor: pointer;
+          font-size: 13px;
+          transition: all 0.2s;
+        }
+        .page-btn:hover:not(:disabled) {
+          background-color: rgba(255,255,255,0.05);
+          color: white;
+        }
+        .page-btn.active {
+          background-color: #00aa69;
+          border-color: #00aa69;
+          color: white;
+        }
+        .page-btn:disabled {
+          opacity: 0.3;
+          cursor: not-allowed;
+        }
       `}</style>
 
       {/* Header */}
@@ -645,44 +951,32 @@ const AdminMembers = () => {
           gap: "16px",
         }}
       >
-        <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
-          👥 Members Management
-        </h2>
+        <div>
+          <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
+            👥 Members Management
+          </h2>
+          <p style={{ color: "#9ca3af", margin: "4px 0 0 0" }}>
+            Manage members, assign roles, view transactions, and track balances
+          </p>
+        </div>
         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
           <button
+            onClick={() => setShowRoleModal(true)}
+            className="btn-role"
+            style={{ padding: "10px 20px", fontSize: "14px" }}
+          >
+            🔑 Assign Role
+          </button>
+          <button
             onClick={() => setShowAddTransactionModal(true)}
-            style={{
-              backgroundColor: "#3b82f6",
-              color: "white",
-              padding: "10px 20px",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "14px",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "background-color 0.3s",
-            }}
+            className="btn-primary"
+            style={{ backgroundColor: "#3b82f6" }}
             onMouseEnter={(e) => (e.target.style.backgroundColor = "#2563eb")}
             onMouseLeave={(e) => (e.target.style.backgroundColor = "#3b82f6")}
           >
             + Add Transaction
           </button>
-          <button
-            onClick={() => setShowAddModal(true)}
-            style={{
-              backgroundColor: "#10b981",
-              color: "white",
-              padding: "10px 20px",
-              border: "none",
-              borderRadius: "8px",
-              fontSize: "14px",
-              fontWeight: "600",
-              cursor: "pointer",
-              transition: "background-color 0.3s",
-            }}
-            onMouseEnter={(e) => (e.target.style.backgroundColor = "#059669")}
-            onMouseLeave={(e) => (e.target.style.backgroundColor = "#10b981")}
-          >
+          <button onClick={() => setShowAddModal(true)} className="btn-add">
             + Add New Member
           </button>
         </div>
@@ -700,7 +994,7 @@ const AdminMembers = () => {
       >
         <input
           type="text"
-          placeholder="🔍 Search members by name, email, phone or membership number..."
+          placeholder="🔍 Search members by name, email, phone, role, or membership number..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
           style={{
@@ -781,7 +1075,7 @@ const AdminMembers = () => {
                     letterSpacing: "0.5px",
                   }}
                 >
-                  Joined
+                  Role
                 </th>
                 <th
                   style={{
@@ -808,19 +1102,6 @@ const AdminMembers = () => {
                   }}
                 >
                   Balance
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "#9ca3af",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  💸 Commission
                 </th>
                 <th
                   style={{
@@ -897,13 +1178,19 @@ const AdminMembers = () => {
                       {member.email || "N/A"}
                     </div>
                     <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                      {formatPhoneNumber(member.phone)}
+                      {member.phone ? formatPhoneDisplay(member.phone) : "N/A"}
                     </div>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                      {formatDate(member.join_date)}
-                    </div>
+                    <span
+                      className="role-badge"
+                      style={{
+                        backgroundColor: getRoleColor(member.role).bg,
+                        color: getRoleColor(member.role).color,
+                      }}
+                    >
+                      {getRoleIcon(member.role)} {member.role || "member"}
+                    </span>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <span
@@ -927,24 +1214,6 @@ const AdminMembers = () => {
                     }}
                   >
                     ₦{parseFloat(member.balance || 0).toLocaleString()}
-                  </td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "#fbbf24",
-                      }}
-                    >
-                      ₦{getMemberTotalCommission(member.id).toLocaleString()}
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#6b7280" }}>
-                      Rate: {getMemberCommissionRate(member.id)}%
-                    </div>
-                    <div style={{ fontSize: "10px", color: "#6b7280" }}>
-                      Monthly: ₦
-                      {getMemberMonthlyCommission(member.id).toLocaleString()}
-                    </div>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     <div
@@ -1056,70 +1325,38 @@ const AdminMembers = () => {
           Inactive: {members.filter((m) => m.status === "inactive").length}
         </span>
         <span>
-          Total Commission: ₦
-          {members
-            .reduce((sum, m) => sum + getMemberTotalCommission(m.id), 0)
-            .toLocaleString()}
+          👑 Admins:{" "}
+          {
+            members.filter(
+              (m) => m.role === "admin" || m.role === "administrator",
+            ).length
+          }
+        </span>
+        <span>
+          📊 Managers: {members.filter((m) => m.role === "manager").length}
         </span>
       </div>
 
       {/* Add Member Modal */}
       {showAddModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "24px",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "bold",
-                  color: "white",
-                  margin: 0,
-                }}
-              >
-                Add New Member
-              </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">➕ Add New Member</h3>
               <button
-                onClick={() => setShowAddModal(false)}
-                style={{
-                  color: "#9ca3af",
-                  background: "none",
-                  border: "none",
-                  fontSize: "28px",
-                  cursor: "pointer",
-                  padding: "0 8px",
+                className="modal-close"
+                onClick={() => {
+                  setShowAddModal(false);
+                  setNewMember({
+                    firstName: "",
+                    lastName: "",
+                    email: "",
+                    phone: "",
+                    password: "",
+                    role: "member",
+                    status: "Active",
+                    initial_balance: "",
+                  });
                 }}
               >
                 ×
@@ -1127,271 +1364,228 @@ const AdminMembers = () => {
             </div>
 
             <form onSubmit={handleAddMember}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Full Name *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newMember.full_name}
-                    onChange={handleFullNameChange}
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter full name"
-                    minLength={2}
-                  />
-                </div>
+              <div className="form-group">
+                <label className="form-label">First Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newMember.firstName}
+                  onChange={(e) =>
+                    setNewMember({
+                      ...newMember,
+                      firstName: e.target.value,
+                    })
+                  }
+                  required
+                  placeholder="Enter first name"
+                />
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Email Address *
-                  </label>
-                  <input
-                    type="email"
-                    required
-                    value={newMember.email}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, email: e.target.value })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Email auto-generated from name"
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Auto-generated from full name (or enter custom)
+              <div className="form-group">
+                <label className="form-label">Last Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={newMember.lastName}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, lastName: e.target.value })
+                  }
+                  required
+                  placeholder="Enter last name"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email (Auto-generated)</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={newMember.email}
+                  disabled
+                  style={{
+                    opacity: 0.7,
+                    cursor: "not-allowed",
+                  }}
+                  placeholder="Email will be auto-generated from first name"
+                />
+                {newMember.firstName && newMember.email && (
+                  <div className="email-hint">
+                    📧 Email will be: <strong>{newMember.email}</strong>
                   </div>
-                </div>
+                )}
+              </div>
 
-                <div>
-                  <label
+              <div className="form-group">
+                <label className="form-label">
+                  Phone Number *
+                  <span
                     style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
+                      color: "#9ca3af",
+                      fontWeight: "400",
+                      fontSize: "12px",
+                      marginLeft: "8px",
                     }}
                   >
-                    Phone Number *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={newMember.phone}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "");
-                      const limitedValue = value.slice(0, 11);
-                      setNewMember({ ...newMember, phone: limitedValue });
-                    }}
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="08012345678"
-                    maxLength={11}
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Must be exactly 11 digits starting with 0 (e.g.,
-                    08012345678) - Unique
-                  </div>
+                    (11 digits, starts with 0)
+                  </span>
+                </label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={newMember.phone}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setNewMember({ ...newMember, phone: value });
+                  }}
+                  placeholder="e.g., 08012345678"
+                  maxLength="11"
+                  required
+                />
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  📱 Must be exactly 11 digits and start with 0
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Password *
-                  </label>
-                  <input
-                    type="password"
-                    required
-                    value={newMember.password}
-                    onChange={(e) =>
-                      setNewMember({ ...newMember, password: e.target.value })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter password (minimum 8 characters)"
-                    minLength={8}
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Password must be at least 8 characters
-                  </div>
+              <div className="form-group">
+                <label className="form-label">Password *</label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={newMember.password}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, password: e.target.value })
+                  }
+                  required
+                  minLength="6"
+                  placeholder="Enter password (min 6 characters)"
+                />
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  🔑 Password will be securely hashed on the server
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
+              {/* Role Field */}
+              <div className="form-group">
+                <label className="form-label">Role *</label>
+                <select
+                  className="form-select"
+                  value={newMember.role}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, role: e.target.value })
+                  }
+                  required
+                >
+                  <option value="member" style={{ backgroundColor: "#1e293b" }}>
+                    👤 Member
+                  </option>
+                  <option
+                    value="manager"
+                    style={{ backgroundColor: "#1e293b" }}
                   >
-                    Initial Balance (₦)
-                  </label>
-                  <input
-                    type="number"
-                    value={newMember.initial_balance}
-                    onChange={(e) =>
-                      setNewMember({
-                        ...newMember,
-                        initial_balance: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter initial balance"
-                    min="0"
-                    step="0.01"
-                  />
+                    📊 Manager
+                  </option>
+                  <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+                    👑 Admin
+                  </option>
+                </select>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  {newMember.role === "admin" &&
+                    "🔑 Admins can login to the admin dashboard"}
+                  {newMember.role === "manager" &&
+                    "📊 Managers can manage members and transactions"}
+                  {newMember.role === "member" &&
+                    "👤 Members can view their own data"}
                 </div>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select
+                  className="form-select"
+                  value={newMember.status}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, status: e.target.value })
+                  }
+                >
+                  <option value="Active" style={{ backgroundColor: "#1e293b" }}>
+                    Active
+                  </option>
+                  <option
+                    value="Inactive"
+                    style={{ backgroundColor: "#1e293b" }}
+                  >
+                    Inactive
+                  </option>
+                  <option
+                    value="Suspended"
+                    style={{ backgroundColor: "#1e293b" }}
+                  >
+                    Suspended
+                  </option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Initial Balance (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={newMember.initial_balance}
+                  onChange={(e) =>
+                    setNewMember({
+                      ...newMember,
+                      initial_balance: e.target.value,
+                    })
+                  }
+                  placeholder="Enter initial balance"
+                  min="0"
+                  step="0.01"
+                />
               </div>
 
               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                 <button
                   type="submit"
-                  style={{
-                    flex: 1,
-                    backgroundColor: "#10b981",
-                    color: "white",
-                    padding: "10px",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    transition: "background-color 0.3s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.target.style.backgroundColor = "#059669")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "#10b981")
-                  }
+                  className="btn-primary"
+                  style={{ flex: 1 }}
                 >
                   Create Member
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowAddModal(false)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    cursor: "pointer",
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowAddModal(false);
+                    setNewMember({
+                      firstName: "",
+                      lastName: "",
+                      email: "",
+                      phone: "",
+                      password: "",
+                      role: "member",
+                      status: "Active",
+                      initial_balance: "",
+                    });
                   }}
+                  style={{ flex: 1 }}
                 >
                   Cancel
                 </button>
@@ -1403,61 +1597,16 @@ const AdminMembers = () => {
 
       {/* Edit Member Modal */}
       {showEditModal && selectedMember && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "24px",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "bold",
-                  color: "white",
-                  margin: 0,
-                }}
-              >
-                Edit Member
-              </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Member</h3>
               <button
-                onClick={() => setShowEditModal(false)}
-                style={{
-                  color: "#9ca3af",
-                  background: "none",
-                  border: "none",
-                  fontSize: "28px",
-                  cursor: "pointer",
-                  padding: "0 8px",
+                className="modal-close"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedMember(null);
+                  setEditPassword("");
                 }}
               >
                 ×
@@ -1465,399 +1614,214 @@ const AdminMembers = () => {
             </div>
 
             <form onSubmit={handleUpdateMember}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
-                }}
-              >
-                <div>
-                  <label
+              <div className="form-group">
+                <label className="form-label">Membership Number</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={selectedMember.membership_number || "N/A"}
+                  disabled
+                  style={{ fontFamily: "monospace" }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={selectedMember.full_name || ""}
+                  disabled
+                  style={{ color: "#9ca3af" }}
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Email Address</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={selectedMember.email || ""}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      email: e.target.value,
+                    })
+                  }
+                  placeholder="member@example.com"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">
+                  Phone Number
+                  <span
                     style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Membership Number
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedMember.membership_number || "N/A"}
-                    disabled
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.05)",
                       color: "#9ca3af",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.05)",
-                      fontSize: "14px",
-                      fontFamily: "monospace",
+                      fontWeight: "400",
+                      fontSize: "12px",
+                      marginLeft: "8px",
                     }}
-                  />
+                  >
+                    (11 digits, starts with 0)
+                  </span>
+                </label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={selectedMember.phone || ""}
+                  onChange={(e) => {
+                    const value = e.target.value.replace(/\D/g, "");
+                    setSelectedMember({
+                      ...selectedMember,
+                      phone: value,
+                    });
+                  }}
+                  placeholder="e.g., 08012345678"
+                  maxLength="11"
+                  required
+                />
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  📱 Must be exactly 11 digits and start with 0
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
+              {/* Role Field in Edit Modal */}
+              <div className="form-group">
+                <label className="form-label">Role</label>
+                <select
+                  className="form-select"
+                  value={selectedMember.role || "member"}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      role: e.target.value,
+                    })
+                  }
+                >
+                  <option value="member" style={{ backgroundColor: "#1e293b" }}>
+                    👤 Member
+                  </option>
+                  <option
+                    value="manager"
+                    style={{ backgroundColor: "#1e293b" }}
                   >
-                    Full Name
-                  </label>
-                  <input
-                    type="text"
-                    value={selectedMember.full_name || ""}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        full_name: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter full name"
-                    minLength={2}
-                  />
+                    📊 Manager
+                  </option>
+                  <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+                    👑 Admin
+                  </option>
+                </select>
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  {selectedMember.role === "admin" &&
+                    "🔑 This user can login as an admin"}
+                  {selectedMember.role === "manager" &&
+                    "📊 This user can manage members and transactions"}
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Email
-                  </label>
-                  <input
-                    type="email"
-                    value={selectedMember.email || ""}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        email: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter email address"
-                  />
+              <div className="form-group">
+                <label className="form-label">
+                  New Password{" "}
+                  <span style={{ color: "#9ca3af", fontWeight: "400" }}>
+                    (leave blank to keep current)
+                  </span>
+                </label>
+                <input
+                  type="password"
+                  className="form-input"
+                  value={editPassword}
+                  onChange={(e) => setEditPassword(e.target.value)}
+                  placeholder="Enter new password (optional)"
+                  minLength="6"
+                />
+                <div
+                  style={{
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "4px",
+                  }}
+                >
+                  🔑 Password will be securely hashed on the server
                 </div>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Phone Number
-                  </label>
-                  <input
-                    type="tel"
-                    value={selectedMember.phone || ""}
-                    onChange={(e) => {
-                      const value = e.target.value.replace(/\D/g, "");
-                      const limitedValue = value.slice(0, 11);
-                      setSelectedMember({
-                        ...selectedMember,
-                        phone: limitedValue,
-                      });
-                    }}
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="08012345678"
-                    maxLength={11}
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Must be exactly 11 digits starting with 0 - Must be unique
-                  </div>
-                </div>
+              <div className="form-group">
+                <label className="form-label">Balance (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={selectedMember.balance || 0}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      balance: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  min="0"
+                  step="0.01"
+                />
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select
+                  className="form-select"
+                  value={selectedMember.status || "active"}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      status: e.target.value,
+                    })
+                  }
+                >
+                  <option value="active" style={{ backgroundColor: "#1e293b" }}>
+                    Active
+                  </option>
+                  <option
+                    value="inactive"
+                    style={{ backgroundColor: "#1e293b" }}
                   >
-                    Balance (₦)
-                  </label>
-                  <input
-                    type="number"
-                    value={selectedMember.balance || 0}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        balance: parseFloat(e.target.value) || 0,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    min="0"
-                  />
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
+                    Inactive
+                  </option>
+                  <option
+                    value="suspended"
+                    style={{ backgroundColor: "#1e293b" }}
                   >
-                    Commission Rate (%)
-                  </label>
-                  <input
-                    type="number"
-                    value={selectedMember.commission_rate || 5}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        commission_rate: parseFloat(e.target.value) || 5,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    min="0"
-                    max="100"
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Commission rate for this member (0-100%)
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Password (leave blank to keep current)
-                  </label>
-                  <input
-                    type="password"
-                    value={selectedMember.password || ""}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        password: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter new password (min 8 characters)"
-                    minLength={8}
-                  />
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "#6b7280",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Password must be at least 8 characters if changed
-                  </div>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Status
-                  </label>
-                  <select
-                    value={selectedMember.status || "active"}
-                    onChange={(e) =>
-                      setSelectedMember({
-                        ...selectedMember,
-                        status: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <option
-                      value="active"
-                      style={{ backgroundColor: "#1e293b" }}
-                    >
-                      Active
-                    </option>
-                    <option
-                      value="inactive"
-                      style={{ backgroundColor: "#1e293b" }}
-                    >
-                      Inactive
-                    </option>
-                    <option
-                      value="suspended"
-                      style={{ backgroundColor: "#1e293b" }}
-                    >
-                      Suspended
-                    </option>
-                  </select>
-                </div>
+                    Suspended
+                  </option>
+                </select>
               </div>
 
               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                 <button
                   type="submit"
-                  style={{
-                    flex: 1,
-                    backgroundColor: "#10b981",
-                    color: "white",
-                    padding: "10px",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    transition: "background-color 0.3s",
-                  }}
-                  onMouseEnter={(e) =>
-                    (e.target.style.backgroundColor = "#059669")
-                  }
-                  onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "#10b981")
-                  }
+                  className="btn-primary"
+                  style={{ flex: 1 }}
                 >
                   Update Member
                 </button>
                 <button
                   type="button"
-                  onClick={() => setShowEditModal(false)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    cursor: "pointer",
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedMember(null);
+                    setEditPassword("");
                   }}
+                  style={{ flex: 1 }}
                 >
                   Cancel
                 </button>
@@ -1867,55 +1831,150 @@ const AdminMembers = () => {
         </div>
       )}
 
-      {/* Transaction History Modal with Commission Tab */}
-      {showTransactionModal && selectedMemberTransactions && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              padding: "32px",
-              maxWidth: "800px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "16px",
+      {/* Assign Role Modal */}
+      {showRoleModal && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">🔑 Assign Role</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowRoleModal(false);
+                  setRoleAssignment({ memberId: "", role: "member" });
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                handleAssignRole();
               }}
             >
-              <div>
-                <h3
+              <div className="form-group">
+                <label className="form-label">Select Member *</label>
+                <select
+                  className="form-select"
+                  required
+                  value={roleAssignment.memberId}
+                  onChange={(e) =>
+                    setRoleAssignment({
+                      ...roleAssignment,
+                      memberId: e.target.value,
+                    })
+                  }
+                >
+                  <option value="" style={{ backgroundColor: "#1e293b" }}>
+                    Choose a member
+                  </option>
+                  {members.map((member) => (
+                    <option
+                      key={member.id}
+                      value={member.id}
+                      style={{ backgroundColor: "#1e293b" }}
+                    >
+                      {member.full_name} ({member.membership_number}) - Current:{" "}
+                      {member.role || "member"}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Assign Role *</label>
+                <select
+                  className="form-select"
+                  required
+                  value={roleAssignment.role}
+                  onChange={(e) =>
+                    setRoleAssignment({
+                      ...roleAssignment,
+                      role: e.target.value,
+                    })
+                  }
+                >
+                  <option value="member" style={{ backgroundColor: "#1e293b" }}>
+                    👤 Member - Basic access
+                  </option>
+                  <option
+                    value="manager"
+                    style={{ backgroundColor: "#1e293b" }}
+                  >
+                    📊 Manager - Manage members & transactions
+                  </option>
+                  <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+                    👑 Admin - Full access
+                  </option>
+                </select>
+                <div
                   style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "white",
-                    margin: 0,
+                    fontSize: "11px",
+                    color: "#6b7280",
+                    marginTop: "8px",
                   }}
                 >
-                  📊 Member Details
-                </h3>
+                  {roleAssignment.role === "admin" && (
+                    <div style={{ color: "#f87171" }}>
+                      ⚠️ Admins have full access to the system. They can login
+                      to the admin dashboard.
+                    </div>
+                  )}
+                  {roleAssignment.role === "manager" && (
+                    <div style={{ color: "#60a5fa" }}>
+                      📊 Managers can manage members, view transactions, and
+                      perform administrative tasks.
+                    </div>
+                  )}
+                  {roleAssignment.role === "member" && (
+                    <div style={{ color: "#34d399" }}>
+                      👤 Members can view their own profile and transaction
+                      history.
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  style={{ flex: 1, backgroundColor: "#8b5cf6" }}
+                  onMouseEnter={(e) =>
+                    (e.target.style.backgroundColor = "#7c3aed")
+                  }
+                  onMouseLeave={(e) =>
+                    (e.target.style.backgroundColor = "#8b5cf6")
+                  }
+                >
+                  Assign Role
+                </button>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowRoleModal(false);
+                    setRoleAssignment({ memberId: "", role: "member" });
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  Cancel
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Transaction History Modal */}
+      {showTransactionModal && selectedMemberTransactions && (
+        <div className="modal-overlay">
+          <div className="modal-content" style={{ maxWidth: "800px" }}>
+            <div className="modal-header">
+              <div>
+                <h3 className="modal-title">📊 Transaction History</h3>
                 <p
                   style={{
                     color: "#9ca3af",
@@ -1925,18 +1984,25 @@ const AdminMembers = () => {
                 >
                   {selectedMemberTransactions.full_name || "Member"} •{" "}
                   {selectedMemberTransactions.membership_number || "N/A"}
+                  {" • "}
+                  <span
+                    className="role-badge"
+                    style={{
+                      backgroundColor: getRoleColor(
+                        selectedMemberTransactions.role,
+                      ).bg,
+                      color: getRoleColor(selectedMemberTransactions.role)
+                        .color,
+                    }}
+                  >
+                    {getRoleIcon(selectedMemberTransactions.role)}{" "}
+                    {selectedMemberTransactions.role || "member"}
+                  </span>
                 </p>
               </div>
               <button
+                className="modal-close"
                 onClick={() => setShowTransactionModal(false)}
-                style={{
-                  color: "#9ca3af",
-                  background: "none",
-                  border: "none",
-                  fontSize: "28px",
-                  cursor: "pointer",
-                  padding: "0 8px",
-                }}
               >
                 ×
               </button>
@@ -1945,26 +2011,24 @@ const AdminMembers = () => {
             {/* Balance Summary */}
             <div
               style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr 1fr",
-                gap: "12px",
+                backgroundColor: "rgba(16, 185, 129, 0.1)",
+                padding: "16px",
+                borderRadius: "8px",
                 marginBottom: "16px",
+                border: "1px solid rgba(16, 185, 129, 0.2)",
               }}
             >
               <div
                 style={{
-                  backgroundColor: "rgba(16, 185, 129, 0.1)",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
                 }}
               >
-                <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                  Balance
-                </div>
-                <div
+                <span style={{ color: "#9ca3af" }}>Current Balance</span>
+                <span
                   style={{
-                    fontSize: "20px",
+                    fontSize: "24px",
                     fontWeight: "bold",
                     color: "#34d399",
                   }}
@@ -1973,56 +2037,11 @@ const AdminMembers = () => {
                   {parseFloat(
                     selectedMemberTransactions.balance || 0,
                   ).toLocaleString()}
-                </div>
-              </div>
-              <div
-                style={{
-                  backgroundColor: "rgba(251, 191, 36, 0.1)",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(251, 191, 36, 0.2)",
-                }}
-              >
-                <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                  Total Commission
-                </div>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "#fbbf24",
-                  }}
-                >
-                  ₦
-                  {getMemberTotalCommission(
-                    selectedMemberTransactions.id,
-                  ).toLocaleString()}
-                </div>
-              </div>
-              <div
-                style={{
-                  backgroundColor: "rgba(96, 165, 250, 0.1)",
-                  padding: "12px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(96, 165, 250, 0.2)",
-                }}
-              >
-                <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                  Commission Rate
-                </div>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "#60a5fa",
-                  }}
-                >
-                  {getMemberCommissionRate(selectedMemberTransactions.id)}%
-                </div>
+                </span>
               </div>
             </div>
 
-            {/* Tab Buttons */}
+            {/* Filter Buttons */}
             <div
               style={{
                 display: "flex",
@@ -2031,441 +2050,158 @@ const AdminMembers = () => {
                 flexWrap: "wrap",
               }}
             >
-              <button
-                onClick={() => setTransactionHistoryTab("transactions")}
-                style={{
-                  backgroundColor:
-                    transactionHistoryTab === "transactions"
-                      ? "#10b981"
-                      : "rgba(255,255,255,0.08)",
-                  color:
-                    transactionHistoryTab === "transactions"
-                      ? "white"
-                      : "#d1d5db",
-                  padding: "6px 16px",
-                  border:
-                    transactionHistoryTab === "transactions"
-                      ? "none"
-                      : "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "20px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  transition: "all 0.3s",
-                }}
-              >
-                📊 Transactions
-              </button>
-              <button
-                onClick={() => setTransactionHistoryTab("commission")}
-                style={{
-                  backgroundColor:
-                    transactionHistoryTab === "commission"
-                      ? "#fbbf24"
-                      : "rgba(255,255,255,0.08)",
-                  color:
-                    transactionHistoryTab === "commission"
-                      ? "white"
-                      : "#d1d5db",
-                  padding: "6px 16px",
-                  border:
-                    transactionHistoryTab === "commission"
-                      ? "none"
-                      : "1px solid rgba(255,255,255,0.1)",
-                  borderRadius: "20px",
-                  cursor: "pointer",
-                  fontSize: "12px",
-                  transition: "all 0.3s",
-                }}
-              >
-                💸 Commission
-              </button>
+              {["All", "Deposit", "Withdrawal", "Transfer"].map((filter) => (
+                <button
+                  key={filter}
+                  onClick={() => setTransactionFilter(filter)}
+                  style={{
+                    backgroundColor:
+                      transactionFilter === filter
+                        ? "#10b981"
+                        : "rgba(255,255,255,0.08)",
+                    color: transactionFilter === filter ? "white" : "#d1d5db",
+                    padding: "6px 16px",
+                    border:
+                      transactionFilter === filter
+                        ? "none"
+                        : "1px solid rgba(255,255,255,0.1)",
+                    borderRadius: "20px",
+                    cursor: "pointer",
+                    fontSize: "12px",
+                    transition: "all 0.3s",
+                  }}
+                >
+                  {filter}
+                </button>
+              ))}
             </div>
 
-            {/* Transactions Tab Content */}
-            {transactionHistoryTab === "transactions" && (
-              <>
-                {/* Filter Buttons */}
-                <div
-                  style={{
-                    display: "flex",
-                    gap: "8px",
-                    marginBottom: "16px",
-                    flexWrap: "wrap",
-                  }}
-                >
-                  {["All", "Deposit", "Withdrawal", "Transfer"].map(
-                    (filter) => (
-                      <button
-                        key={filter}
-                        onClick={() => setTransactionFilter(filter)}
-                        style={{
-                          backgroundColor:
-                            transactionFilter === filter
-                              ? "#10b981"
-                              : "rgba(255,255,255,0.08)",
-                          color:
-                            transactionFilter === filter ? "white" : "#d1d5db",
-                          padding: "6px 16px",
-                          border:
-                            transactionFilter === filter
-                              ? "none"
-                              : "1px solid rgba(255,255,255,0.1)",
-                          borderRadius: "20px",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                          transition: "all 0.3s",
-                        }}
-                      >
-                        {filter}
-                      </button>
-                    ),
-                  )}
-                </div>
-
-                {/* Transactions List */}
-                <div
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.05)",
-                    overflow: "hidden",
-                  }}
-                >
-                  {getMemberTransactions(selectedMemberTransactions.id).length >
-                  0 ? (
-                    getMemberTransactions(selectedMemberTransactions.id).map(
-                      (transaction) => {
-                        const typeStyle = getTransactionTypeColor(
-                          transaction.transaction_type,
-                        );
-                        const statusStyle = getTransactionStatusColor(
-                          transaction.status,
-                        );
-                        return (
-                          <div
-                            key={transaction.id}
-                            style={{
-                              display: "flex",
-                              justifyContent: "space-between",
-                              alignItems: "center",
-                              padding: "12px 16px",
-                              borderBottom: "1px solid rgba(255,255,255,0.05)",
-                            }}
-                          >
-                            <div
-                              style={{
-                                display: "flex",
-                                alignItems: "center",
-                                gap: "12px",
-                              }}
-                            >
-                              <div
-                                style={{
-                                  width: "36px",
-                                  height: "36px",
-                                  borderRadius: "50%",
-                                  backgroundColor: typeStyle.bg,
-                                  display: "flex",
-                                  alignItems: "center",
-                                  justifyContent: "center",
-                                  fontSize: "18px",
-                                }}
-                              >
-                                {typeStyle.icon}
-                              </div>
-                              <div>
-                                <div
-                                  style={{
-                                    color: "white",
-                                    fontSize: "14px",
-                                    fontWeight: "500",
-                                  }}
-                                >
-                                  {transaction.transaction_type}
-                                </div>
-                                <div
-                                  style={{
-                                    color: "#9ca3af",
-                                    fontSize: "12px",
-                                  }}
-                                >
-                                  {transaction.description || "No description"}
-                                </div>
-                                <div
-                                  style={{
-                                    color: "#6b7280",
-                                    fontSize: "10px",
-                                  }}
-                                >
-                                  {formatDate(transaction.created_at)}
-                                </div>
-                                {transaction.commission > 0 && (
-                                  <div
-                                    style={{
-                                      color: "#fbbf24",
-                                      fontSize: "10px",
-                                    }}
-                                  >
-                                    Commission: ₦
-                                    {parseFloat(
-                                      transaction.commission || 0,
-                                    ).toLocaleString()}
-                                  </div>
-                                )}
-                              </div>
-                            </div>
-                            <div style={{ textAlign: "right" }}>
-                              <div
-                                style={{
-                                  color:
-                                    transaction.transaction_type ===
-                                      "deposit" ||
-                                    transaction.transaction_type ===
-                                      "contribution"
-                                      ? "#34d399"
-                                      : "#f87171",
-                                  fontSize: "14px",
-                                  fontWeight: "600",
-                                }}
-                              >
-                                {transaction.transaction_type === "deposit" ||
-                                transaction.transaction_type === "contribution"
-                                  ? "+"
-                                  : "-"}
-                                ₦
-                                {parseFloat(
-                                  transaction.amount || 0,
-                                ).toLocaleString()}
-                              </div>
-                              <span
-                                style={{
-                                  padding: "2px 10px",
-                                  fontSize: "10px",
-                                  borderRadius: "12px",
-                                  backgroundColor: statusStyle.bg,
-                                  color: statusStyle.color,
-                                }}
-                              >
-                                {transaction.status}
-                              </span>
-                            </div>
-                          </div>
-                        );
-                      },
-                    )
-                  ) : (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "32px",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-                        💳
-                      </div>
-                      <p>
-                        No{" "}
-                        {transactionFilter !== "All" ? transactionFilter : ""}{" "}
-                        transactions found
-                      </p>
-                    </div>
-                  )}
-                </div>
-              </>
-            )}
-
-            {/* Commission Tab Content */}
-            {transactionHistoryTab === "commission" && (
-              <div>
-                {/* Commission Summary */}
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: "12px",
-                    marginBottom: "16px",
-                  }}
-                >
-                  <div
-                    style={{
-                      backgroundColor: "rgba(251, 191, 36, 0.1)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(251, 191, 36, 0.2)",
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                      Total Commission
-                    </div>
-                    <div
-                      style={{
-                        color: "#fbbf24",
-                        fontSize: "20px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ₦
-                      {getMemberTotalCommission(
-                        selectedMemberTransactions.id,
-                      ).toLocaleString()}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      backgroundColor: "rgba(52, 211, 153, 0.1)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(52, 211, 153, 0.2)",
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                      Monthly Commission
-                    </div>
-                    <div
-                      style={{
-                        color: "#34d399",
-                        fontSize: "20px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ₦
-                      {getMemberMonthlyCommission(
-                        selectedMemberTransactions.id,
-                      ).toLocaleString()}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      backgroundColor: "rgba(248, 113, 113, 0.1)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(248, 113, 113, 0.2)",
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                      Pending Commission
-                    </div>
-                    <div
-                      style={{
-                        color: "#f87171",
-                        fontSize: "20px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ₦
-                      {getMemberPendingCommission(
-                        selectedMemberTransactions.id,
-                      ).toLocaleString()}
-                    </div>
-                  </div>
-                  <div
-                    style={{
-                      backgroundColor: "rgba(96, 165, 250, 0.1)",
-                      padding: "12px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(96, 165, 250, 0.2)",
-                    }}
-                  >
-                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                      Commission Rate
-                    </div>
-                    <div
-                      style={{
-                        color: "#60a5fa",
-                        fontSize: "20px",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      {getMemberCommissionRate(selectedMemberTransactions.id)}%
-                    </div>
-                  </div>
-                </div>
-
-                {/* Commission History */}
-                <h4 style={{ color: "#d1d5db", marginBottom: "12px" }}>
-                  Commission History
-                </h4>
-                <div
-                  style={{
-                    backgroundColor: "rgba(255,255,255,0.03)",
-                    borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.05)",
-                    overflow: "hidden",
-                  }}
-                >
-                  {getMemberCommissionHistory(selectedMemberTransactions.id)
-                    .length > 0 ? (
-                    getMemberCommissionHistory(
-                      selectedMemberTransactions.id,
-                    ).map((item, index) => (
+            {/* Transactions List */}
+            <div
+              style={{
+                backgroundColor: "rgba(255,255,255,0.03)",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.05)",
+                overflow: "hidden",
+              }}
+            >
+              {getMemberTransactions(selectedMemberTransactions.id).length >
+              0 ? (
+                getMemberTransactions(selectedMemberTransactions.id).map(
+                  (transaction) => {
+                    const typeStyle = getTransactionTypeColor(
+                      transaction.transaction_type,
+                    );
+                    const statusStyle = getTransactionStatusColor(
+                      transaction.status,
+                    );
+                    return (
                       <div
-                        key={index}
+                        key={transaction.id}
                         style={{
                           display: "flex",
                           justifyContent: "space-between",
-                          padding: "10px 16px",
+                          alignItems: "center",
+                          padding: "12px 16px",
                           borderBottom: "1px solid rgba(255,255,255,0.05)",
                         }}
                       >
-                        <div>
-                          <div
-                            style={{
-                              color: "white",
-                              fontSize: "13px",
-                            }}
-                          >
-                            {item.description || "Commission earned"}
-                          </div>
-                          <div
-                            style={{
-                              color: "#6b7280",
-                              fontSize: "11px",
-                            }}
-                          >
-                            {formatDate(item.date)}
-                          </div>
-                          {item.transaction_id && (
-                            <div
-                              style={{
-                                color: "#4b5563",
-                                fontSize: "10px",
-                              }}
-                            >
-                              Transaction: #{item.transaction_id}
-                            </div>
-                          )}
-                        </div>
                         <div
                           style={{
-                            color: "#fbbf24",
-                            fontWeight: "600",
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "12px",
                           }}
                         >
-                          +₦
-                          {parseFloat(item.amount || 0).toLocaleString()}
+                          <div
+                            style={{
+                              width: "36px",
+                              height: "36px",
+                              borderRadius: "50%",
+                              backgroundColor: typeStyle.bg,
+                              display: "flex",
+                              alignItems: "center",
+                              justifyContent: "center",
+                              fontSize: "18px",
+                            }}
+                          >
+                            {typeStyle.icon}
+                          </div>
+                          <div>
+                            <div
+                              style={{
+                                color: "white",
+                                fontSize: "14px",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {transaction.transaction_type}
+                            </div>
+                            <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+                              {transaction.description || "No description"}
+                            </div>
+                            <div style={{ color: "#6b7280", fontSize: "10px" }}>
+                              {formatDate(transaction.created_at)}
+                            </div>
+                          </div>
+                        </div>
+                        <div style={{ textAlign: "right" }}>
+                          <div
+                            style={{
+                              color:
+                                transaction.transaction_type === "deposit" ||
+                                transaction.transaction_type === "contribution"
+                                  ? "#34d399"
+                                  : "#f87171",
+                              fontSize: "14px",
+                              fontWeight: "600",
+                            }}
+                          >
+                            {transaction.transaction_type === "deposit" ||
+                            transaction.transaction_type === "contribution"
+                              ? "+"
+                              : "-"}
+                            ₦
+                            {parseFloat(
+                              transaction.amount || 0,
+                            ).toLocaleString()}
+                          </div>
+                          <span
+                            style={{
+                              padding: "2px 10px",
+                              fontSize: "10px",
+                              borderRadius: "12px",
+                              backgroundColor: statusStyle.bg,
+                              color: statusStyle.color,
+                            }}
+                          >
+                            {transaction.status}
+                          </span>
                         </div>
                       </div>
-                    ))
-                  ) : (
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "32px",
-                        color: "#9ca3af",
-                      }}
-                    >
-                      <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-                        💸
-                      </div>
-                      <p>No commission history found</p>
-                    </div>
-                  )}
+                    );
+                  },
+                )
+              ) : (
+                <div
+                  style={{
+                    textAlign: "center",
+                    padding: "32px",
+                    color: "#9ca3af",
+                  }}
+                >
+                  <div style={{ fontSize: "32px", marginBottom: "8px" }}>
+                    💳
+                  </div>
+                  <p>
+                    No {transactionFilter !== "All" ? transactionFilter : ""}{" "}
+                    transactions found
+                  </p>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
 
-            {/* Stats */}
+            {/* Transaction Stats */}
             <div
               style={{
                 marginTop: "16px",
@@ -2497,12 +2233,6 @@ const AdminMembers = () => {
                   ).length
                 }
               </span>
-              <span>
-                Total Commission: ₦
-                {getMemberTotalCommission(
-                  selectedMemberTransactions.id,
-                ).toLocaleString()}
-              </span>
             </div>
           </div>
         </div>
@@ -2510,61 +2240,21 @@ const AdminMembers = () => {
 
       {/* Add Transaction Modal */}
       {showAddTransactionModal && (
-        <div
-          style={{
-            position: "fixed",
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: "rgba(0,0,0,0.7)",
-            backdropFilter: "blur(8px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              backgroundColor: "#1e293b",
-              borderRadius: "12px",
-              border: "1px solid rgba(255,255,255,0.1)",
-              padding: "32px",
-              maxWidth: "500px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-            }}
-          >
-            <div
-              style={{
-                display: "flex",
-                justifyContent: "space-between",
-                alignItems: "center",
-                marginBottom: "24px",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "20px",
-                  fontWeight: "bold",
-                  color: "white",
-                  margin: 0,
-                }}
-              >
-                Add New Transaction
-              </h3>
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">Add New Transaction</h3>
               <button
-                onClick={() => setShowAddTransactionModal(false)}
-                style={{
-                  color: "#9ca3af",
-                  background: "none",
-                  border: "none",
-                  fontSize: "28px",
-                  cursor: "pointer",
-                  padding: "0 8px",
+                className="modal-close"
+                onClick={() => {
+                  setShowAddTransactionModal(false);
+                  setNewTransaction({
+                    memberId: "",
+                    type: "deposit",
+                    amount: "",
+                    description: "",
+                    status: "pending",
+                  });
                 }}
               >
                 ×
@@ -2572,205 +2262,104 @@ const AdminMembers = () => {
             </div>
 
             <form onSubmit={handleAddTransaction}>
-              <div
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  gap: "16px",
-                }}
-              >
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Member *
-                  </label>
-                  <select
-                    required
-                    value={newTransaction.memberId}
-                    onChange={(e) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        memberId: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                  >
-                    <option value="" style={{ backgroundColor: "#1e293b" }}>
-                      Select a member
-                    </option>
-                    {members.map((member) => (
-                      <option
-                        key={member.id}
-                        value={member.id}
-                        style={{ backgroundColor: "#1e293b" }}
-                      >
-                        {member.full_name} - {member.membership_number}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Transaction Type *
-                  </label>
-                  <select
-                    required
-                    value={newTransaction.type}
-                    onChange={(e) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        type: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                  >
+              <div className="form-group">
+                <label className="form-label">Member *</label>
+                <select
+                  className="form-select"
+                  required
+                  value={newTransaction.memberId}
+                  onChange={(e) =>
+                    setNewTransaction({
+                      ...newTransaction,
+                      memberId: e.target.value,
+                    })
+                  }
+                >
+                  <option value="" style={{ backgroundColor: "#1e293b" }}>
+                    Select a member
+                  </option>
+                  {members.map((member) => (
                     <option
-                      value="deposit"
+                      key={member.id}
+                      value={member.id}
                       style={{ backgroundColor: "#1e293b" }}
                     >
-                      💰 Deposit
+                      {member.full_name} - {member.membership_number} [
+                      {member.role || "member"}]
                     </option>
-                    <option
-                      value="withdrawal"
-                      style={{ backgroundColor: "#1e293b" }}
-                    >
-                      🏦 Withdrawal
-                    </option>
-                  </select>
-                </div>
+                  ))}
+                </select>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
+              <div className="form-group">
+                <label className="form-label">Transaction Type *</label>
+                <select
+                  className="form-select"
+                  required
+                  value={newTransaction.type}
+                  onChange={(e) =>
+                    setNewTransaction({
+                      ...newTransaction,
+                      type: e.target.value,
+                    })
+                  }
+                >
+                  <option
+                    value="deposit"
+                    style={{ backgroundColor: "#1e293b" }}
                   >
-                    Amount (₦) *
-                  </label>
-                  <input
-                    type="number"
-                    required
-                    value={newTransaction.amount}
-                    onChange={(e) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        amount: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter amount"
-                    min="1"
-                    step="0.01"
-                  />
-                </div>
+                    💰 Deposit
+                  </option>
+                  <option
+                    value="withdrawal"
+                    style={{ backgroundColor: "#1e293b" }}
+                  >
+                    🏦 Withdrawal
+                  </option>
+                </select>
+              </div>
 
-                <div>
-                  <label
-                    style={{
-                      display: "block",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                      color: "#d1d5db",
-                      marginBottom: "4px",
-                    }}
-                  >
-                    Description *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={newTransaction.description}
-                    onChange={(e) =>
-                      setNewTransaction({
-                        ...newTransaction,
-                        description: e.target.value,
-                      })
-                    }
-                    style={{
-                      width: "100%",
-                      backgroundColor: "rgba(255,255,255,0.08)",
-                      color: "white",
-                      padding: "10px 14px",
-                      borderRadius: "8px",
-                      border: "1px solid rgba(255,255,255,0.1)",
-                      outline: "none",
-                      fontSize: "14px",
-                    }}
-                    onFocus={(e) => (e.target.style.borderColor = "#10b981")}
-                    onBlur={(e) =>
-                      (e.target.style.borderColor = "rgba(255,255,255,0.1)")
-                    }
-                    placeholder="Enter transaction description"
-                  />
-                </div>
+              <div className="form-group">
+                <label className="form-label">Amount (₦) *</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  required
+                  value={newTransaction.amount}
+                  onChange={(e) =>
+                    setNewTransaction({
+                      ...newTransaction,
+                      amount: e.target.value,
+                    })
+                  }
+                  placeholder="Enter amount"
+                  min="1"
+                  step="0.01"
+                />
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Description *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  required
+                  value={newTransaction.description}
+                  onChange={(e) =>
+                    setNewTransaction({
+                      ...newTransaction,
+                      description: e.target.value,
+                    })
+                  }
+                  placeholder="Enter transaction description"
+                />
               </div>
 
               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
                 <button
                   type="submit"
-                  style={{
-                    flex: 1,
-                    backgroundColor: "#3b82f6",
-                    color: "white",
-                    padding: "10px",
-                    border: "none",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    fontWeight: "600",
-                    cursor: "pointer",
-                    transition: "background-color 0.3s",
-                  }}
+                  className="btn-primary"
+                  style={{ flex: 1, backgroundColor: "#3b82f6" }}
                   onMouseEnter={(e) =>
                     (e.target.style.backgroundColor = "#2563eb")
                   }
@@ -2782,17 +2371,9 @@ const AdminMembers = () => {
                 </button>
                 <button
                   type="button"
+                  className="btn-secondary"
                   onClick={() => setShowAddTransactionModal(false)}
-                  style={{
-                    flex: 1,
-                    backgroundColor: "rgba(255,255,255,0.08)",
-                    color: "white",
-                    padding: "10px",
-                    border: "1px solid rgba(255,255,255,0.1)",
-                    borderRadius: "8px",
-                    fontSize: "16px",
-                    cursor: "pointer",
-                  }}
+                  style={{ flex: 1 }}
                 >
                   Cancel
                 </button>

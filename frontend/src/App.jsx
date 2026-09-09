@@ -23,7 +23,7 @@ import AdminPending from "./components/admin/Pending";
 import AdminReports from "./components/admin/Reports";
 import AdminSettings from "./components/admin/Settings";
 import UserManagement from "./components/admin/UserManagement";
-import AdminProfile from "./components/admin/AdminProfile"; // <-- ADD THIS
+import AdminProfile from "./components/admin/AdminProfile";
 
 // Member Components
 import MemberDashboard from "./components/member/Dashboard";
@@ -31,7 +31,8 @@ import MemberDeposit from "./components/member/Deposit";
 import MemberWithdraw from "./components/member/Withdraw";
 import MemberTransfer from "./components/member/Transfer";
 import MemberHistory from "./components/member/History";
-import MemberProfile from "./components/member/MemberProfile"; // <-- ADD THIS
+import Borrowing from "./components/member/Borrowing";
+import MemberProfile from "./components/member/MemberProfile";
 
 function AppRoutes() {
   const { user, isAuthenticated } = useAuth();
@@ -39,12 +40,23 @@ function AppRoutes() {
 
   return (
     <Routes>
+      {/* AUTH ROUTES */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
 
-      {/* ADMIN ROUTES - WRAPPED WITH LAYOUT */}
+      {/* ========== ADMIN ROUTES ========== */}
       <Route
         path="/admin"
+        element={
+          <ProtectedRoute adminOnly>
+            <Layout>
+              <AdminDashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/dashboard"
         element={
           <ProtectedRoute adminOnly>
             <Layout>
@@ -113,7 +125,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* ADD ADMIN PROFILE ROUTE */}
       <Route
         path="/admin/profile"
         element={
@@ -124,6 +135,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Admin catch-all route */}
       <Route
         path="/admin/*"
         element={
@@ -135,9 +147,19 @@ function AppRoutes() {
         }
       />
 
-      {/* MEMBER ROUTES - WRAPPED WITH LAYOUT */}
+      {/* ========== MEMBER ROUTES ========== */}
       <Route
         path="/member"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <MemberDashboard />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/member/dashboard"
         element={
           <ProtectedRoute>
             <Layout>
@@ -186,7 +208,17 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* ADD MEMBER PROFILE ROUTE */}
+      {/* FIXED: Corrected spelling from "burrowing" to "borrowing" */}
+      <Route
+        path="/member/borrowing"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Borrowing />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/member/profile"
         element={
@@ -197,6 +229,7 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* Member catch-all route */}
       <Route
         path="/member/*"
         element={
@@ -208,15 +241,31 @@ function AppRoutes() {
         }
       />
 
-      {/* DEFAULT ROUTE */}
+      {/* ========== DEFAULT ROUTE ========== */}
       <Route
         path="/"
         element={
           isAuthenticated ? (
             isAdmin ? (
-              <Navigate to="/admin" />
+              <Navigate to="/admin/dashboard" />
             ) : (
-              <Navigate to="/member" />
+              <Navigate to="/member/dashboard" />
+            )
+          ) : (
+            <Navigate to="/login" />
+          )
+        }
+      />
+
+      {/* ========== 404 NOT FOUND ========== */}
+      <Route
+        path="*"
+        element={
+          isAuthenticated ? (
+            isAdmin ? (
+              <Navigate to="/admin/dashboard" />
+            ) : (
+              <Navigate to="/member/dashboard" />
             )
           ) : (
             <Navigate to="/login" />
@@ -238,6 +287,14 @@ function App() {
               background: "#1a1a2e",
               color: "#fff",
               border: "1px solid rgba(255,255,255,0.1)",
+            },
+            success: {
+              icon: "✅",
+              duration: 3000,
+            },
+            error: {
+              icon: "❌",
+              duration: 4000,
             },
           }}
         />

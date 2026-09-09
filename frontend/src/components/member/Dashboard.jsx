@@ -938,6 +938,32 @@ const Dashboard = () => {
           >
             🔄 Transfer
           </button>
+
+          {/* ADDED: Borrow Button - Navigates to Borrowing Component */}
+          <button
+            onClick={() => navigate("/member/borrowing")}
+            style={{
+              backgroundColor: "rgba(251, 191, 36, 0.15)",
+              color: "#fbbf24",
+              padding: "16px",
+              border: "1px solid rgba(251, 191, 36, 0.2)",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "15px",
+              fontWeight: "600",
+              transition: "all 0.3s",
+            }}
+            onMouseEnter={(e) => {
+              e.target.style.backgroundColor = "rgba(251, 191, 36, 0.25)";
+              e.target.style.transform = "scale(1.02)";
+            }}
+            onMouseLeave={(e) => {
+              e.target.style.backgroundColor = "rgba(251, 191, 36, 0.15)";
+              e.target.style.transform = "scale(1)";
+            }}
+          >
+            💳 Borrow
+          </button>
         </div>
       )}
 
@@ -1014,6 +1040,24 @@ const Dashboard = () => {
             }}
           >
             📊 View Reports
+          </button>
+
+          {/* Admin Borrow Management */}
+          <button
+            onClick={() => navigate("/admin/loans")}
+            style={{
+              backgroundColor: "rgba(251, 191, 36, 0.15)",
+              color: "#fbbf24",
+              padding: "16px",
+              border: "1px solid rgba(251, 191, 36, 0.2)",
+              borderRadius: "10px",
+              cursor: "pointer",
+              fontSize: "15px",
+              fontWeight: "600",
+              transition: "all 0.3s",
+            }}
+          >
+            💳 Loan Management
           </button>
         </div>
       )}

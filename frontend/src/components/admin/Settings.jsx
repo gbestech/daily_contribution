@@ -101,6 +101,19 @@ const AdminSettings = () => {
     notify_admin_on_suspension: true,
   });
 
+  // Loan Settings - Simplified (removed min/max loan amounts)
+  const [loanSettings, setLoanSettings] = useState({
+    min_membership_days: 180,
+    interest_rate: 5,
+    max_duration_months: 6,
+    enable_loan_requests: true,
+    require_admin_approval: true,
+    auto_approve_small_loans: false,
+    small_loan_threshold: 5000,
+    late_payment_penalty: 10,
+    grace_period_days: 7,
+  });
+
   // Data from database
   const [members, setMembers] = useState([]);
   const [suspendedAccounts, setSuspendedAccounts] = useState([]);
@@ -149,7 +162,6 @@ const AdminSettings = () => {
       if (data.status && data.data) {
         const settings = data.data;
 
-        // Map settings to state
         if (settings.general) {
           setGeneralSettings((prev) => ({ ...prev, ...settings.general }));
         }
@@ -180,6 +192,9 @@ const AdminSettings = () => {
             ...settings.suspension,
           }));
         }
+        if (settings.loan) {
+          setLoanSettings((prev) => ({ ...prev, ...settings.loan }));
+        }
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
@@ -192,7 +207,6 @@ const AdminSettings = () => {
       const data = await response.json();
 
       if (data.members) {
-        // Filter only active members (not suspended)
         const activeMembers = data.members.filter(
           (m) => m.status !== "Suspended",
         );
@@ -219,7 +233,6 @@ const AdminSettings = () => {
 
   const fetchSuspendedAccounts = async () => {
     try {
-      // Get suspended members from members table
       const response = await fetch(`${API_BASE_URL}/api/members.php`);
       const data = await response.json();
 
@@ -281,6 +294,7 @@ const AdminSettings = () => {
         discount: discountSettings,
         security: securitySettings,
         suspension: suspensionSettings,
+        loan: loanSettings,
       };
 
       const response = await fetch(`${API_BASE_URL}/api/settings.php`, {
@@ -341,7 +355,6 @@ const AdminSettings = () => {
         setShowSuspendModal(false);
         setSelectedMember(null);
         setSuspensionReason("");
-        // Refresh data
         await fetchAllData();
       } else {
         toast.error(data.message || "Failed to suspend account");
@@ -383,7 +396,6 @@ const AdminSettings = () => {
         );
         setShowReactivateModal(false);
         setSelectedMember(null);
-        // Refresh data
         await fetchAllData();
       } else {
         toast.error(data.message || "Failed to reactivate account");
@@ -856,6 +868,55 @@ const AdminSettings = () => {
           font-size: 13px;
           color: #e5e7eb;
         }
+        .info-box {
+          background: rgba(59, 130, 246, 0.1);
+          border: 1px solid rgba(59, 130, 246, 0.2);
+          border-radius: 8px;
+          padding: 12px 16px;
+          margin-bottom: 16px;
+        }
+        .info-box p {
+          margin: 0;
+          font-size: 13px;
+          color: #93c5fd;
+        }
+        .info-box strong {
+          color: white;
+        }
+        .rule-box {
+          background: rgba(16, 185, 129, 0.1);
+          border: 1px solid rgba(16, 185, 129, 0.2);
+          border-radius: 8px;
+          padding: 16px;
+          margin-top: 16px;
+        }
+        .rule-box h4 {
+          font-size: 13px;
+          color: #34d399;
+          margin: 0 0 8px 0;
+        }
+        .rule-box p {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 0;
+        }
+        .rule-box strong {
+          color: #34d399;
+        }
+        .rule-example {
+          margin-top: 12px;
+          padding: 12px;
+          background: rgba(16, 185, 129, 0.08);
+          border-radius: 6px;
+        }
+        .rule-example p {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 0;
+        }
+        .rule-example strong {
+          color: #34d399;
+        }
         @media (max-width: 768px) {
           .form-row {
             grid-template-columns: 1fr;
@@ -904,6 +965,12 @@ const AdminSettings = () => {
             onClick={() => setActiveTab("general")}
           >
             ⚙️ General
+          </button>
+          <button
+            className={`tab-btn ${activeTab === "loan" ? "active" : ""}`}
+            onClick={() => setActiveTab("loan")}
+          >
+            💰 Loan
           </button>
           <button
             className={`tab-btn ${activeTab === "contribution" ? "active" : ""}`}
@@ -1023,6 +1090,314 @@ const AdminSettings = () => {
                     })
                   }
                 />
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Loan Settings - Simplified */}
+        {activeTab === "loan" && (
+          <div>
+            <div className="settings-card">
+              <div className="settings-card-title">💰 Loan Settings</div>
+
+              <div className="info-box">
+                <p>
+                  💡 Configure loan eligibility criteria and interest rates.
+                  Members can borrow up to{" "}
+                  <strong>50% of their total savings</strong>.
+                </p>
+              </div>
+
+              {/* Eligibility Section */}
+              <div
+                style={{
+                  marginBottom: "20px",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                }}
+              >
+                <h4
+                  style={{
+                    fontSize: "14px",
+                    color: "#60a5fa",
+                    marginBottom: "12px",
+                  }}
+                >
+                  📋 Eligibility Requirements
+                </h4>
+
+                <div className="form-group">
+                  <label className="form-label">
+                    Minimum Membership Days for Loan Eligibility
+                  </label>
+                  <div className="form-row">
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={loanSettings.min_membership_days}
+                        onChange={(e) =>
+                          setLoanSettings({
+                            ...loanSettings,
+                            min_membership_days: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        min="1"
+                      />
+                    </div>
+                    <div style={{ flex: 1 }}>
+                      <input
+                        type="text"
+                        className="form-input"
+                        value={`${Math.ceil(loanSettings.min_membership_days / 30)} months`}
+                        disabled
+                        style={{ opacity: 0.6 }}
+                      />
+                    </div>
+                  </div>
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "#64748b",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Members must be active for at least this many days before
+                    they can request a loan.
+                  </p>
+                </div>
+
+                <div className="form-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={loanSettings.enable_loan_requests}
+                    onChange={(e) =>
+                      setLoanSettings({
+                        ...loanSettings,
+                        enable_loan_requests: e.target.checked,
+                      })
+                    }
+                  />
+                  <span className="form-checkbox-label">
+                    Enable Loan Requests
+                  </span>
+                </div>
+
+                <div className="form-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={loanSettings.require_admin_approval}
+                    onChange={(e) =>
+                      setLoanSettings({
+                        ...loanSettings,
+                        require_admin_approval: e.target.checked,
+                      })
+                    }
+                  />
+                  <span className="form-checkbox-label">
+                    Require Admin Approval for Loans
+                  </span>
+                </div>
+
+                <div className="form-checkbox">
+                  <input
+                    type="checkbox"
+                    checked={loanSettings.auto_approve_small_loans}
+                    onChange={(e) =>
+                      setLoanSettings({
+                        ...loanSettings,
+                        auto_approve_small_loans: e.target.checked,
+                      })
+                    }
+                  />
+                  <span className="form-checkbox-label">
+                    Auto-Approve Small Loans
+                  </span>
+                </div>
+
+                {loanSettings.auto_approve_small_loans && (
+                  <div className="form-group">
+                    <label className="form-label">
+                      Small Loan Threshold (₦)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={loanSettings.small_loan_threshold}
+                      onChange={(e) =>
+                        setLoanSettings({
+                          ...loanSettings,
+                          small_loan_threshold: parseInt(e.target.value) || 0,
+                        })
+                      }
+                    />
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Loans below this amount will be auto-approved
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              {/* Interest & Duration Section */}
+              <div
+                style={{
+                  marginBottom: "20px",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                }}
+              >
+                <h4
+                  style={{
+                    fontSize: "14px",
+                    color: "#fbbf24",
+                    marginBottom: "12px",
+                  }}
+                >
+                  💰 Interest & Duration
+                </h4>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">Interest Rate (%)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={loanSettings.interest_rate}
+                      onChange={(e) =>
+                        setLoanSettings({
+                          ...loanSettings,
+                          interest_rate: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      min="0"
+                      step="0.5"
+                    />
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Interest rate applied to each loan
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">
+                      Maximum Loan Duration (Months)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={loanSettings.max_duration_months}
+                      onChange={(e) =>
+                        setLoanSettings({
+                          ...loanSettings,
+                          max_duration_months: parseInt(e.target.value) || 1,
+                        })
+                      }
+                      min="1"
+                    />
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Maximum repayment period for loans
+                    </p>
+                  </div>
+                </div>
+
+                <div className="form-row">
+                  <div className="form-group">
+                    <label className="form-label">
+                      Late Payment Penalty (%)
+                    </label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={loanSettings.late_payment_penalty}
+                      onChange={(e) =>
+                        setLoanSettings({
+                          ...loanSettings,
+                          late_payment_penalty: parseFloat(e.target.value) || 0,
+                        })
+                      }
+                      min="0"
+                      step="0.5"
+                    />
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Penalty percentage for late loan payments
+                    </p>
+                  </div>
+
+                  <div className="form-group">
+                    <label className="form-label">Grace Period (Days)</label>
+                    <input
+                      type="number"
+                      className="form-input"
+                      value={loanSettings.grace_period_days}
+                      onChange={(e) =>
+                        setLoanSettings({
+                          ...loanSettings,
+                          grace_period_days: parseInt(e.target.value) || 0,
+                        })
+                      }
+                      min="0"
+                    />
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: "#64748b",
+                        marginTop: "4px",
+                      }}
+                    >
+                      Days after due date before late payment penalty applies
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 50% Rule Information Box */}
+              <div className="rule-box">
+                <h4>💰 Borrowing Rule: 50% of Savings</h4>
+                <p>
+                  Members can borrow <strong>50%</strong> of their total
+                  savings. There is no fixed minimum or maximum amount - the
+                  borrow limit is <strong>automatically calculated</strong>{" "}
+                  based on each member's savings.
+                </p>
+                <div className="rule-example">
+                  <p>
+                    <strong style={{ color: "#34d399" }}>Example:</strong>
+                    <br />
+                    If a member has{" "}
+                    <strong style={{ color: "white" }}>₦100,000</strong> in
+                    savings, they can borrow up to{" "}
+                    <strong style={{ color: "#34d399" }}>₦50,000</strong> (50%).
+                  </p>
+                  <p style={{ marginTop: "4px" }}>
+                    <strong style={{ color: "#60a5fa" }}>Formula:</strong>
+                    <br />
+                    Savings × 50% = Maximum Borrow Amount
+                  </p>
+                </div>
               </div>
             </div>
           </div>
@@ -1803,7 +2178,6 @@ const AdminSettings = () => {
         {/* Suspension Settings */}
         {activeTab === "suspension" && (
           <div>
-            {/* Suspension Settings */}
             <div className="settings-card">
               <div className="settings-card-title">
                 🚫 Account Suspension Settings

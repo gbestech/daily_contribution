@@ -1,5 +1,5 @@
 // src/components/member/Profile.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
@@ -9,6 +9,9 @@ const MemberProfile = () => {
   const { user, login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [editMode, setEditMode] = useState(false);
+  const [profileImage, setProfileImage] = useState(null);
+  const [imagePreview, setImagePreview] = useState(null);
+  const fileInputRef = useRef(null);
   const [formData, setFormData] = useState({
     name: "",
     full_name: "",
@@ -39,6 +42,14 @@ const MemberProfile = () => {
         password: "",
         confirmPassword: "",
       });
+
+      // Set profile image if available
+      if (user.profile_image || user.profileImage) {
+        const imageUrl = user.profile_image || user.profileImage;
+        setImagePreview(
+          imageUrl.startsWith("http") ? imageUrl : `${API_BASE_URL}${imageUrl}`,
+        );
+      }
     }
   }, [user]);
 
@@ -47,6 +58,41 @@ const MemberProfile = () => {
       ...formData,
       [e.target.name]: e.target.value,
     });
+  };
+
+  const handleImageChange = (e) => {
+    const file = e.target.files[0];
+    if (file) {
+      // Validate file type
+      const validTypes = ["image/jpeg", "image/png", "image/gif", "image/webp"];
+      if (!validTypes.includes(file.type)) {
+        toast.error(
+          "Please upload a valid image file (JPEG, PNG, GIF, or WebP)",
+        );
+        return;
+      }
+
+      // Validate file size (max 2MB)
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Image size must be less than 2MB");
+        return;
+      }
+
+      setProfileImage(file);
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImagePreview(reader.result);
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const removeImage = () => {
+    setProfileImage(null);
+    setImagePreview(null);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
   };
 
   const handleUpdateProfile = async (e) => {
@@ -60,7 +106,7 @@ const MemberProfile = () => {
 
     setLoading(true);
     try {
-      const updateData = {
+      let updateData = {
         name: formData.full_name || formData.name,
         full_name: formData.full_name || formData.name,
         email: formData.email,
@@ -72,39 +118,89 @@ const MemberProfile = () => {
         updateData.password = formData.password;
       }
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php/${user.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(updateData),
-        },
-      );
+      // If there's a profile image, use FormData for multipart upload
+      if (profileImage) {
+        const formDataObj = new FormData();
+        formDataObj.append("name", updateData.name);
+        formDataObj.append("full_name", updateData.full_name);
+        formDataObj.append("email", updateData.email);
+        formDataObj.append("phone", updateData.phone);
+        if (updateData.password) {
+          formDataObj.append("password", updateData.password);
+        }
+        formDataObj.append("profile_image", profileImage);
 
-      const data = await response.json();
+        const response = await fetch(
+          `${API_BASE_URL}/api/members.php/${user.id}`,
+          {
+            method: "PUT",
+            body: formDataObj,
+          },
+        );
 
-      if (response.ok) {
-        // Update user in context with new data
-        const updatedUser = {
-          ...user,
-          name: formData.full_name || formData.name,
-          full_name: formData.full_name || formData.name,
-          email: formData.email,
-          phone: formData.phone,
-        };
+        const data = await response.json();
 
-        localStorage.setItem("user", JSON.stringify(updatedUser));
-        login(updatedUser, localStorage.getItem("token"));
+        if (response.ok) {
+          // Update user in context with new data including image
+          const updatedUser = {
+            ...user,
+            name: formData.full_name || formData.name,
+            full_name: formData.full_name || formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            profile_image: data.profile_image || user.profile_image,
+            profileImage: data.profileImage || user.profileImage,
+          };
 
-        toast.success("✅ Profile updated successfully!");
-        setEditMode(false);
-        setFormData({
-          ...formData,
-          password: "",
-          confirmPassword: "",
-        });
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          login(updatedUser, localStorage.getItem("token"));
+
+          toast.success("✅ Profile updated successfully!");
+          setEditMode(false);
+          setFormData({
+            ...formData,
+            password: "",
+            confirmPassword: "",
+          });
+        } else {
+          toast.error(data.message || "Failed to update profile");
+        }
       } else {
-        toast.error(data.message || "Failed to update profile");
+        // Regular JSON update without image
+        const response = await fetch(
+          `${API_BASE_URL}/api/members.php/${user.id}`,
+          {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(updateData),
+          },
+        );
+
+        const data = await response.json();
+
+        if (response.ok) {
+          // Update user in context with new data
+          const updatedUser = {
+            ...user,
+            name: formData.full_name || formData.name,
+            full_name: formData.full_name || formData.name,
+            email: formData.email,
+            phone: formData.phone,
+          };
+
+          localStorage.setItem("user", JSON.stringify(updatedUser));
+          login(updatedUser, localStorage.getItem("token"));
+
+          toast.success("✅ Profile updated successfully!");
+          setEditMode(false);
+          setFormData({
+            ...formData,
+            password: "",
+            confirmPassword: "",
+          });
+        } else {
+          toast.error(data.message || "Failed to update profile");
+        }
       }
     } catch (error) {
       console.error("Error updating profile:", error);
@@ -213,17 +309,79 @@ const MemberProfile = () => {
           margin-bottom: 24px;
           flex-wrap: wrap;
         }
+        .avatar-container {
+          position: relative;
+          width: 100px;
+          height: 100px;
+        }
         .avatar {
-          width: 80px;
-          height: 80px;
+          width: 100px;
+          height: 100px;
           border-radius: 50%;
           background: linear-gradient(135deg, #059669, #0d9488);
           display: flex;
           align-items: center;
           justify-content: center;
-          font-size: 32px;
+          font-size: 40px;
           font-weight: bold;
           color: white;
+          overflow: hidden;
+          flex-shrink: 0;
+          border: 3px solid rgba(255,255,255,0.1);
+        }
+        .avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .avatar-upload-overlay {
+          position: absolute;
+          bottom: 0;
+          right: 0;
+          background: #00aa69;
+          border-radius: 50%;
+          width: 32px;
+          height: 32px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          border: 2px solid #0f172a;
+          transition: all 0.2s;
+          font-size: 16px;
+        }
+        .avatar-upload-overlay:hover {
+          transform: scale(1.1);
+          background: #008854;
+        }
+        .avatar-upload-overlay input {
+          position: absolute;
+          opacity: 0;
+          width: 100%;
+          height: 100%;
+          cursor: pointer;
+        }
+        .remove-image-btn {
+          position: absolute;
+          top: -5px;
+          right: -5px;
+          background: rgba(239, 68, 68, 0.9);
+          border: 2px solid #0f172a;
+          border-radius: 50%;
+          width: 28px;
+          height: 28px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          cursor: pointer;
+          color: white;
+          font-size: 14px;
+          transition: all 0.2s;
+          padding: 0;
+        }
+        .remove-image-btn:hover {
+          background: rgba(239, 68, 68, 1);
+          transform: scale(1.1);
         }
         .form-group {
           margin-bottom: 16px;
@@ -370,13 +528,45 @@ const MemberProfile = () => {
             flex-direction: column;
             text-align: center;
           }
+          .avatar-container {
+            margin: 0 auto;
+          }
         }
       `}</style>
 
       {/* Page Header */}
       <div className="profile-header">
-        <div className="avatar">
-          {formData.full_name?.charAt(0) || formData.name?.charAt(0) || "U"}
+        <div className="avatar-container">
+          <div className="avatar">
+            {imagePreview ? (
+              <img src={imagePreview} alt="Profile" />
+            ) : (
+              formData.full_name?.charAt(0) || formData.name?.charAt(0) || "U"
+            )}
+          </div>
+          {editMode && (
+            <>
+              <div className="avatar-upload-overlay">
+                <span>📷</span>
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+              </div>
+              {imagePreview && (
+                <button
+                  type="button"
+                  className="remove-image-btn"
+                  onClick={removeImage}
+                  title="Remove image"
+                >
+                  ✕
+                </button>
+              )}
+            </>
+          )}
         </div>
         <div style={{ flex: 1 }}>
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
@@ -391,6 +581,7 @@ const MemberProfile = () => {
               gap: "8px",
               marginTop: "8px",
               flexWrap: "wrap",
+              justifyContent: "center",
             }}
           >
             {getStatusBadge(formData.status)}
@@ -419,7 +610,18 @@ const MemberProfile = () => {
             <>
               <button
                 className="btn-secondary"
-                onClick={() => setEditMode(false)}
+                onClick={() => {
+                  setEditMode(false);
+                  setProfileImage(null);
+                  setImagePreview(
+                    user?.profile_image || user?.profileImage
+                      ? `${API_BASE_URL}${user.profile_image || user.profileImage}`
+                      : null,
+                  );
+                  if (fileInputRef.current) {
+                    fileInputRef.current.value = "";
+                  }
+                }}
               >
                 Cancel
               </button>

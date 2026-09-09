@@ -1,5 +1,5 @@
 // src/pages/auth/Login.jsx
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
@@ -11,10 +11,74 @@ const Login = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [appSettings, setAppSettings] = useState({
+    appName: "Loading...",
+    logo: "🏦",
+  });
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
+
+  // Fetch app settings on component mount
+  useEffect(() => {
+    fetchAppSettings();
+  }, []);
+
+  const fetchAppSettings = async () => {
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/settings.php`);
+      if (response.ok) {
+        const result = await response.json();
+        console.log("Settings API response:", result);
+
+        // Check if we have settings data
+        if (result.status === true && result.data) {
+          // Look for general settings
+          if (result.data.general) {
+            const general = result.data.general;
+            console.log("General settings:", general);
+
+            // Extract shop name from general settings
+            const shopName =
+              general.shop_name || general.app_name || "Osittech Contribution";
+            const logo = general.logo || "🏦";
+
+            setAppSettings({
+              appName: shopName,
+              logo: logo,
+            });
+          } else {
+            // Fallback: use default
+            setAppSettings({
+              appName: "Osittech Contribution",
+              logo: "🏦",
+            });
+          }
+        } else {
+          // Fallback if response format is different
+          setAppSettings({
+            appName: "Osittech Contribution",
+            logo: "🏦",
+          });
+        }
+      } else {
+        console.error("Failed to fetch settings, status:", response.status);
+        // Use default if API fails
+        setAppSettings({
+          appName: "Osittech Contribution",
+          logo: "🏦",
+        });
+      }
+    } catch (error) {
+      console.error("Error fetching app settings:", error);
+      // Use default values if settings can't be fetched
+      setAppSettings({
+        appName: "Osittech Contribution",
+        logo: "🏦",
+      });
+    }
+  };
 
   const handleChange = (e) => {
     setFormData({
@@ -25,40 +89,19 @@ const Login = () => {
 
   // Phone number validation function
   const validatePhoneNumber = (phone) => {
-    // Remove all non-digit characters
     const cleanPhone = phone.replace(/\D/g, "");
 
-    // Check for Nigerian phone number patterns:
-    // 11 digits starting with 0: 08012345678, 08123456789, 07012345678, 09012345678
-    // Or with country code: 2348012345678 (13 digits starting with 234)
-    // Or with +234: +2348012345678 (14 characters)
-
-    // Check if it's 11 digits starting with 0
     if (cleanPhone.length === 11 && cleanPhone.startsWith("0")) {
-      // Check if it starts with 080, 081, 070, 090, 091, 070, 080, 081, 090
-      const validPrefixes = [
-        "080",
-        "081",
-        "070",
-        "090",
-        "091",
-        "0701",
-        "0801",
-        "0811",
-        "0901",
-      ];
-      const prefix = cleanPhone.substring(0, 3);
+      const validPrefixes = ["080", "081", "070", "090", "091"];
       if (validPrefixes.some((p) => cleanPhone.startsWith(p))) {
         return true;
       }
     }
 
-    // Check if it's 13 digits starting with 234 (country code)
     if (cleanPhone.length === 13 && cleanPhone.startsWith("234")) {
       return true;
     }
 
-    // Check if it's +234 format (14 characters including +)
     if (phone.startsWith("+234") && phone.replace(/\D/g, "").length === 13) {
       return true;
     }
@@ -70,7 +113,7 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Check if input is a phone number (contains digits or +)
+    // Check if input is a phone number
     const inputValue = formData.email.trim();
     const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
 
@@ -87,6 +130,7 @@ const Login = () => {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify({
           email: formData.email,
@@ -97,7 +141,8 @@ const Login = () => {
       const data = await response.json();
       console.log("Login response:", data);
 
-      if (data.status) {
+      // Check if login was successful
+      if (data.status === true) {
         const { user } = data;
 
         const cleanUser = {
@@ -132,9 +177,7 @@ const Login = () => {
           updated_at: user.updated_at || new Date().toISOString(),
         };
 
-        console.log("✅ Clean user with balance:", cleanUser);
-        console.log("✅ Balance:", cleanUser.balance);
-        console.log("✅ Account Number:", cleanUser.accountNumber);
+        console.log("Clean user:", cleanUser);
 
         const token = data.token || `token_${Date.now()}`;
 
@@ -147,7 +190,7 @@ const Login = () => {
 
         const isAdmin =
           cleanUser.role === "admin" || cleanUser.role === "administrator";
-        console.log("✅ Is admin?", isAdmin);
+        console.log("Is admin?", isAdmin);
 
         setTimeout(() => {
           if (isAdmin) {
@@ -157,6 +200,7 @@ const Login = () => {
           }
         }, 300);
       } else {
+        // Login failed
         toast.error(data.error || data.message || "Login failed");
       }
     } catch (error) {
@@ -173,238 +217,94 @@ const Login = () => {
     }
   };
 
-  // Styles
-  const styles = {
-    container: {
-      minHeight: "100vh",
-      width: "100%",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      position: "relative",
-      overflow: "hidden",
-      padding: "20px 0",
-      backgroundColor: "#0f172a",
-    },
-    background: {
-      position: "absolute",
-      inset: 0,
-      zIndex: 0,
-      backgroundImage:
-        "url('https://images.unsplash.com/photo-1556742049-0cfed4f6a45d?ixlib=rb-4.0.3&auto=format&fit=crop&w=2070&q=80')",
-      backgroundSize: "cover",
-      backgroundPosition: "center",
-    },
-    overlay: {
-      position: "absolute",
-      inset: 0,
-      background:
-        "linear-gradient(to bottom right, rgba(6, 78, 59, 0.8), rgba(19, 78, 74, 0.7), rgba(8, 145, 178, 0.8))",
-    },
-    card: {
-      position: "relative",
-      zIndex: 10,
-      width: "100%",
-      maxWidth: "380px",
-      padding: "0 16px",
-    },
-    cardInner: {
-      backgroundColor: "rgba(255, 255, 255, 0.95)",
-      backdropFilter: "blur(20px)",
-      borderRadius: "12px",
-      boxShadow: "0 25px 50px -12px rgba(0, 0, 0, 0.5)",
-      padding: "24px 20px",
-      border: "1px solid rgba(255, 255, 255, 0.2)",
-    },
-    logoContainer: {
-      display: "flex",
-      justifyContent: "center",
-      marginBottom: "12px",
-    },
-    logo: {
-      background: "linear-gradient(to right, #059669, #0d9488)",
-      borderRadius: "9999px",
-      padding: "10px",
-      boxShadow: "0 10px 30px rgba(5, 150, 105, 0.25)",
-    },
-    logoText: {
-      fontSize: "24px",
-    },
-    title: {
-      fontSize: "18px",
-      fontWeight: "bold",
-      textAlign: "center",
-      color: "#1f2937",
-      marginBottom: "4px",
-    },
-    subtitle: {
-      textAlign: "center",
-      color: "#6b7280",
-      fontSize: "13px",
-      marginBottom: "16px",
-    },
-    formGroup: {
-      marginBottom: "12px",
-    },
-    label: {
-      display: "block",
-      fontSize: "13px",
-      fontWeight: "500",
-      color: "#374151",
-      marginBottom: "4px",
-    },
-    inputWrapper: {
-      position: "relative",
-    },
-    inputIcon: {
-      position: "absolute",
-      left: "10px",
-      top: "50%",
-      transform: "translateY(-50%)",
-      color: "#9ca3af",
-      fontSize: "14px",
-    },
-    input: {
-      width: "100%",
-      padding: "8px 10px 8px 32px",
-      fontSize: "13px",
-      border: "1px solid #d1d5db",
-      borderRadius: "6px",
-      backgroundColor: "rgba(255, 255, 255, 0.5)",
-      backdropFilter: "blur(4px)",
-      transition: "all 0.2s",
-      outline: "none",
-      boxSizing: "border-box",
-    },
-    inputPassword: {
-      width: "100%",
-      padding: "8px 32px 8px 32px",
-      fontSize: "13px",
-      border: "1px solid #d1d5db",
-      borderRadius: "6px",
-      backgroundColor: "rgba(255, 255, 255, 0.5)",
-      backdropFilter: "blur(4px)",
-      transition: "all 0.2s",
-      outline: "none",
-      boxSizing: "border-box",
-    },
-    passwordToggle: {
-      position: "absolute",
-      right: "10px",
-      top: "50%",
-      transform: "translateY(-50%)",
-      background: "none",
-      border: "none",
-      color: "#9ca3af",
-      cursor: "pointer",
-      fontSize: "14px",
-    },
-    flexRow: {
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "space-between",
-      marginBottom: "12px",
-    },
-    checkboxWrapper: {
-      display: "flex",
-      alignItems: "center",
-      gap: "6px",
-    },
-    checkbox: {
-      width: "14px",
-      height: "14px",
-      accentColor: "#059669",
-    },
-    checkboxLabel: {
-      fontSize: "12px",
-      color: "#4b5563",
-      cursor: "pointer",
-    },
-    forgotLink: {
-      fontSize: "12px",
-      color: "#059669",
-      textDecoration: "none",
-    },
-    submitButton: {
-      width: "100%",
-      padding: "8px",
-      background: "linear-gradient(to right, #059669, #0d9488)",
-      color: "white",
-      border: "none",
-      borderRadius: "6px",
-      fontSize: "13px",
-      fontWeight: "600",
-      cursor: "pointer",
-      transition: "all 0.2s",
-      boxShadow: "0 10px 30px rgba(5, 150, 105, 0.25)",
-    },
-    submitDisabled: {
-      opacity: 0.5,
-      cursor: "not-allowed",
-    },
-    registerText: {
-      textAlign: "center",
-      fontSize: "12px",
-      color: "#6b7280",
-      marginTop: "12px",
-    },
-    registerLink: {
-      color: "#059669",
-      fontWeight: "500",
-      textDecoration: "none",
-    },
-    footer: {
-      marginTop: "12px",
-      textAlign: "center",
-    },
-    footerText: {
-      fontSize: "10px",
-      color: "#9ca3af",
-    },
-    bottomText: {
-      position: "absolute",
-      bottom: "12px",
-      left: 0,
-      right: 0,
-      textAlign: "center",
-      zIndex: 10,
-    },
-    bottomTextInner: {
-      color: "rgba(255, 255, 255, 0.5)",
-      fontSize: "10px",
-    },
-  };
-
   return (
-    <div style={styles.container}>
-      <div style={styles.background}>
-        <div style={styles.overlay}></div>
-      </div>
-
-      <div style={styles.card}>
-        <div style={styles.cardInner}>
-          {/* Logo */}
-          <div style={styles.logoContainer}>
-            <div style={styles.logo}>
-              <span style={styles.logoText}>🏦</span>
+    <div
+      style={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        background: "#0f172a",
+        padding: "20px",
+      }}
+    >
+      <div style={{ width: "100%", maxWidth: "380px" }}>
+        <div
+          style={{
+            background: "white",
+            borderRadius: "12px",
+            padding: "32px 24px",
+            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+          }}
+        >
+          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+            <div
+              style={{
+                display: "inline-block",
+                background: "linear-gradient(to right, #059669, #0d9488)",
+                borderRadius: "9999px",
+                padding: "12px",
+                marginBottom: "12px",
+              }}
+            >
+              <span style={{ fontSize: "28px" }}>{appSettings.logo}</span>
             </div>
+            <h2
+              style={{
+                fontSize: "20px",
+                fontWeight: "bold",
+                color: "#1f2937",
+                margin: "0 0 4px 0",
+              }}
+            >
+              {appSettings.appName}
+            </h2>
+            <p style={{ color: "#6b7280", fontSize: "14px", margin: 0 }}>
+              Sign in to your account
+            </p>
           </div>
 
-          <h2 style={styles.title}>Osittech Contribution</h2>
-          <p style={styles.subtitle}>Sign in to your account</p>
-
-          {/* Form */}
           <form onSubmit={handleSubmit}>
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Email or Phone Number</label>
-              <div style={styles.inputWrapper}>
-                <span style={styles.inputIcon}>📧</span>
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  marginBottom: "4px",
+                }}
+              >
+                Email or Phone Number
+              </label>
+              <div style={{ position: "relative" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#9ca3af",
+                    fontSize: "14px",
+                  }}
+                >
+                  📧
+                </span>
                 <input
                   type="text"
                   name="email"
                   value={formData.email}
                   onChange={handleChange}
-                  style={styles.input}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px 10px 36px",
+                    fontSize: "14px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "8px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
                   placeholder="Enter email or 11-digit phone"
                   required
                   onFocus={(e) => (e.target.style.borderColor = "#059669")}
@@ -412,22 +312,52 @@ const Login = () => {
                 />
               </div>
               <div
-                style={{ fontSize: "10px", color: "#6b7280", marginTop: "3px" }}
+                style={{ fontSize: "10px", color: "#6b7280", marginTop: "4px" }}
               >
                 Phone: 08012345678 or +2348012345678
               </div>
             </div>
 
-            <div style={styles.formGroup}>
-              <label style={styles.label}>Password</label>
-              <div style={styles.inputWrapper}>
-                <span style={styles.inputIcon}>🔒</span>
+            <div style={{ marginBottom: "16px" }}>
+              <label
+                style={{
+                  display: "block",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  color: "#374151",
+                  marginBottom: "4px",
+                }}
+              >
+                Password
+              </label>
+              <div style={{ position: "relative" }}>
+                <span
+                  style={{
+                    position: "absolute",
+                    left: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    color: "#9ca3af",
+                    fontSize: "14px",
+                  }}
+                >
+                  🔒
+                </span>
                 <input
                   type={showPassword ? "text" : "password"}
                   name="password"
                   value={formData.password}
                   onChange={handleChange}
-                  style={styles.inputPassword}
+                  style={{
+                    width: "100%",
+                    padding: "10px 40px 10px 36px",
+                    fontSize: "14px",
+                    border: "1px solid #d1d5db",
+                    borderRadius: "8px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border-color 0.2s",
+                  }}
                   placeholder="Enter your password"
                   required
                   onFocus={(e) => (e.target.style.borderColor = "#059669")}
@@ -436,21 +366,58 @@ const Login = () => {
                 <button
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
-                  style={styles.passwordToggle}
+                  style={{
+                    position: "absolute",
+                    right: "10px",
+                    top: "50%",
+                    transform: "translateY(-50%)",
+                    background: "none",
+                    border: "none",
+                    cursor: "pointer",
+                    fontSize: "16px",
+                  }}
                 >
                   {showPassword ? "🙈" : "👁️"}
                 </button>
               </div>
             </div>
 
-            <div style={styles.flexRow}>
-              <div style={styles.checkboxWrapper}>
-                <input type="checkbox" id="remember" style={styles.checkbox} />
-                <label htmlFor="remember" style={styles.checkboxLabel}>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "16px",
+              }}
+            >
+              <div
+                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+              >
+                <input
+                  type="checkbox"
+                  id="remember"
+                  style={{ accentColor: "#059669" }}
+                />
+                <label
+                  htmlFor="remember"
+                  style={{
+                    fontSize: "12px",
+                    color: "#4b5563",
+                    cursor: "pointer",
+                  }}
+                >
                   Remember me
                 </label>
               </div>
-              <Link to="/forgot-password" style={styles.forgotLink}>
+              <Link
+                to="/forgot-password"
+                style={{
+                  fontSize: "12px",
+                  color: "#059669",
+                  textDecoration: "none",
+                  fontWeight: "500",
+                }}
+              >
                 Forgot password?
               </Link>
             </div>
@@ -459,31 +426,62 @@ const Login = () => {
               type="submit"
               disabled={loading}
               style={{
-                ...styles.submitButton,
-                ...(loading ? styles.submitDisabled : {}),
+                width: "100%",
+                padding: "10px",
+                background: "linear-gradient(to right, #059669, #0d9488)",
+                color: "white",
+                border: "none",
+                borderRadius: "8px",
+                fontSize: "14px",
+                fontWeight: "600",
+                cursor: loading ? "not-allowed" : "pointer",
+                opacity: loading ? 0.6 : 1,
+                transition: "all 0.2s",
+              }}
+              onMouseEnter={(e) => {
+                if (!loading) {
+                  e.target.style.transform = "translateY(-1px)";
+                  e.target.style.boxShadow =
+                    "0 4px 12px rgba(5, 150, 105, 0.3)";
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.target.style.transform = "translateY(0)";
+                e.target.style.boxShadow = "none";
               }}
             >
               {loading ? "Signing in..." : "Sign In"}
             </button>
 
-            <p style={styles.registerText}>
+            <p
+              style={{
+                textAlign: "center",
+                fontSize: "13px",
+                color: "#6b7280",
+                marginTop: "16px",
+              }}
+            >
               Don't have an account?{" "}
-              <Link to="/register" style={styles.registerLink}>
+              <Link
+                to="/register"
+                style={{
+                  color: "#059669",
+                  fontWeight: "600",
+                  textDecoration: "none",
+                }}
+              >
                 Register here
               </Link>
             </p>
           </form>
 
-          <div style={styles.footer}>
-            <p style={styles.footerText}>
-              © 2024 Osittech Contribution. All rights reserved.
+          <div style={{ marginTop: "16px", textAlign: "center" }}>
+            <p style={{ fontSize: "10px", color: "#9ca3af", margin: 0 }}>
+              © {new Date().getFullYear()} {appSettings.appName}. All rights
+              reserved.
             </p>
           </div>
         </div>
-      </div>
-
-      <div style={styles.bottomText}>
-        <p style={styles.bottomTextInner}>Secure Login • Powered by Osittech</p>
       </div>
     </div>
   );
