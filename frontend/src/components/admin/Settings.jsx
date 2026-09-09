@@ -101,7 +101,7 @@ const AdminSettings = () => {
     notify_admin_on_suspension: true,
   });
 
-  // Loan Settings - Simplified (removed min/max loan amounts)
+  // Loan Settings
   const [loanSettings, setLoanSettings] = useState({
     min_membership_days: 180,
     interest_rate: 5,
@@ -112,6 +112,8 @@ const AdminSettings = () => {
     small_loan_threshold: 5000,
     late_payment_penalty: 10,
     grace_period_days: 7,
+    max_loans_per_member: 3, // NEW: Maximum number of loans per member
+    loan_cooldown_days: 30, // NEW: Days before a member can request another loan
   });
 
   // Data from database
@@ -281,6 +283,19 @@ const AdminSettings = () => {
     } catch {
       return dateString;
     }
+  };
+
+  // Helper function to convert days to months and days
+  const getDaysToMonthsDisplay = (days) => {
+    if (days < 30) {
+      return `${days} day${days !== 1 ? "s" : ""}`;
+    }
+    const months = Math.floor(days / 30);
+    const remainingDays = days % 30;
+    if (remainingDays === 0) {
+      return `${months} month${months !== 1 ? "s" : ""}`;
+    }
+    return `${months} month${months !== 1 ? "s" : ""}, ${remainingDays} day${remainingDays !== 1 ? "s" : ""}`;
   };
 
   const handleSaveSettings = async () => {
@@ -917,6 +932,30 @@ const AdminSettings = () => {
         .rule-example strong {
           color: #34d399;
         }
+        .loan-restriction-box {
+          background: rgba(139, 92, 246, 0.1);
+          border: 1px solid rgba(139, 92, 246, 0.2);
+          border-radius: 8px;
+          padding: 16px;
+          margin-top: 16px;
+        }
+        .loan-restriction-box h4 {
+          font-size: 13px;
+          color: #a78bfa;
+          margin: 0 0 8px 0;
+        }
+        .loan-restriction-box p {
+          font-size: 12px;
+          color: #94a3b8;
+          margin: 0;
+        }
+        .loan-restriction-box strong {
+          color: #a78bfa;
+        }
+        .days-display {
+          color: #60a5fa;
+          font-weight: 500;
+        }
         @media (max-width: 768px) {
           .form-row {
             grid-template-columns: 1fr;
@@ -1095,7 +1134,7 @@ const AdminSettings = () => {
           </div>
         )}
 
-        {/* Loan Settings - Simplified */}
+        {/* Loan Settings */}
         {activeTab === "loan" && (
           <div>
             <div className="settings-card">
@@ -1103,8 +1142,8 @@ const AdminSettings = () => {
 
               <div className="info-box">
                 <p>
-                  💡 Configure loan eligibility criteria and interest rates.
-                  Members can borrow up to{" "}
+                  💡 Configure loan eligibility criteria, interest rates, and
+                  borrowing limits. Members can borrow up to{" "}
                   <strong>50% of their total savings</strong>.
                 </p>
               </div>
@@ -1143,14 +1182,16 @@ const AdminSettings = () => {
                             min_membership_days: parseInt(e.target.value) || 0,
                           })
                         }
-                        min="1"
+                        min="0"
                       />
                     </div>
                     <div style={{ flex: 1 }}>
                       <input
                         type="text"
                         className="form-input"
-                        value={`${Math.ceil(loanSettings.min_membership_days / 30)} months`}
+                        value={getDaysToMonthsDisplay(
+                          loanSettings.min_membership_days,
+                        )}
                         disabled
                         style={{ opacity: 0.6 }}
                       />
@@ -1165,6 +1206,14 @@ const AdminSettings = () => {
                   >
                     Members must be active for at least this many days before
                     they can request a loan.
+                    <span
+                      className="days-display"
+                      style={{ marginLeft: "4px" }}
+                    >
+                      (
+                      {getDaysToMonthsDisplay(loanSettings.min_membership_days)}
+                      )
+                    </span>
                   </p>
                 </div>
 
@@ -1369,6 +1418,127 @@ const AdminSettings = () => {
                       }}
                     >
                       Days after due date before late payment penalty applies
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* Loan Restrictions Section - NEW */}
+              <div
+                style={{
+                  marginBottom: "20px",
+                  paddingBottom: "16px",
+                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                }}
+              >
+                <h4
+                  style={{
+                    fontSize: "14px",
+                    color: "#a78bfa",
+                    marginBottom: "12px",
+                  }}
+                >
+                  🔒 Loan Restrictions
+                </h4>
+
+                <div className="loan-restriction-box">
+                  <div className="form-row">
+                    <div className="form-group">
+                      <label className="form-label">
+                        Maximum Loans Per Member
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={loanSettings.max_loans_per_member}
+                        onChange={(e) =>
+                          setLoanSettings({
+                            ...loanSettings,
+                            max_loans_per_member: parseInt(e.target.value) || 1,
+                          })
+                        }
+                        min="1"
+                        style={{ borderColor: "rgba(139, 92, 246, 0.3)" }}
+                      />
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: "#64748b",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Maximum number of loans a member can take (active +
+                        completed)
+                      </p>
+                    </div>
+
+                    <div className="form-group">
+                      <label className="form-label">
+                        Loan Cooldown Period (Days)
+                      </label>
+                      <input
+                        type="number"
+                        className="form-input"
+                        value={loanSettings.loan_cooldown_days}
+                        onChange={(e) =>
+                          setLoanSettings({
+                            ...loanSettings,
+                            loan_cooldown_days: parseInt(e.target.value) || 0,
+                          })
+                        }
+                        min="0"
+                        style={{ borderColor: "rgba(139, 92, 246, 0.3)" }}
+                      />
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: "#64748b",
+                          marginTop: "4px",
+                        }}
+                      >
+                        Days a member must wait after completing a loan before
+                        requesting another. Set to 0 for no cooldown.
+                        <span
+                          className="days-display"
+                          style={{ marginLeft: "4px" }}
+                        >
+                          {loanSettings.loan_cooldown_days > 0
+                            ? `(${getDaysToMonthsDisplay(loanSettings.loan_cooldown_days)})`
+                            : "(No cooldown)"}
+                        </span>
+                      </p>
+                    </div>
+                  </div>
+
+                  <div
+                    style={{
+                      marginTop: "12px",
+                      padding: "12px",
+                      backgroundColor: "rgba(139, 92, 246, 0.08)",
+                      borderRadius: "6px",
+                    }}
+                  >
+                    <p
+                      style={{ fontSize: "12px", color: "#94a3b8", margin: 0 }}
+                    >
+                      <strong style={{ color: "#a78bfa" }}>Example:</strong>
+                      <br />
+                      If a member has taken{" "}
+                      <strong style={{ color: "white" }}>
+                        {loanSettings.max_loans_per_member || 3}
+                      </strong>{" "}
+                      loans already, they cannot request another until they
+                      complete one.
+                      {loanSettings.loan_cooldown_days > 0 && (
+                        <>
+                          <br />
+                          After completing a loan, they must wait{" "}
+                          <strong style={{ color: "#60a5fa" }}>
+                            {loanSettings.loan_cooldown_days} days
+                          </strong>{" "}
+                          before requesting a new one.
+                        </>
+                      )}
                     </p>
                   </div>
                 </div>

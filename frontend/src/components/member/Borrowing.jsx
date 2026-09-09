@@ -9,6 +9,9 @@ const Borrowing = () => {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [showBorrowModal, setShowBorrowModal] = useState(false);
+  const [showPaymentModal, setShowPaymentModal] = useState(false);
+  const [selectedLoan, setSelectedLoan] = useState(null);
+  const [paymentAmount, setPaymentAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
   const [userData, setUserData] = useState(null);
   const [loanSettings, setLoanSettings] = useState({
@@ -57,9 +60,22 @@ const Borrowing = () => {
     }
   }, [borrowAmount, userData, loanSettings]);
 
+  // Format currency with commas and 2 decimal places
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "₦0.00";
+    const num = parseFloat(amount) || 0;
+    return "₦" + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
+  // Format number with commas
+  const formatNumber = (amount) => {
+    if (!amount && amount !== 0) return "0.00";
+    const num = parseFloat(amount) || 0;
+    return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  };
+
   // Combined fetch function
   const fetchAllData = async () => {
-    // First fetch settings, then use the fetched settings for user data
     const settings = await fetchLoanSettings();
     await fetchUserData(settings);
     await fetchLoanHistory();
@@ -73,7 +89,7 @@ const Borrowing = () => {
     toast.success("Data refreshed successfully!");
   };
 
-  // Fetch loan settings from API - RETURNS the settings
+  // Fetch loan settings from API
   const fetchLoanSettings = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/settings.php`);
@@ -85,7 +101,6 @@ const Borrowing = () => {
           const settings = result.data.loan;
           console.log("Loan settings from DB:", settings);
 
-          // Use the values from the database
           const updatedSettings = {
             min_membership_days:
               settings.min_membership_days !== undefined
@@ -114,13 +129,12 @@ const Borrowing = () => {
 
           setLoanSettings(updatedSettings);
 
-          // Update loanDetails with the new settings
           setLoanDetails((prev) => ({
             ...prev,
             durationMonths: settings.max_duration_months || 6,
           }));
 
-          return updatedSettings; // Return the settings for use in fetchUserData
+          return updatedSettings;
         } else {
           console.warn("No loan settings found in response, using defaults");
           return null;
@@ -135,7 +149,6 @@ const Borrowing = () => {
     }
   };
 
-  // Fetch user data - accepts settings parameter
   const fetchUserData = async (fetchedSettings = null) => {
     try {
       const storedUser = localStorage.getItem("user");
@@ -156,14 +169,13 @@ const Borrowing = () => {
             const diffTime = Math.abs(today - joinDate);
             const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 
-            // Use the fetched settings or fallback to state
             const minDays = fetchedSettings
               ? fetchedSettings.min_membership_days
               : loanSettings.min_membership_days || 180;
 
             const isEligible = diffDays >= minDays;
             const savings = parseFloat(member.balance || member.savings || 0);
-            const maxBorrow = savings * 0.5; // 50% of savings
+            const maxBorrow = savings * 0.5;
 
             console.log("Membership days:", diffDays);
             console.log("Required days (from settings):", minDays);
@@ -223,7 +235,16 @@ const Borrowing = () => {
       }
 
       if (data.loans && Array.isArray(data.loans)) {
-        setLoans(data.loans);
+        // Ensure all numeric values are properly parsed
+        const loansWithPaid = data.loans.map((loan) => ({
+          ...loan,
+          total_paid: parseFloat(loan.total_paid) || 0,
+          amount: parseFloat(loan.amount) || 0,
+          total_payable: parseFloat(loan.total_payable) || 0,
+          interest: parseFloat(loan.interest) || 0,
+          monthly_payment: parseFloat(loan.monthly_payment) || 0,
+        }));
+        setLoans(loansWithPaid);
       } else {
         setLoans([]);
       }
@@ -240,9 +261,8 @@ const Borrowing = () => {
 
   const calculateLoanDetails = (amount) => {
     const savings = loanDetails.savings || 0;
-    const maxBorrow = savings * 0.5; // 50% of savings
+    const maxBorrow = savings * 0.5;
 
-    // Use the interest rate from settings - default to 0 if not set
     const interestRate = (loanSettings.interest_rate || 0) / 100;
     const interest = amount * interestRate;
     const totalPayable = amount + interest;
@@ -262,24 +282,91 @@ const Borrowing = () => {
     }));
   };
 
+  // Handle Loan Payment
+  const handlePayment = async (e) => {
+    e.preventDefault();
+
+    if (!selectedLoan) {
+      toast.error("No loan selected");
+      return;
+    }
+
+    const amount = parseFloat(paymentAmount);
+    if (amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+
+    // Calculate remaining balance
+    const totalPaid = parseFloat(selectedLoan.total_paid) || 0;
+    const remainingBalance = parseFloat(selectedLoan.total_payable) - totalPaid;
+
+    if (amount > remainingBalance) {
+      toast.error(
+        `Amount exceeds remaining balance: ${formatCurrency(remainingBalance)}`,
+      );
+      return;
+    }
+
+    try {
+      const paymentData = {
+        loan_id: selectedLoan.id,
+        user_id: userData.id,
+        amount: amount,
+        payment_date: new Date().toISOString().slice(0, 19).replace("T", " "),
+        note: `Payment for loan #${selectedLoan.id}`,
+      };
+
+      const response = await fetch(`${API_BASE_URL}/api/loan_payments.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify(paymentData),
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || `HTTP error! status: ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        toast.success(
+          `✅ Payment of ${formatCurrency(amount)} submitted successfully!`,
+        );
+        setShowPaymentModal(false);
+        setPaymentAmount("");
+        setSelectedLoan(null);
+        fetchLoanHistory();
+        fetchUserData();
+      } else {
+        toast.error(data.message || "Failed to submit payment");
+      }
+    } catch (error) {
+      console.error("Error submitting payment:", error);
+      toast.error(error.message || "Failed to submit payment");
+    }
+  };
+
   const handleBorrowRequest = async (e) => {
     e.preventDefault();
 
     try {
       const amount = parseFloat(borrowAmount);
       const savings = loanDetails.savings;
-      const maxBorrow = savings * 0.5; // 50% of savings
+      const maxBorrow = savings * 0.5;
 
-      // Validation
       if (amount <= 0) {
         toast.error("Please enter a valid amount");
         return;
       }
 
-      // Check if amount exceeds 50% of savings
       if (amount > maxBorrow) {
         toast.error(
-          `You can only borrow up to 50% of your savings (₦${maxBorrow.toLocaleString()})`,
+          `You can only borrow up to 50% of your savings (${formatCurrency(maxBorrow)})`,
         );
         return;
       }
@@ -300,7 +387,6 @@ const Borrowing = () => {
         return;
       }
 
-      // Check if loan requests are enabled
       if (!loanSettings.enable_loan_requests) {
         toast.error(
           "Loan requests are currently disabled. Please contact admin.",
@@ -403,6 +489,19 @@ const Borrowing = () => {
         {style.label}
       </span>
     );
+  };
+
+  // Open payment modal
+  const openPaymentModal = (loan) => {
+    const totalPaid = parseFloat(loan.total_paid) || 0;
+    const remaining = parseFloat(loan.total_payable) - totalPaid;
+    if (remaining <= 0) {
+      toast.info("This loan is already fully paid!");
+      return;
+    }
+    setSelectedLoan(loan);
+    setPaymentAmount("");
+    setShowPaymentModal(true);
   };
 
   // Pagination
@@ -568,6 +667,21 @@ const Borrowing = () => {
         .btn-secondary:hover {
           background: rgba(255,255,255,0.05);
         }
+        .btn-pay {
+          padding: 6px 16px;
+          border-radius: 6px;
+          border: none;
+          background: rgba(16, 185, 129, 0.15);
+          color: #34d399;
+          cursor: pointer;
+          font-size: 12px;
+          font-weight: 500;
+          transition: all 0.2s;
+          margin-right: 4px;
+        }
+        .btn-pay:hover {
+          background: rgba(16, 185, 129, 0.25);
+        }
         .btn-borrow {
           padding: 12px 24px;
           border-radius: 8px;
@@ -683,6 +797,22 @@ const Borrowing = () => {
           font-weight: 500;
           font-size: 14px;
         }
+        .total-payable-highlight {
+          background: rgba(16, 185, 129, 0.1);
+          border-radius: 6px;
+          padding: 8px 12px;
+          margin-top: 4px;
+          border: 1px solid rgba(16, 185, 129, 0.2);
+        }
+        .total-payable-highlight .loan-detail-label {
+          font-weight: 600;
+          color: #34d399;
+        }
+        .total-payable-highlight .loan-detail-value {
+          font-weight: 700;
+          font-size: 16px;
+          color: #34d399;
+        }
         .max-borrow-info {
           background: rgba(16, 185, 129, 0.1);
           border: 1px solid rgba(16, 185, 129, 0.2);
@@ -698,12 +828,27 @@ const Borrowing = () => {
         .max-borrow-info strong {
           color: white;
         }
-        .interest-display {
-          font-size: 12px;
+        .remaining-balance {
+          color: #34d399;
+          font-weight: 600;
+        }
+        .payment-info {
+          background: rgba(59, 130, 246, 0.1);
+          padding: 12px;
+          border-radius: 8px;
+          margin-bottom: 16px;
+          border: 1px solid rgba(59, 130, 246, 0.2);
+        }
+        .payment-info p {
+          margin: 4px 0;
+          font-size: 13px;
           color: #94a3b8;
         }
-        .interest-display strong {
-          color: #fbbf24;
+        .payment-info strong {
+          color: white;
+        }
+        .currency-amount {
+          font-variant-numeric: tabular-nums;
         }
       `}</style>
 
@@ -757,13 +902,13 @@ const Borrowing = () => {
         <div className="summary-card">
           <div className="summary-label">Total Savings</div>
           <div className="summary-value">
-            ₦{loanDetails.savings.toLocaleString()}
+            {formatCurrency(loanDetails.savings)}
           </div>
         </div>
         <div className="summary-card">
           <div className="summary-label">Maximum Borrow (50%)</div>
           <div className="summary-value" style={{ color: "#34d399" }}>
-            ₦{(loanDetails.savings * 0.5).toLocaleString()}
+            {formatCurrency(loanDetails.savings * 0.5)}
           </div>
         </div>
         <div className="summary-card">
@@ -860,19 +1005,6 @@ const Borrowing = () => {
                     letterSpacing: "0.05em",
                   }}
                 >
-                  Interest
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "#94a3b8",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
                   Total Payable
                 </th>
                 <th
@@ -886,7 +1018,20 @@ const Borrowing = () => {
                     letterSpacing: "0.05em",
                   }}
                 >
-                  Monthly Payment
+                  Paid
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "#94a3b8",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Remaining
                 </th>
                 <th
                   style={{
@@ -912,17 +1057,42 @@ const Borrowing = () => {
                     letterSpacing: "0.05em",
                   }}
                 >
-                  Date Requested
+                  Date
+                </th>
+                <th
+                  style={{
+                    padding: "12px 16px",
+                    textAlign: "left",
+                    fontSize: "12px",
+                    fontWeight: "600",
+                    color: "#94a3b8",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.05em",
+                  }}
+                >
+                  Actions
                 </th>
               </tr>
             </thead>
             <tbody>
-              {currentLoans.length > 0 ? (
-                currentLoans.map((loan) => (
+              {currentLoans.map((loan) => {
+                // Ensure all values are numbers
+                const totalPaid = parseFloat(loan.total_paid) || 0;
+                const totalPayable = parseFloat(loan.total_payable) || 0;
+                const amount = parseFloat(loan.amount) || 0;
+                const remaining = totalPayable - totalPaid;
+                const isFullyPaid = remaining <= 0.01;
+                const canPay =
+                  loan.status === "approved" || loan.status === "active";
+
+                return (
                   <tr
                     key={loan.id}
-                    style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
+                    style={{
+                      borderTop: "1px solid rgba(255,255,255,0.05)",
+                    }}
                   >
+                    {/* REMOVED THE # FROM LOAN ID */}
                     <td
                       style={{
                         padding: "12px 16px",
@@ -931,7 +1101,7 @@ const Borrowing = () => {
                         fontSize: "14px",
                       }}
                     >
-                      #{loan.id}
+                      {loan.id}
                     </td>
                     <td
                       style={{
@@ -940,10 +1110,7 @@ const Borrowing = () => {
                         fontWeight: "500",
                       }}
                     >
-                      ₦{parseFloat(loan.amount).toLocaleString()}
-                    </td>
-                    <td style={{ padding: "12px 16px", color: "#fbbf24" }}>
-                      ₦{parseFloat(loan.interest).toLocaleString()}
+                      {formatCurrency(amount)}
                     </td>
                     <td
                       style={{
@@ -952,10 +1119,26 @@ const Borrowing = () => {
                         fontWeight: "500",
                       }}
                     >
-                      ₦{parseFloat(loan.total_payable).toLocaleString()}
+                      {formatCurrency(totalPayable)}
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#94a3b8" }}>
-                      ₦{parseFloat(loan.monthly_payment).toLocaleString()}
+                    <td style={{ padding: "12px 16px", color: "#60a5fa" }}>
+                      {formatCurrency(totalPaid)}
+                    </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      <span className="remaining-balance">
+                        {formatCurrency(remaining)}
+                      </span>
+                      {isFullyPaid && (
+                        <span
+                          style={{
+                            marginLeft: "8px",
+                            fontSize: "11px",
+                            color: "#34d399",
+                          }}
+                        >
+                          ✅ Paid
+                        </span>
+                      )}
                     </td>
                     <td style={{ padding: "12px 16px" }}>
                       {getStatusBadge(loan.status)}
@@ -969,26 +1152,36 @@ const Borrowing = () => {
                     >
                       {new Date(loan.request_date).toLocaleDateString()}
                     </td>
+                    <td style={{ padding: "12px 16px" }}>
+                      {canPay && !isFullyPaid && (
+                        <button
+                          className="btn-pay"
+                          onClick={() => openPaymentModal(loan)}
+                        >
+                          💳 Pay
+                        </button>
+                      )}
+                      {isFullyPaid && (
+                        <span style={{ fontSize: "12px", color: "#34d399" }}>
+                          ✅ Completed
+                        </span>
+                      )}
+                      {!canPay && !isFullyPaid && loan.status === "pending" && (
+                        <span style={{ fontSize: "12px", color: "#fbbf24" }}>
+                          ⏳ Pending
+                        </span>
+                      )}
+                      {!canPay &&
+                        !isFullyPaid &&
+                        loan.status === "rejected" && (
+                          <span style={{ fontSize: "12px", color: "#f87171" }}>
+                            ❌ Rejected
+                          </span>
+                        )}
+                    </td>
                   </tr>
-                ))
-              ) : (
-                <tr>
-                  <td
-                    colSpan="7"
-                    style={{ textAlign: "center", padding: "40px" }}
-                  >
-                    <div style={{ color: "#94a3b8" }}>
-                      <div style={{ fontSize: "48px", marginBottom: "8px" }}>
-                        📭
-                      </div>
-                      <p>No loan history found</p>
-                      <p style={{ fontSize: "13px", marginTop: "4px" }}>
-                        Click the "Request Loan" button to apply for a loan
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              )}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1122,9 +1315,7 @@ const Borrowing = () => {
                 </p>
                 <p style={{ marginTop: "4px", color: "#34d399" }}>
                   Maximum:{" "}
-                  <strong>
-                    ₦{(loanDetails.savings * 0.5).toLocaleString()}
-                  </strong>
+                  <strong>{formatCurrency(loanDetails.savings * 0.5)}</strong>
                 </p>
               </div>
 
@@ -1133,7 +1324,7 @@ const Borrowing = () => {
                 <input
                   type="text"
                   className="form-input"
-                  value={`₦${loanDetails.savings.toLocaleString()}`}
+                  value={formatCurrency(loanDetails.savings)}
                   disabled
                 />
               </div>
@@ -1170,8 +1361,8 @@ const Borrowing = () => {
                       marginTop: "4px",
                     }}
                   >
-                    Maximum allowed (50%): ₦
-                    {(loanDetails.savings * 0.5).toLocaleString()}
+                    Maximum allowed (50%):{" "}
+                    {formatCurrency(loanDetails.savings * 0.5)}
                   </div>
                 )}
               </div>
@@ -1198,7 +1389,7 @@ const Borrowing = () => {
                   <div className="loan-detail-row">
                     <span className="loan-detail-label">Principal Amount</span>
                     <span className="loan-detail-value">
-                      ₦{loanDetails.amount.toLocaleString()}
+                      {formatCurrency(loanDetails.amount)}
                     </span>
                   </div>
                   <div className="loan-detail-row">
@@ -1209,7 +1400,7 @@ const Borrowing = () => {
                       className="loan-detail-value"
                       style={{ color: "#fbbf24" }}
                     >
-                      ₦{loanDetails.interest.toLocaleString()}
+                      {formatCurrency(loanDetails.interest)}
                     </span>
                   </div>
                   <div className="loan-detail-row">
@@ -1218,7 +1409,7 @@ const Borrowing = () => {
                       className="loan-detail-value"
                       style={{ color: "#34d399" }}
                     >
-                      ₦{loanDetails.totalPayable.toLocaleString()}
+                      {formatCurrency(loanDetails.totalPayable)}
                     </span>
                   </div>
                   <div
@@ -1233,8 +1424,36 @@ const Borrowing = () => {
                       className="loan-detail-value"
                       style={{ color: "#60a5fa" }}
                     >
-                      ₦{loanDetails.monthlyPayment.toLocaleString()}
+                      {formatCurrency(loanDetails.monthlyPayment)}
                     </span>
+                  </div>
+
+                  <div className="total-payable-highlight">
+                    <div
+                      className="loan-detail-row"
+                      style={{ borderBottom: "none", padding: "4px 0" }}
+                    >
+                      <span className="loan-detail-label">
+                        💰 Total Amount Payable Over{" "}
+                        {loanDetails.durationMonths} Months
+                      </span>
+                      <span
+                        className="loan-detail-value"
+                        style={{ fontSize: "18px" }}
+                      >
+                        {formatCurrency(loanDetails.totalPayable)}
+                      </span>
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#94a3b8",
+                        marginTop: "4px",
+                      }}
+                    >
+                      This is the total amount you will pay back over{" "}
+                      {loanDetails.durationMonths} months
+                    </div>
                   </div>
                 </div>
               )}
@@ -1262,6 +1481,112 @@ const Borrowing = () => {
                   }
                 >
                   Submit Request
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Payment Modal */}
+      {showPaymentModal && selectedLoan && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">💳 Make Payment</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowPaymentModal(false);
+                  setSelectedLoan(null);
+                  setPaymentAmount("");
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <form onSubmit={handlePayment}>
+              <div className="payment-info">
+                <p>
+                  Loan ID: <strong>{selectedLoan.id}</strong>
+                </p>
+                <p>
+                  Total Payable:{" "}
+                  <strong>{formatCurrency(selectedLoan.total_payable)}</strong>
+                </p>
+                <p>
+                  Total Paid:{" "}
+                  <strong style={{ color: "#60a5fa" }}>
+                    {formatCurrency(selectedLoan.total_paid || 0)}
+                  </strong>
+                </p>
+                <p>
+                  Remaining Balance:{" "}
+                  <strong style={{ color: "#34d399" }}>
+                    {formatCurrency(
+                      parseFloat(selectedLoan.total_payable) -
+                        parseFloat(selectedLoan.total_paid || 0),
+                    )}
+                  </strong>
+                </p>
+              </div>
+
+              <div className="form-group">
+                <label className="form-label">Payment Amount *</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  required
+                  value={paymentAmount}
+                  onChange={(e) => setPaymentAmount(e.target.value)}
+                  placeholder="Enter amount to pay"
+                  min="1"
+                  max={
+                    parseFloat(selectedLoan.total_payable) -
+                    parseFloat(selectedLoan.total_paid || 0)
+                  }
+                  step="0.01"
+                />
+                <div
+                  style={{
+                    fontSize: "12px",
+                    color: "#94a3b8",
+                    marginTop: "4px",
+                  }}
+                >
+                  Maximum:{" "}
+                  {formatCurrency(
+                    parseFloat(selectedLoan.total_payable) -
+                      parseFloat(selectedLoan.total_paid || 0),
+                  )}
+                </div>
+              </div>
+
+              <div style={{ display: "flex", gap: "12px" }}>
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => {
+                    setShowPaymentModal(false);
+                    setSelectedLoan(null);
+                    setPaymentAmount("");
+                  }}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={
+                    !paymentAmount ||
+                    parseFloat(paymentAmount) <= 0 ||
+                    parseFloat(paymentAmount) >
+                      parseFloat(selectedLoan.total_payable) -
+                        parseFloat(selectedLoan.total_paid || 0)
+                  }
+                >
+                  Submit Payment
                 </button>
               </div>
             </form>
