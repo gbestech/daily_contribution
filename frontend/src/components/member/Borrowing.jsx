@@ -850,6 +850,29 @@ const Borrowing = () => {
         .currency-amount {
           font-variant-numeric: tabular-nums;
         }
+        /* ✅ COMPLETED ROW STYLING */
+        .loan-row-completed {
+          background-color: rgba(16, 185, 129, 0.08) !important;
+          border-left: 3px solid #34d399 !important;
+          transition: background-color 0.3s ease;
+        }
+        .loan-row-completed:hover {
+          background-color: rgba(16, 185, 129, 0.15) !important;
+        }
+        .loan-row-completed td:first-child {
+          border-left: 3px solid #34d399;
+        }
+        .loan-row-completed .remaining-balance {
+          color: #34d399 !important;
+        }
+        .loan-row-completed .badge {
+          background-color: rgba(16, 185, 129, 0.2) !important;
+          color: #34d399 !important;
+          border-color: rgba(16, 185, 129, 0.3) !important;
+        }
+        .loan-row-completed .btn-pay {
+          display: none !important;
+        }
       `}</style>
 
       {/* Header */}
@@ -1085,20 +1108,30 @@ const Borrowing = () => {
                 const canPay =
                   loan.status === "approved" || loan.status === "active";
 
+                // ✅ Check if loan is completed
+                const isCompleted = loan.status === "completed" || isFullyPaid;
+
                 return (
                   <tr
                     key={loan.id}
+                    className={isCompleted ? "loan-row-completed" : ""}
                     style={{
                       borderTop: "1px solid rgba(255,255,255,0.05)",
+                      transition: "background-color 0.3s ease",
+                      ...(isCompleted
+                        ? {
+                            backgroundColor: "rgba(16, 185, 129, 0.08)",
+                          }
+                        : {}),
                     }}
                   >
-                    {/* REMOVED THE # FROM LOAN ID */}
                     <td
                       style={{
                         padding: "12px 16px",
                         color: "#60a5fa",
                         fontFamily: "monospace",
                         fontSize: "14px",
+                        ...(isCompleted ? { color: "#34d399" } : {}),
                       }}
                     >
                       {loan.id}
@@ -1117,6 +1150,7 @@ const Borrowing = () => {
                         padding: "12px 16px",
                         color: "white",
                         fontWeight: "500",
+                        ...(isCompleted ? { color: "#94a3b8" } : {}),
                       }}
                     >
                       {formatCurrency(totalPayable)}

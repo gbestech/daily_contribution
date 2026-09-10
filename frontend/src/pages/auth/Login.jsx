@@ -20,7 +20,6 @@ const Login = () => {
     password: "",
   });
 
-  // Fetch app settings on component mount
   useEffect(() => {
     fetchAppSettings();
   }, []);
@@ -30,49 +29,32 @@ const Login = () => {
       const response = await fetch(`${API_BASE_URL}/api/settings.php`);
       if (response.ok) {
         const result = await response.json();
-        console.log("Settings API response:", result);
-
-        // Check if we have settings data
         if (result.status === true && result.data) {
-          // Look for general settings
           if (result.data.general) {
             const general = result.data.general;
-            console.log("General settings:", general);
-
-            // Extract shop name from general settings
             const shopName =
               general.shop_name || general.app_name || "Osittech Contribution";
             const logo = general.logo || "🏦";
-
-            setAppSettings({
-              appName: shopName,
-              logo: logo,
-            });
+            setAppSettings({ appName: shopName, logo });
           } else {
-            // Fallback: use default
             setAppSettings({
               appName: "Osittech Contribution",
               logo: "🏦",
             });
           }
         } else {
-          // Fallback if response format is different
           setAppSettings({
             appName: "Osittech Contribution",
             logo: "🏦",
           });
         }
       } else {
-        console.error("Failed to fetch settings, status:", response.status);
-        // Use default if API fails
         setAppSettings({
           appName: "Osittech Contribution",
           logo: "🏦",
         });
       }
     } catch (error) {
-      console.error("Error fetching app settings:", error);
-      // Use default values if settings can't be fetched
       setAppSettings({
         appName: "Osittech Contribution",
         logo: "🏦",
@@ -87,7 +69,6 @@ const Login = () => {
     });
   };
 
-  // Phone number validation function
   const validatePhoneNumber = (phone) => {
     const cleanPhone = phone.replace(/\D/g, "");
 
@@ -113,7 +94,6 @@ const Login = () => {
     e.preventDefault();
     setLoading(true);
 
-    // Check if input is a phone number
     const inputValue = formData.email.trim();
     const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
 
@@ -139,9 +119,7 @@ const Login = () => {
       });
 
       const data = await response.json();
-      console.log("Login response:", data);
 
-      // Check if login was successful
       if (data.status === true) {
         const { user } = data;
 
@@ -177,8 +155,6 @@ const Login = () => {
           updated_at: user.updated_at || new Date().toISOString(),
         };
 
-        console.log("Clean user:", cleanUser);
-
         const token = data.token || `token_${Date.now()}`;
 
         localStorage.setItem("token", token);
@@ -190,7 +166,6 @@ const Login = () => {
 
         const isAdmin =
           cleanUser.role === "admin" || cleanUser.role === "administrator";
-        console.log("Is admin?", isAdmin);
 
         setTimeout(() => {
           if (isAdmin) {
@@ -200,7 +175,6 @@ const Login = () => {
           }
         }, 300);
       } else {
-        // Login failed
         toast.error(data.error || data.message || "Login failed");
       }
     } catch (error) {
@@ -225,54 +199,57 @@ const Login = () => {
         alignItems: "center",
         justifyContent: "center",
         background: "#0f172a",
-        padding: "20px",
+        padding: "16px",
       }}
     >
-      <div style={{ width: "100%", maxWidth: "380px" }}>
+      <div style={{ width: "100%", maxWidth: "340px" }}>
         <div
           style={{
             background: "white",
-            borderRadius: "12px",
-            padding: "32px 24px",
-            boxShadow: "0 25px 50px -12px rgba(0,0,0,0.5)",
+            borderRadius: "10px",
+            padding: "22px 20px",
+            boxShadow: "0 20px 40px -12px rgba(0,0,0,0.5)",
           }}
         >
-          <div style={{ textAlign: "center", marginBottom: "24px" }}>
+          {/* Header */}
+          <div style={{ textAlign: "center", marginBottom: "16px" }}>
             <div
               style={{
                 display: "inline-block",
                 background: "linear-gradient(to right, #059669, #0d9488)",
                 borderRadius: "9999px",
-                padding: "12px",
-                marginBottom: "12px",
+                padding: "8px",
+                marginBottom: "8px",
               }}
             >
-              <span style={{ fontSize: "28px" }}>{appSettings.logo}</span>
+              <span style={{ fontSize: "20px" }}>{appSettings.logo}</span>
             </div>
             <h2
               style={{
-                fontSize: "20px",
+                fontSize: "16px",
                 fontWeight: "bold",
                 color: "#1f2937",
-                margin: "0 0 4px 0",
+                margin: "0 0 2px 0",
+                lineHeight: 1.2,
               }}
             >
               {appSettings.appName}
             </h2>
-            <p style={{ color: "#6b7280", fontSize: "14px", margin: 0 }}>
+            <p style={{ color: "#6b7280", fontSize: "12px", margin: 0 }}>
               Sign in to your account
             </p>
           </div>
 
           <form onSubmit={handleSubmit}>
-            <div style={{ marginBottom: "16px" }}>
+            {/* Email / Phone */}
+            <div style={{ marginBottom: "10px" }}>
               <label
                 style={{
                   display: "block",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "500",
                   color: "#374151",
-                  marginBottom: "4px",
+                  marginBottom: "3px",
                 }}
               >
                 Email or Phone Number
@@ -281,11 +258,11 @@ const Login = () => {
                 <span
                   style={{
                     position: "absolute",
-                    left: "10px",
+                    left: "9px",
                     top: "50%",
                     transform: "translateY(-50%)",
                     color: "#9ca3af",
-                    fontSize: "14px",
+                    fontSize: "12px",
                   }}
                 >
                   📧
@@ -297,35 +274,31 @@ const Login = () => {
                   onChange={handleChange}
                   style={{
                     width: "100%",
-                    padding: "10px 12px 10px 36px",
-                    fontSize: "14px",
+                    padding: "8px 10px 8px 30px",
+                    fontSize: "13px",
                     border: "1px solid #d1d5db",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     outline: "none",
                     boxSizing: "border-box",
                     transition: "border-color 0.2s",
                   }}
-                  placeholder="Enter email or 11-digit phone"
+                  placeholder="Email or 11-digit phone"
                   required
                   onFocus={(e) => (e.target.style.borderColor = "#059669")}
                   onBlur={(e) => (e.target.style.borderColor = "#d1d5db")}
                 />
               </div>
-              <div
-                style={{ fontSize: "10px", color: "#6b7280", marginTop: "4px" }}
-              >
-                Phone: 08012345678 or +2348012345678
-              </div>
             </div>
 
-            <div style={{ marginBottom: "16px" }}>
+            {/* Password */}
+            <div style={{ marginBottom: "10px" }}>
               <label
                 style={{
                   display: "block",
-                  fontSize: "13px",
+                  fontSize: "12px",
                   fontWeight: "500",
                   color: "#374151",
-                  marginBottom: "4px",
+                  marginBottom: "3px",
                 }}
               >
                 Password
@@ -334,11 +307,11 @@ const Login = () => {
                 <span
                   style={{
                     position: "absolute",
-                    left: "10px",
+                    left: "9px",
                     top: "50%",
                     transform: "translateY(-50%)",
                     color: "#9ca3af",
-                    fontSize: "14px",
+                    fontSize: "12px",
                   }}
                 >
                   🔒
@@ -350,10 +323,10 @@ const Login = () => {
                   onChange={handleChange}
                   style={{
                     width: "100%",
-                    padding: "10px 40px 10px 36px",
-                    fontSize: "14px",
+                    padding: "8px 34px 8px 30px",
+                    fontSize: "13px",
                     border: "1px solid #d1d5db",
-                    borderRadius: "8px",
+                    borderRadius: "6px",
                     outline: "none",
                     boxSizing: "border-box",
                     transition: "border-color 0.2s",
@@ -368,13 +341,14 @@ const Login = () => {
                   onClick={() => setShowPassword(!showPassword)}
                   style={{
                     position: "absolute",
-                    right: "10px",
+                    right: "8px",
                     top: "50%",
                     transform: "translateY(-50%)",
                     background: "none",
                     border: "none",
                     cursor: "pointer",
-                    fontSize: "16px",
+                    fontSize: "13px",
+                    padding: 0,
                   }}
                 >
                   {showPassword ? "🙈" : "👁️"}
@@ -382,26 +356,31 @@ const Login = () => {
               </div>
             </div>
 
+            {/* Remember / Forgot */}
             <div
               style={{
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "space-between",
-                marginBottom: "16px",
+                marginBottom: "12px",
               }}
             >
               <div
-                style={{ display: "flex", alignItems: "center", gap: "6px" }}
+                style={{ display: "flex", alignItems: "center", gap: "5px" }}
               >
                 <input
                   type="checkbox"
                   id="remember"
-                  style={{ accentColor: "#059669" }}
+                  style={{
+                    accentColor: "#059669",
+                    width: "13px",
+                    height: "13px",
+                  }}
                 />
                 <label
                   htmlFor="remember"
                   style={{
-                    fontSize: "12px",
+                    fontSize: "11px",
                     color: "#4b5563",
                     cursor: "pointer",
                   }}
@@ -412,7 +391,7 @@ const Login = () => {
               <Link
                 to="/forgot-password"
                 style={{
-                  fontSize: "12px",
+                  fontSize: "11px",
                   color: "#059669",
                   textDecoration: "none",
                   fontWeight: "500",
@@ -422,17 +401,18 @@ const Login = () => {
               </Link>
             </div>
 
+            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
               style={{
                 width: "100%",
-                padding: "10px",
+                padding: "9px",
                 background: "linear-gradient(to right, #059669, #0d9488)",
                 color: "white",
                 border: "none",
-                borderRadius: "8px",
-                fontSize: "14px",
+                borderRadius: "6px",
+                fontSize: "13px",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
                 opacity: loading ? 0.6 : 1,
@@ -453,12 +433,14 @@ const Login = () => {
               {loading ? "Signing in..." : "Sign In"}
             </button>
 
+            {/* Register link */}
             <p
               style={{
                 textAlign: "center",
-                fontSize: "13px",
+                fontSize: "11px",
                 color: "#6b7280",
-                marginTop: "16px",
+                marginTop: "12px",
+                marginBottom: 0,
               }}
             >
               Don't have an account?{" "}
@@ -475,8 +457,8 @@ const Login = () => {
             </p>
           </form>
 
-          <div style={{ marginTop: "16px", textAlign: "center" }}>
-            <p style={{ fontSize: "10px", color: "#9ca3af", margin: 0 }}>
+          <div style={{ marginTop: "12px", textAlign: "center" }}>
+            <p style={{ fontSize: "9px", color: "#9ca3af", margin: 0 }}>
               © {new Date().getFullYear()} {appSettings.appName}. All rights
               reserved.
             </p>

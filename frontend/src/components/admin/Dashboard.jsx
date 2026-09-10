@@ -14,7 +14,6 @@ const AdminDashboard = () => {
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
-  // Modal states
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [showViewModal, setShowViewModal] = useState(false);
@@ -24,7 +23,6 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
 
-  // Form states
   const [transactionData, setTransactionData] = useState({
     memberId: "",
     type: "deposit",
@@ -47,7 +45,6 @@ const AdminDashboard = () => {
     balance: "",
   });
 
-  // Format currency in Nigerian Naira
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
     return new Intl.NumberFormat("en-NG", {
@@ -58,22 +55,21 @@ const AdminDashboard = () => {
     }).format(amount);
   };
 
-  // Test API connection
+  const totalCharges = transactions.reduce((sum, t) => {
+    const c = parseFloat(t.charge) || 0;
+    return sum + c;
+  }, 0);
+
   const testApiConnection = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/admin.php`);
-      if (response.ok) {
-        console.log("✅ API Connection successful");
-        return true;
-      }
+      if (response.ok) return true;
       return false;
     } catch (error) {
-      console.error("❌ API Connection failed:", error);
       return false;
     }
   };
 
-  // Refresh data
   const refreshData = async () => {
     setLoading(true);
     setError(null);
@@ -81,16 +77,14 @@ const AdminDashboard = () => {
       await fetchAllData();
       toast.success("Data refreshed successfully!");
     } catch (error) {
-      console.error("Error refreshing data:", error);
+      toast.error("Failed to refresh data");
     } finally {
       setLoading(false);
     }
   };
 
-  // Fetch all data
   const fetchAllData = async () => {
     try {
-      // Test connection
       const isConnected = await testApiConnection();
       if (!isConnected) {
         throw new Error(
@@ -98,131 +92,130 @@ const AdminDashboard = () => {
         );
       }
 
-      // Fetch admin profile
       try {
         const response = await fetch(`${API_BASE_URL}/api/admin.php`);
         const adminData = await response.json();
-        console.log("Admin data:", adminData);
-        if (adminData.username) {
-          setAdminUsername(adminData.username);
-        }
+        if (adminData.username) setAdminUsername(adminData.username);
       } catch (profileError) {
-        console.log("Using default admin name");
         setAdminUsername("Admin");
       }
 
-      // Fetch members
       try {
         const response = await fetch(`${API_BASE_URL}/api/members.php`);
         const membersData = await response.json();
-        console.log("Members data:", membersData);
-        if (membersData.members) {
-          setMembers(membersData.members);
-        }
+        if (membersData.members) setMembers(membersData.members);
       } catch (membersError) {
-        console.error("Error fetching members:", membersError);
         setMembers([]);
       }
 
-      // Fetch transactions
       try {
         const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
         const transactionsData = await response.json();
-        console.log("Transactions data:", transactionsData);
-        if (transactionsData.transactions) {
+        if (transactionsData.transactions)
           setTransactions(transactionsData.transactions);
-        }
       } catch (transactionsError) {
-        console.error("Error fetching transactions:", transactionsError);
         setTransactions([]);
       }
 
-      // Fetch loans
       try {
         const response = await fetch(`${API_BASE_URL}/api/loans.php`);
         const loansData = await response.json();
-        console.log("Loans data:", loansData);
         if (loansData.loans) {
           setLoans(loansData.loans);
-          // Filter pending loans
           const pending = loansData.loans.filter(
             (loan) => loan.status === "pending",
           );
           setPendingLoans(pending);
-          console.log("Pending loans:", pending);
         }
       } catch (loansError) {
-        console.error("Error fetching loans:", loansError);
         setLoans([]);
         setPendingLoans([]);
       }
     } catch (error) {
-      console.error("Failed to fetch data:", error);
       throw error;
     }
   };
 
-  // Approve Loan
   const handleApproveLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to approve this loan?")) return;
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/loans.php`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: loanId,
-          status: "approved",
-        }),
+        body: JSON.stringify({ id: loanId, status: "approved" }),
       });
-
       const data = await response.json();
-      console.log("Approve loan response:", data);
-
       if (response.ok) {
         toast.success("✅ Loan approved successfully!");
-        // Refresh data
         await fetchAllData();
       } else {
         toast.error(data.error || "Failed to approve loan");
       }
     } catch (error) {
-      console.error("Error approving loan:", error);
       toast.error("Failed to approve loan. Please try again.");
     }
   };
 
-  // Reject Loan
   const handleRejectLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to reject this loan?")) return;
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/loans.php`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          id: loanId,
-          status: "rejected",
-        }),
+        body: JSON.stringify({ id: loanId, status: "rejected" }),
       });
-
       const data = await response.json();
-      console.log("Reject loan response:", data);
-
       if (response.ok) {
         toast.success("❌ Loan rejected!");
-        // Refresh data
         await fetchAllData();
       } else {
         toast.error(data.error || "Failed to reject loan");
       }
     } catch (error) {
-      console.error("Error rejecting loan:", error);
       toast.error("Failed to reject loan. Please try again.");
     }
   };
 
-  // Fetch all data on component mount
+  const handleApproveTransaction = async (transactionId) => {
+    if (!window.confirm("Approve this transaction?")) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions.php/${transactionId}/approve`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } },
+      );
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success(
+          `✅ Approved! Charge: ${formatCurrency(data.charge || 0)}, Net: ${formatCurrency(data.net_amount || 0)}`,
+        );
+        await fetchAllData();
+      } else {
+        toast.error(data.error || "Failed to approve transaction");
+      }
+    } catch (error) {
+      toast.error("Failed to approve transaction. Please try again.");
+    }
+  };
+
+  const handleRejectTransaction = async (transactionId) => {
+    if (!window.confirm("Reject this transaction?")) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions.php/${transactionId}/reject`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } },
+      );
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success("❌ Transaction rejected!");
+        await fetchAllData();
+      } else {
+        toast.error(data.error || "Failed to reject transaction");
+      }
+    } catch (error) {
+      toast.error("Failed to reject transaction. Please try again.");
+    }
+  };
+
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
@@ -239,7 +232,6 @@ const AdminDashboard = () => {
     loadData();
   }, []);
 
-  // Handle select all
   const handleSelectAll = () => {
     if (selectAll) {
       setSelectedMembers([]);
@@ -250,7 +242,6 @@ const AdminDashboard = () => {
     setSelectAll(!selectAll);
   };
 
-  // Handle select single member
   const handleSelectMember = (id) => {
     if (selectedMembers.includes(id)) {
       setSelectedMembers(selectedMembers.filter((mId) => mId !== id));
@@ -259,42 +250,33 @@ const AdminDashboard = () => {
     }
   };
 
-  // Bulk Suspend
   const handleBulkSuspend = async () => {
     if (selectedMembers.length === 0) {
       alert("Please select at least one member to suspend");
       return;
     }
-
     if (
       !window.confirm(
         `Are you sure you want to suspend ${selectedMembers.length} member(s)?`,
       )
-    ) {
+    )
       return;
-    }
 
     try {
       for (const id of selectedMembers) {
         const member = members.find((m) => m.id === id);
         if (member) {
-          const response = await fetch(
-            `${API_BASE_URL}/api/members.php/${id}`,
-            {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ...member,
-                status: "Suspended",
-                suspension_reason: "Bulk suspension by admin",
-                suspended_date: new Date().toISOString().split("T")[0],
-                suspended_by: "Admin",
-              }),
-            },
-          );
-          if (!response.ok) {
-            console.error(`Failed to suspend member ${id}`);
-          }
+          await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+            method: "PUT",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              ...member,
+              status: "Suspended",
+              suspension_reason: "Bulk suspension by admin",
+              suspended_date: new Date().toISOString().split("T")[0],
+              suspended_by: "Admin",
+            }),
+          });
         }
       }
       alert(`✅ ${selectedMembers.length} member(s) suspended successfully!`);
@@ -302,47 +284,38 @@ const AdminDashboard = () => {
       setSelectAll(false);
       refreshData();
     } catch (error) {
-      console.error("Error suspending members:", error);
       alert("Failed to suspend members. Please try again.");
     }
   };
 
-  // Bulk Delete
   const handleBulkDelete = async () => {
     if (selectedMembers.length === 0) {
       alert("Please select at least one member to delete");
       return;
     }
-
     if (
       !window.confirm(
         `⚠️ Are you sure you want to permanently delete ${selectedMembers.length} member(s)? This action cannot be undone!`,
       )
-    ) {
+    )
       return;
-    }
 
     try {
       for (const id of selectedMembers) {
-        const response = await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+        await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
         });
-        if (!response.ok) {
-          console.error(`Failed to delete member ${id}`);
-        }
       }
       alert(`✅ ${selectedMembers.length} member(s) deleted successfully!`);
       setSelectedMembers([]);
       setSelectAll(false);
       refreshData();
     } catch (error) {
-      console.error("Error deleting members:", error);
       alert("Failed to delete members. Please try again.");
     }
   };
 
-  // Generate account number
   const generateAccountNumber = () => {
     const prefix = "10";
     const randomDigits = Math.floor(Math.random() * 100000000)
@@ -351,7 +324,6 @@ const AdminDashboard = () => {
     return prefix + randomDigits;
   };
 
-  // Stats
   const stats = [
     {
       icon: "👥",
@@ -366,6 +338,12 @@ const AdminDashboard = () => {
         members.reduce((sum, m) => sum + (m.balance || 0), 0),
       ),
       color: "gold",
+    },
+    {
+      icon: "💸",
+      label: "Total Charges",
+      value: formatCurrency(totalCharges),
+      color: "cyan",
     },
     {
       icon: "⏳",
@@ -384,6 +362,7 @@ const AdminDashboard = () => {
   const colorMap = {
     emerald: { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" },
     gold: { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" },
+    cyan: { bg: "rgba(6, 182, 212, 0.2)", color: "#22d3ee" },
     blue: { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" },
     purple: { bg: "rgba(139, 92, 246, 0.2)", color: "#a78bfa" },
   };
@@ -396,11 +375,6 @@ const AdminDashboard = () => {
       member.phone?.includes(searchTerm),
   );
 
-  const pendingTransactions = transactions.filter(
-    (t) => t.status === "pending",
-  );
-
-  // Create Member
   const handleCreateMember = async (e) => {
     e.preventDefault();
     const accountNumber = generateAccountNumber();
@@ -449,37 +423,37 @@ const AdminDashboard = () => {
         alert(data.message || "Failed to create member");
       }
     } catch (error) {
-      console.error("Error creating member:", error);
       alert("Failed to create member. Please try again.");
     }
   };
 
-  // Transaction
   const handleTransaction = async (e) => {
     e.preventDefault();
+
+    if (!transactionData.memberId) {
+      toast.error("Please select a member");
+      return;
+    }
+    const amount = parseFloat(transactionData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
     const member = members.find(
       (m) => m.id === parseInt(transactionData.memberId),
     );
     if (!member) {
-      alert("Member not found!");
+      toast.error("Member not found!");
       return;
     }
-
     if (!member.accountNumber || member.accountNumber === "") {
-      alert(
-        `⚠️ Member "${member.name}" does not have an account number. Please update the member profile first.`,
+      toast.error(
+        `⚠️ Member "${member.name}" does not have an account number.`,
       );
       return;
     }
-
-    const amount = parseFloat(transactionData.amount);
-    if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount!");
-      return;
-    }
-
     if (transactionData.type === "withdrawal" && amount > member.balance) {
-      alert(
+      toast.error(
         `Insufficient balance! Available: ${formatCurrency(member.balance)}`,
       );
       return;
@@ -497,20 +471,21 @@ const AdminDashboard = () => {
         transactionData.description || `${transactionData.type} request`,
     };
 
-    console.log("📤 Sending transaction:", transaction);
-
     try {
       const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(transaction),
       });
-
       const data = await response.json();
-      console.log("📥 Response:", data);
-
       if (response.ok) {
-        setTransactions([...transactions, data.transaction]);
+        setTransactions([
+          data.transaction || { ...transaction, id: Date.now() },
+          ...transactions,
+        ]);
         setShowTransactionModal(false);
         setTransactionData({
           memberId: "",
@@ -518,59 +493,47 @@ const AdminDashboard = () => {
           amount: "",
           description: "",
         });
-        alert(`✅ ${transactionData.type} request submitted for approval!`);
+        toast.success(
+          `✅ ${transactionData.type} request submitted! Go to Transactions tab to approve.`,
+        );
+        refreshData();
       } else {
-        alert(data.error || data.message || "Failed to submit transaction");
-        console.error("❌ Error response:", data);
+        toast.error(
+          data.error || data.message || "Failed to submit transaction",
+        );
       }
     } catch (error) {
-      console.error("Error submitting transaction:", error);
-      alert("Failed to submit transaction. Please try again.");
+      toast.error("Failed to submit transaction. Please try again.");
     }
   };
 
-  // Transfer
   const handleTransfer = async (e) => {
     e.preventDefault();
+    if (!transferData.fromMemberId || !transferData.toMemberId) {
+      toast.error("Please select both members");
+      return;
+    }
+    const amount = parseFloat(transferData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
     const fromMember = members.find(
       (m) => m.id === parseInt(transferData.fromMemberId),
     );
     const toMember = members.find(
       (m) => m.id === parseInt(transferData.toMemberId),
     );
-
     if (!fromMember || !toMember) {
-      alert("Please select valid members!");
+      toast.error("Please select valid members!");
       return;
     }
-
     if (fromMember.id === toMember.id) {
-      alert("Cannot transfer to the same member!");
+      toast.error("Cannot transfer to the same member!");
       return;
     }
-
-    if (!fromMember.accountNumber || fromMember.accountNumber === "") {
-      alert(
-        `⚠️ Member "${fromMember.name}" does not have an account number. Please update the member profile first.`,
-      );
-      return;
-    }
-
-    if (!toMember.accountNumber || toMember.accountNumber === "") {
-      alert(
-        `⚠️ Member "${toMember.name}" does not have an account number. Please update the member profile first.`,
-      );
-      return;
-    }
-
-    const amount = parseFloat(transferData.amount);
-    if (isNaN(amount) || amount <= 0) {
-      alert("Please enter a valid amount!");
-      return;
-    }
-
     if (amount > fromMember.balance) {
-      alert(
+      toast.error(
         `Insufficient balance! Available: ${formatCurrency(fromMember.balance)}`,
       );
       return;
@@ -585,33 +548,33 @@ const AdminDashboard = () => {
       toAccountNumber: toMember.accountNumber,
       amount: amount,
       date: new Date().toISOString().split("T")[0],
-      description: `Transfer to ${toMember.name}`,
+      description: transferData.description || `Transfer to ${toMember.name}`,
     };
-
-    console.log("📤 Sending transfer:", transfer);
 
     try {
       const response = await fetch(`${API_BASE_URL}/api/transfers.php`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(transfer),
       });
-
       const data = await response.json();
-      console.log("📥 Transfer response:", data);
-
       if (response.ok) {
         const newTransaction = {
-          ...data.transaction,
           id: data.transaction?.id || Date.now(),
           memberName: fromMember.name,
           accountNumber: fromMember.accountNumber,
           type: "transfer",
+          amount: amount,
           status: "pending",
           date: new Date().toISOString().split("T")[0],
           description: `Transfer to ${toMember.name}`,
+          fromMemberId: fromMember.id,
+          toMemberId: toMember.id,
         };
-        setTransactions([...transactions, newTransaction]);
+        setTransactions([newTransaction, ...transactions]);
         setShowTransferModal(false);
         setTransferData({
           fromMemberId: "",
@@ -619,74 +582,16 @@ const AdminDashboard = () => {
           amount: "",
           description: "",
         });
-        alert(`✅ Transfer request submitted for approval!`);
-      } else {
-        alert(data.error || data.message || "Failed to submit transfer");
-        console.error("❌ Error response:", data);
-      }
-    } catch (error) {
-      console.error("Error submitting transfer:", error);
-      alert("Failed to submit transfer. Please try again.");
-    }
-  };
-
-  // Approve Transaction
-  const handleApproveTransaction = async (transactionId) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/approve`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json();
-      if (response.ok) {
-        const updatedTransactions = transactions.map((t) =>
-          t.id === transactionId ? { ...t, status: "approved" } : t,
-        );
-        setTransactions(updatedTransactions);
-        alert(`✅ Transaction approved successfully!`);
+        toast.success(`✅ Transfer request submitted!`);
         refreshData();
       } else {
-        alert(data.message || "Failed to approve transaction");
+        toast.error(data.error || data.message || "Failed to submit transfer");
       }
     } catch (error) {
-      console.error("Error approving transaction:", error);
-      alert("Failed to approve transaction. Please try again.");
+      toast.error("Failed to submit transfer. Please try again.");
     }
   };
 
-  // Reject Transaction
-  const handleRejectTransaction = async (transactionId) => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/reject`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json();
-      if (response.ok) {
-        const updatedTransactions = transactions.map((t) =>
-          t.id === transactionId ? { ...t, status: "rejected" } : t,
-        );
-        setTransactions(updatedTransactions);
-        alert(`❌ Transaction rejected!`);
-        refreshData();
-      } else {
-        alert(data.message || "Failed to reject transaction");
-      }
-    } catch (error) {
-      console.error("Error rejecting transaction:", error);
-      alert("Failed to reject transaction. Please try again.");
-    }
-  };
-
-  // Edit Member
   const handleEditMember = (member) => {
     setSelectedMember(member);
     setShowEditModal(true);
@@ -703,7 +608,6 @@ const AdminDashboard = () => {
           body: JSON.stringify(selectedMember),
         },
       );
-
       const data = await response.json();
       if (response.ok) {
         const updatedMembers = members.map((member) =>
@@ -712,18 +616,16 @@ const AdminDashboard = () => {
         setMembers(updatedMembers);
         setShowEditModal(false);
         setSelectedMember(null);
-        alert("✅ Member updated successfully!");
+        toast.success("✅ Member updated successfully!");
         refreshData();
       } else {
-        alert(data.message || "Failed to update member");
+        toast.error(data.message || "Failed to update member");
       }
     } catch (error) {
-      console.error("Error updating member:", error);
-      alert("Failed to update member. Please try again.");
+      toast.error("Failed to update member. Please try again.");
     }
   };
 
-  // Delete Member
   const handleDeleteMember = async (id) => {
     if (window.confirm("⚠️ Are you sure you want to delete this member?")) {
       try {
@@ -731,29 +633,25 @@ const AdminDashboard = () => {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
         });
-
         if (response.ok) {
           setMembers(members.filter((member) => member.id !== id));
-          alert("✅ Member deleted successfully!");
+          toast.success("✅ Member deleted successfully!");
           refreshData();
         } else {
           const data = await response.json();
-          alert(data.message || "Failed to delete member");
+          toast.error(data.message || "Failed to delete member");
         }
       } catch (error) {
-        console.error("Error deleting member:", error);
-        alert("Failed to delete member. Please try again.");
+        toast.error("Failed to delete member. Please try again.");
       }
     }
   };
 
-  // View Member
   const handleViewMember = (member) => {
     setSelectedMember(member);
     setShowViewModal(true);
   };
 
-  // Error state
   if (error) {
     return (
       <div
@@ -804,7 +702,6 @@ const AdminDashboard = () => {
     );
   }
 
-  // Loading state
   if (loading) {
     return (
       <div
@@ -822,7 +719,6 @@ const AdminDashboard = () => {
     );
   }
 
-  // Main render
   return (
     <div
       style={{
@@ -833,206 +729,89 @@ const AdminDashboard = () => {
       }}
     >
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
         .modal-overlay {
-          position: fixed;
-          inset: 0;
+          position: fixed; inset: 0;
           background-color: rgba(0,0,0,0.7);
           backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 16px;
+          display: flex; align-items: center; justify-content: center;
+          z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
-          border-radius: 16px;
-          padding: 32px;
-          max-width: 500px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
+          background-color: #1e293b; border-radius: 16px;
+          padding: 32px; max-width: 500px; width: 100%;
+          max-height: 90vh; overflow-y: auto;
           border: 1px solid rgba(255,255,255,0.1);
           animation: fadeIn 0.3s ease;
         }
-        .modal-content::-webkit-scrollbar {
-          width: 6px;
-        }
-        .modal-content::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 3px;
-        }
-        .modal-content::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.2);
-          border-radius: 3px;
-        }
-        .modal-content::-webkit-scrollbar-thumb:hover {
-          background: rgba(255,255,255,0.3);
-        }
         .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
+          display: flex; justify-content: space-between;
+          align-items: center; margin-bottom: 16px;
         }
-        .modal-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: white;
-        }
+        .modal-title { font-size: 18px; font-weight: bold; color: white; }
         .modal-close {
-          background: none;
-          border: none;
-          color: #94a3b8;
-          cursor: pointer;
-          padding: 4px;
-          font-size: 24px;
-          transition: color 0.2s;
+          background: none; border: none; color: #94a3b8;
+          cursor: pointer; padding: 4px; font-size: 24px;
         }
-        .modal-close:hover {
-          color: white;
-        }
-        .form-group {
-          margin-bottom: 16px;
-        }
+        .modal-close:hover { color: white; }
+        .form-group { margin-bottom: 16px; }
         .form-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 500;
-          color: #d1d5db;
-          margin-bottom: 6px;
+          display: block; font-size: 14px; font-weight: 500;
+          color: #d1d5db; margin-bottom: 6px;
         }
         .form-input {
-          width: 100%;
-          padding: 10px 14px;
-          border-radius: 8px;
+          width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background-color: rgba(255,255,255,0.05);
-          color: white;
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
+          color: white; font-size: 14px; outline: none;
           box-sizing: border-box;
         }
-        .form-input:focus {
-          border-color: #10b981;
-        }
-        .form-input::placeholder {
-          color: #6b7280;
-        }
+        .form-input:focus { border-color: #10b981; }
+        .form-input::placeholder { color: #6b7280; }
         .form-select {
-          width: 100%;
-          padding: 10px 14px;
-          border-radius: 8px;
+          width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background-color: rgba(255,255,255,0.05);
-          color: white;
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          cursor: pointer;
+          color: white; font-size: 14px; outline: none; cursor: pointer;
         }
-        .form-select:focus {
-          border-color: #10b981;
-        }
-        .form-select option {
-          background-color: #1e293b;
-          color: white;
-        }
+        .form-select:focus { border-color: #10b981; }
+        .form-select option { background-color: #1e293b; color: white; }
         .btn-submit {
-          width: 100%;
-          padding: 12px;
-          border-radius: 8px;
-          border: none;
+          width: 100%; padding: 12px; border-radius: 8px; border: none;
           background: linear-gradient(to right, #059669, #0d9488);
-          color: white;
-          font-size: 16px;
-          font-weight: 600;
+          color: white; font-size: 16px; font-weight: 600;
           cursor: pointer;
-          transition: all 0.2s;
-        }
-        .btn-submit:hover {
-          opacity: 0.9;
-          transform: scale(1.01);
-        }
-        .btn-submit:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
         }
         .btn-cancel {
-          width: 100%;
-          padding: 12px;
-          border-radius: 8px;
+          width: 100%; padding: 12px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
-          background: transparent;
-          color: white;
-          font-size: 16px;
+          background: transparent; color: white; font-size: 16px;
           cursor: pointer;
-          transition: all 0.2s;
         }
-        .btn-cancel:hover {
-          background-color: rgba(255,255,255,0.05);
-        }
-        .modal-buttons {
-          display: flex;
-          gap: 12px;
-          margin-top: 16px;
-        }
-        .modal-buttons button {
-          flex: 1;
-        }
-        .refresh-spinner {
-          display: inline-block;
-          animation: spin 1s linear infinite;
-        }
+        .btn-cancel:hover { background-color: rgba(255,255,255,0.05); }
+        .modal-buttons { display: flex; gap: 12px; margin-top: 16px; }
+        .modal-buttons button { flex: 1; }
         .table-container {
-          overflow-x: auto;
-          max-height: 550px;
-          overflow-y: auto;
+          overflow-x: auto; max-height: 550px; overflow-y: auto;
         }
-        .table-container::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
-        .table-container::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 3px;
-        }
-        .table-container::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.2);
-          border-radius: 3px;
-        }
-        .table-container::-webkit-scrollbar-thumb:hover {
-          background: rgba(255,255,255,0.3);
-        }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-          table-layout: fixed;
-        }
+        table { width: 100%; border-collapse: collapse; }
         th {
-          padding: 14px 16px;
-          text-align: left;
-          font-size: 12px;
-          font-weight: 600;
-          color: #9ca3af;
+          padding: 14px 16px; text-align: left; font-size: 12px;
+          font-weight: 600; color: #9ca3af;
           background-color: rgba(255, 255, 255, 0.08);
-          position: sticky;
-          top: 0;
-          z-index: 10;
+          position: sticky; top: 0; z-index: 10;
           white-space: nowrap;
         }
         td {
           padding: 14px 16px;
           border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
+
+        /* ====== STAT CARDS — auto-shrinking value ====== */
         .stat-card {
           background-color: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
@@ -1040,131 +819,71 @@ const AdminDashboard = () => {
           padding: 20px;
           border: 1px solid rgba(255, 255, 255, 0.1);
           transition: all 0.3s;
+          min-width: 0;
+          overflow: hidden;
         }
         .stat-card:hover {
           transform: translateY(-2px);
           border-color: rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
         }
-        .action-button {
-          transition: all 0.2s;
-          cursor: pointer;
-          padding: 4px 6px;
-          border-radius: 4px;
-        }
-        .action-button:hover {
-          transform: scale(1.1);
-          background: rgba(255,255,255,0.05);
-        }
-        .search-input:focus {
-          border-color: #10b981 !important;
-        }
-        .member-name {
-          font-weight: 500;
-          color: white;
-          font-size: 14px;
-        }
-        .member-email {
-          color: #d1d5db;
-          font-size: 13px;
-        }
-        .member-phone {
-          color: #9ca3af;
-          font-size: 12px;
-        }
-        .badge {
-          padding: 4px 12px;
-          font-size: 12px;
-          border-radius: 20px;
-          font-weight: 500;
-          display: inline-block;
-          white-space: nowrap;
-        }
-        .badge-active {
-          background-color: rgba(16, 185, 129, 0.2);
-          color: #34d399;
-        }
-        .badge-inactive {
-          background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
-        }
-        .badge-suspended {
-          background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
-        }
-        .badge-standard {
-          background-color: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
-        }
-        .badge-premium {
-          background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
-        }
-        .badge-vip {
-          background-color: rgba(168, 85, 247, 0.2);
-          color: #a78bfa;
-        }
-        .badge-pending {
-          background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
-        }
-        .badge-approved {
-          background-color: rgba(16, 185, 129, 0.2);
-          color: #34d399;
-        }
-        .badge-rejected {
-          background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
-        }
-        .balance-amount {
-          color: #34d399;
-          font-weight: 600;
-          font-size: 15px;
-        }
-        .actions-cell {
+        .stat-icon-wrap {
+          padding: 10px;
+          border-radius: 12px;
+          flex-shrink: 0;
           display: flex;
-          gap: 4px;
           align-items: center;
+          justify-content: center;
+          width: 48px;
+          height: 48px;
         }
-        .col-checkbox { width: 5%; }
-        .col-member { width: 20%; }
-        .col-contact { width: 20%; }
-        .col-type { width: 12%; }
-        .col-status { width: 12%; }
-        .col-balance { width: 15%; text-align: right; }
-        .col-actions { width: 16%; }
-        .loan-actions {
-          display: flex;
-          gap: 8px;
+        .stat-label {
+          color: #9ca3af;
+          font-size: 13px;
+          margin: 0 0 4px 0;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
         }
+        .stat-value {
+          font-size: 20px;
+          font-weight: bold;
+          color: white;
+          margin: 0;
+          white-space: nowrap;
+          line-height: 1.2;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: -0.02em;
+        }
+        .stat-value.long   { font-size: 17px; }
+        .stat-value.xlong  { font-size: 15px; }
+        .stat-value.xxlong { font-size: 13px; }
+
+        .badge {
+          padding: 4px 12px; font-size: 12px; border-radius: 20px;
+          font-weight: 500; display: inline-block;
+        }
+        .badge-active { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-inactive { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-suspended { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
+        .badge-standard { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; }
+        .badge-premium { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
+        .badge-vip { background-color: rgba(168, 85, 247, 0.2); color: #a78bfa; }
+        .badge-pending { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
+        .badge-approved { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
+        .badge-rejected { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .loan-actions { display: flex; gap: 8px; }
         .btn-approve {
-          background-color: #10b981;
-          color: white;
-          padding: 6px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: all 0.2s;
+          background-color: #10b981; color: white;
+          padding: 6px 16px; border: none; border-radius: 6px;
+          cursor: pointer; font-size: 12px; font-weight: 500;
         }
-        .btn-approve:hover {
-          background-color: #059669;
-        }
+        .btn-approve:hover { background-color: #059669; }
         .btn-reject {
-          background-color: #ef4444;
-          color: white;
-          padding: 6px 16px;
-          border: none;
-          border-radius: 6px;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: all 0.2s;
+          background-color: #ef4444; color: white;
+          padding: 6px 16px; border: none; border-radius: 6px;
+          cursor: pointer; font-size: 12px; font-weight: 500;
         }
-        .btn-reject:hover {
-          background-color: #dc2626;
-        }
+        .btn-reject:hover { background-color: #dc2626; }
       `}</style>
 
       {/* Header */}
@@ -1190,11 +909,7 @@ const AdminDashboard = () => {
             Admin Dashboard
           </h2>
           <p
-            style={{
-              fontSize: "14px",
-              color: "#9ca3af",
-              margin: "4px 0 0 0",
-            }}
+            style={{ fontSize: "14px", color: "#9ca3af", margin: "4px 0 0 0" }}
           >
             Welcome back, {adminUsername} 👋
           </p>
@@ -1211,13 +926,6 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
-              transition: "all 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "rgba(59, 130, 246, 0.25)";
-            }}
-            onMouseLeave={(e) => {
-              e.target.style.backgroundColor = "rgba(59, 130, 246, 0.15)";
             }}
           >
             🔄 Refresh
@@ -1233,10 +941,6 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
-              transition: "all 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "#2563eb";
             }}
           >
             💳 New Transaction
@@ -1252,10 +956,6 @@ const AdminDashboard = () => {
               fontSize: "14px",
               fontWeight: "600",
               cursor: "pointer",
-              transition: "all 0.3s",
-            }}
-            onMouseEnter={(e) => {
-              e.target.style.backgroundColor = "#7c3aed";
             }}
           >
             🔄 Transfer
@@ -1267,48 +967,47 @@ const AdminDashboard = () => {
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))",
-          gap: "24px",
+          gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))",
+          gap: "20px",
           marginBottom: "32px",
         }}
       >
-        {stats.map((stat, index) => (
-          <div key={index} className="stat-card">
-            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+        {stats.map((stat, index) => {
+          const valueStr = String(stat.value || "");
+          let sizeClass = "";
+          if (valueStr.length > 14) sizeClass = "xxlong";
+          else if (valueStr.length > 11) sizeClass = "xlong";
+          else if (valueStr.length > 8) sizeClass = "long";
+
+          return (
+            <div key={index} className="stat-card">
               <div
                 style={{
-                  padding: "12px",
-                  borderRadius: "12px",
-                  backgroundColor: colorMap[stat.color].bg,
-                  color: colorMap[stat.color].color,
+                  display: "flex",
+                  alignItems: "center",
+                  gap: "12px",
+                  minWidth: 0,
                 }}
               >
-                <span style={{ fontSize: "24px" }}>{stat.icon}</span>
-              </div>
-              <div>
-                <p
+                <div
+                  className="stat-icon-wrap"
                   style={{
-                    color: "#9ca3af",
-                    fontSize: "14px",
-                    margin: "0 0 4px 0",
+                    backgroundColor: colorMap[stat.color].bg,
+                    color: colorMap[stat.color].color,
                   }}
                 >
-                  {stat.label}
-                </p>
-                <p
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "white",
-                    margin: 0,
-                  }}
-                >
-                  {stat.value}
-                </p>
+                  <span style={{ fontSize: "22px" }}>{stat.icon}</span>
+                </div>
+                <div style={{ minWidth: 0, flex: 1 }}>
+                  <p className="stat-label">{stat.label}</p>
+                  <p className={`stat-value ${sizeClass}`} title={valueStr}>
+                    {stat.value}
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
 
       {/* Tabs */}
@@ -1321,12 +1020,14 @@ const AdminDashboard = () => {
           padding: "4px",
           marginBottom: "24px",
           border: "1px solid rgba(255, 255, 255, 0.1)",
+          flexWrap: "wrap",
         }}
       >
         <button
           onClick={() => setActiveTab("members")}
           style={{
             flex: 1,
+            minWidth: "120px",
             padding: "10px",
             backgroundColor:
               activeTab === "members"
@@ -1338,7 +1039,6 @@ const AdminDashboard = () => {
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
-            transition: "all 0.3s",
           }}
         >
           👥 Members
@@ -1347,6 +1047,7 @@ const AdminDashboard = () => {
           onClick={() => setActiveTab("pending_loans")}
           style={{
             flex: 1,
+            minWidth: "120px",
             padding: "10px",
             backgroundColor:
               activeTab === "pending_loans"
@@ -1359,7 +1060,6 @@ const AdminDashboard = () => {
             fontSize: "14px",
             fontWeight: "600",
             position: "relative",
-            transition: "all 0.3s",
           }}
         >
           ⏳ Pending Loans
@@ -1387,6 +1087,7 @@ const AdminDashboard = () => {
           onClick={() => setActiveTab("all_loans")}
           style={{
             flex: 1,
+            minWidth: "120px",
             padding: "10px",
             backgroundColor:
               activeTab === "all_loans"
@@ -1398,7 +1099,6 @@ const AdminDashboard = () => {
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
-            transition: "all 0.3s",
           }}
         >
           📊 All Loans
@@ -1407,6 +1107,7 @@ const AdminDashboard = () => {
           onClick={() => setActiveTab("transactions")}
           style={{
             flex: 1,
+            minWidth: "120px",
             padding: "10px",
             backgroundColor:
               activeTab === "transactions"
@@ -1418,7 +1119,6 @@ const AdminDashboard = () => {
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
-            transition: "all 0.3s",
           }}
         >
           💳 Transactions
@@ -1439,7 +1139,6 @@ const AdminDashboard = () => {
           >
             <input
               type="text"
-              className="search-input"
               placeholder="🔍 Search by name, email, phone, or account number..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
@@ -1452,19 +1151,11 @@ const AdminDashboard = () => {
                 border: "1px solid rgba(255, 255, 255, 0.1)",
                 outline: "none",
                 fontSize: "15px",
-                transition: "border-color 0.3s",
-              }}
-              maxLength={11}
-              onFocus={(e) => {
-                e.target.style.borderColor = "#10b981";
-              }}
-              onBlur={(e) => {
-                e.target.style.borderColor = "rgba(255, 255, 255, 0.1)";
+                boxSizing: "border-box",
               }}
             />
           </div>
 
-          {/* Bulk Actions */}
           {filteredMembers.length > 0 && (
             <div
               style={{
@@ -1495,15 +1186,6 @@ const AdminDashboard = () => {
                       cursor: "pointer",
                       fontSize: "13px",
                       fontWeight: "500",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor =
-                        "rgba(234, 179, 8, 0.25)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor =
-                        "rgba(234, 179, 8, 0.15)";
                     }}
                   >
                     🚫 Suspend Selected
@@ -1519,15 +1201,6 @@ const AdminDashboard = () => {
                       cursor: "pointer",
                       fontSize: "13px",
                       fontWeight: "500",
-                      transition: "all 0.2s",
-                    }}
-                    onMouseEnter={(e) => {
-                      e.target.style.backgroundColor =
-                        "rgba(239, 68, 68, 0.25)";
-                    }}
-                    onMouseLeave={(e) => {
-                      e.target.style.backgroundColor =
-                        "rgba(239, 68, 68, 0.15)";
                     }}
                   >
                     🗑️ Delete Selected
@@ -1549,25 +1222,20 @@ const AdminDashboard = () => {
               <table>
                 <thead>
                   <tr>
-                    <th className="col-checkbox">
+                    <th style={{ width: "5%" }}>
                       <input
                         type="checkbox"
                         checked={selectAll}
                         onChange={handleSelectAll}
-                        style={{
-                          width: "16px",
-                          height: "16px",
-                          accentColor: "#10b981",
-                          cursor: "pointer",
-                        }}
+                        style={{ accentColor: "#10b981", cursor: "pointer" }}
                       />
                     </th>
-                    <th className="col-member">Member</th>
-                    <th className="col-contact">Contact</th>
-                    <th className="col-type">Type</th>
-                    <th className="col-status">Status</th>
-                    <th className="col-balance">Balance</th>
-                    <th className="col-actions">Actions</th>
+                    <th>Member</th>
+                    <th>Contact</th>
+                    <th>Type</th>
+                    <th>Status</th>
+                    <th style={{ textAlign: "right" }}>Balance</th>
+                    <th>Actions</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -1576,14 +1244,6 @@ const AdminDashboard = () => {
                       key={member.id}
                       style={{
                         borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                        transition: "background-color 0.2s",
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor =
-                          "rgba(255,255,255,0.03)";
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = "transparent";
                       }}
                     >
                       <td style={{ textAlign: "center" }}>
@@ -1591,12 +1251,7 @@ const AdminDashboard = () => {
                           type="checkbox"
                           checked={selectedMembers.includes(member.id)}
                           onChange={() => handleSelectMember(member.id)}
-                          style={{
-                            width: "16px",
-                            height: "16px",
-                            accentColor: "#10b981",
-                            cursor: "pointer",
-                          }}
+                          style={{ accentColor: "#10b981", cursor: "pointer" }}
                         />
                       </td>
                       <td>
@@ -1624,14 +1279,22 @@ const AdminDashboard = () => {
                           >
                             {member.name?.charAt(0) || "U"}
                           </div>
-                          <div>
-                            <div className="member-name">{member.name}</div>
+                          <div
+                            style={{
+                              color: "white",
+                              fontSize: "14px",
+                              fontWeight: "500",
+                            }}
+                          >
+                            {member.name}
                           </div>
                         </div>
                       </td>
                       <td>
-                        <div className="member-email">{member.email}</div>
-                        <div className="member-phone">
+                        <div style={{ color: "#d1d5db", fontSize: "13px" }}>
+                          {member.email}
+                        </div>
+                        <div style={{ color: "#9ca3af", fontSize: "12px" }}>
                           {member.phone || "No phone"}
                         </div>
                       </td>
@@ -1650,49 +1313,63 @@ const AdminDashboard = () => {
                         </span>
                       </td>
                       <td
-                        className="balance-amount"
-                        style={{ textAlign: "right" }}
+                        style={{
+                          textAlign: "right",
+                          color: "#34d399",
+                          fontWeight: "600",
+                          fontSize: "15px",
+                          whiteSpace: "nowrap",
+                        }}
                       >
                         {formatCurrency(member.balance)}
                       </td>
                       <td>
-                        <div className="actions-cell">
+                        <div
+                          style={{
+                            display: "flex",
+                            gap: "4px",
+                            alignItems: "center",
+                          }}
+                        >
                           <button
                             onClick={() => handleViewMember(member)}
-                            className="action-button"
                             style={{
                               color: "#60a5fa",
                               background: "none",
                               border: "none",
+                              cursor: "pointer",
                               fontSize: "18px",
+                              padding: "4px 6px",
                             }}
-                            title="View Member"
+                            title="View"
                           >
                             👁️
                           </button>
                           <button
                             onClick={() => handleEditMember(member)}
-                            className="action-button"
                             style={{
                               color: "#34d399",
                               background: "none",
                               border: "none",
+                              cursor: "pointer",
                               fontSize: "18px",
+                              padding: "4px 6px",
                             }}
-                            title="Edit Member"
+                            title="Edit"
                           >
                             ✏️
                           </button>
                           <button
                             onClick={() => handleDeleteMember(member.id)}
-                            className="action-button"
                             style={{
                               color: "#f87171",
                               background: "none",
                               border: "none",
+                              cursor: "pointer",
                               fontSize: "18px",
+                              padding: "4px 6px",
                             }}
-                            title="Delete Member"
+                            title="Delete"
                           >
                             🗑️
                           </button>
@@ -1755,14 +1432,13 @@ const AdminDashboard = () => {
                   <th>Total Payable</th>
                   <th>Monthly Payment</th>
                   <th>Duration</th>
-                  <th>Date Requested</th>
+                  <th>Date</th>
                   <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {pendingLoans.length > 0 ? (
                   pendingLoans.map((loan) => {
-                    // Find member name
                     const member = members.find((m) => m.id === loan.user_id);
                     return (
                       <tr
@@ -1779,9 +1455,6 @@ const AdminDashboard = () => {
                         <td>
                           <div style={{ color: "white" }}>
                             {member ? member.name : "Unknown"}
-                          </div>
-                          <div style={{ fontSize: "12px", color: "#9ca3af" }}>
-                            ID: {loan.user_id}
                           </div>
                         </td>
                         <td style={{ color: "#34d399", fontWeight: "600" }}>
@@ -1832,9 +1505,6 @@ const AdminDashboard = () => {
                           ✅
                         </div>
                         <p>No pending loans</p>
-                        <p style={{ fontSize: "13px", marginTop: "4px" }}>
-                          All loans have been processed
-                        </p>
                       </div>
                     </td>
                   </tr>
@@ -1895,10 +1565,8 @@ const AdminDashboard = () => {
                         >
                           #{loan.id}
                         </td>
-                        <td>
-                          <div style={{ color: "white" }}>
-                            {member ? member.name : "Unknown"}
-                          </div>
+                        <td style={{ color: "white" }}>
+                          {member ? member.name : "Unknown"}
                         </td>
                         <td style={{ color: "#34d399", fontWeight: "600" }}>
                           {formatCurrency(loan.amount)}
@@ -1958,11 +1626,29 @@ const AdminDashboard = () => {
             style={{
               padding: "20px",
               borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "12px",
             }}
           >
             <h3 style={{ color: "white", margin: 0 }}>
               💳 All Transactions ({transactions.length})
             </h3>
+            <div
+              style={{
+                backgroundColor: "rgba(6, 182, 212, 0.15)",
+                color: "#22d3ee",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                fontSize: "13px",
+                fontWeight: "600",
+                border: "1px solid rgba(6, 182, 212, 0.2)",
+              }}
+            >
+              💸 Charges: {formatCurrency(totalCharges)}
+            </div>
           </div>
           <div className="table-container">
             <table>
@@ -1972,26 +1658,23 @@ const AdminDashboard = () => {
                   <th>Member</th>
                   <th>Type</th>
                   <th>Amount</th>
+                  <th>Charge</th>
+                  <th>Net</th>
                   <th>Status</th>
                   <th>Date</th>
+                  <th>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {transactions.map((transaction) => (
                   <tr
                     key={transaction.id}
-                    style={{
-                      borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                    }}
+                    style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}
                   >
                     <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
                       #{transaction.id}
                     </td>
-                    <td>
-                      <div style={{ color: "white" }}>
-                        {transaction.memberName}
-                      </div>
-                    </td>
+                    <td style={{ color: "white" }}>{transaction.memberName}</td>
                     <td>
                       <span
                         style={{
@@ -2015,8 +1698,30 @@ const AdminDashboard = () => {
                         {transaction.type.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ color: "white", fontWeight: "600" }}>
+                    <td
+                      style={{
+                        color: "white",
+                        fontWeight: "600",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {formatCurrency(transaction.amount)}
+                    </td>
+                    <td style={{ color: "#fbbf24", whiteSpace: "nowrap" }}>
+                      {transaction.charge > 0
+                        ? `−${formatCurrency(transaction.charge)}`
+                        : "—"}
+                    </td>
+                    <td
+                      style={{
+                        color: "#34d399",
+                        fontWeight: "600",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {formatCurrency(
+                        transaction.net_amount ?? transaction.amount,
+                      )}
                     </td>
                     <td>
                       <span
@@ -2041,17 +1746,340 @@ const AdminDashboard = () => {
                         {transaction.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ color: "#9ca3af" }}>{transaction.date}</td>
+                    <td style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      {transaction.date}
+                    </td>
+                    <td>
+                      {transaction.status === "pending" ? (
+                        <div style={{ display: "flex", gap: "6px" }}>
+                          <button
+                            onClick={() =>
+                              handleApproveTransaction(transaction.id)
+                            }
+                            className="btn-approve"
+                            style={{ padding: "4px 10px", fontSize: "11px" }}
+                          >
+                            ✅ Approve
+                          </button>
+                          <button
+                            onClick={() =>
+                              handleRejectTransaction(transaction.id)
+                            }
+                            className="btn-reject"
+                            style={{ padding: "4px 10px", fontSize: "11px" }}
+                          >
+                            ❌ Reject
+                          </button>
+                        </div>
+                      ) : (
+                        <span style={{ color: "#64748b", fontSize: "12px" }}>
+                          —
+                        </span>
+                      )}
+                    </td>
                   </tr>
                 ))}
+                {transactions.length === 0 && (
+                  <tr>
+                    <td
+                      colSpan="9"
+                      style={{ textAlign: "center", padding: "40px" }}
+                    >
+                      <div style={{ color: "#94a3b8" }}>
+                        <div style={{ fontSize: "48px", marginBottom: "8px" }}>
+                          📭
+                        </div>
+                        <p>No transactions found</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
         </div>
       )}
 
-      {/* Modals - Keep the same as before */}
-      {/* ... (keep all modal code from your original file) ... */}
+      {/* Transaction Modal */}
+      {showTransactionModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowTransactionModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">💳 New Transaction</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowTransactionModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleTransaction}>
+              <div className="form-group">
+                <label className="form-label">Select Member</label>
+                <select
+                  className="form-select"
+                  value={transactionData.memberId}
+                  onChange={(e) =>
+                    setTransactionData({
+                      ...transactionData,
+                      memberId: e.target.value,
+                    })
+                  }
+                  required
+                >
+                  <option value="">Choose a member...</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} (Balance: {formatCurrency(member.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Transaction Type</label>
+                <select
+                  className="form-select"
+                  value={transactionData.type}
+                  onChange={(e) =>
+                    setTransactionData({
+                      ...transactionData,
+                      type: e.target.value,
+                    })
+                  }
+                >
+                  <option value="deposit">💰 Deposit</option>
+                  <option value="withdrawal">🏦 Withdrawal</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Enter amount"
+                  value={transactionData.amount}
+                  onChange={(e) =>
+                    setTransactionData({
+                      ...transactionData,
+                      amount: e.target.value,
+                    })
+                  }
+                  min="0.01"
+                  step="0.01"
+                  required
+                />
+              </div>
+
+              {transactionData.type === "deposit" &&
+                transactionData.amount &&
+                parseFloat(transactionData.amount) > 0 &&
+                (() => {
+                  const amt = parseFloat(transactionData.amount);
+                  const rate = amt > 200000 ? 0.004 : 0.01;
+                  const charge = Math.round(amt * rate * 100) / 100;
+                  const net = Math.round((amt - charge) * 100) / 100;
+                  return (
+                    <div
+                      style={{
+                        backgroundColor: "rgba(6, 182, 212, 0.08)",
+                        border: "1px solid rgba(6, 182, 212, 0.2)",
+                        borderRadius: "8px",
+                        padding: "12px 16px",
+                        marginBottom: "16px",
+                      }}
+                    >
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "13px",
+                          color: "#94a3b8",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <span>Deposit Amount</span>
+                        <span style={{ color: "white" }}>
+                          {formatCurrency(amt)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "13px",
+                          color: "#94a3b8",
+                          marginBottom: "6px",
+                        }}
+                      >
+                        <span>
+                          Charge ({(rate * 100).toFixed(1)}%{" "}
+                          {amt > 200000 ? "> ₦200k" : "≤ ₦200k"})
+                        </span>
+                        <span style={{ color: "#fbbf24" }}>
+                          −{formatCurrency(charge)}
+                        </span>
+                      </div>
+                      <div
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          fontSize: "14px",
+                          color: "#d1d5db",
+                          fontWeight: "600",
+                          borderTop: "1px solid rgba(6, 182, 212, 0.2)",
+                          paddingTop: "8px",
+                          marginTop: "4px",
+                        }}
+                      >
+                        <span>Member Receives</span>
+                        <span style={{ color: "#34d399" }}>
+                          {formatCurrency(net)}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+              <div className="form-group">
+                <label className="form-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter description"
+                  value={transactionData.description}
+                  onChange={(e) =>
+                    setTransactionData({
+                      ...transactionData,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="modal-buttons">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowTransactionModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-submit">
+                  Submit Transaction
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Transfer Modal */}
+      {showTransferModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowTransferModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">🔄 Transfer Funds</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowTransferModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleTransfer}>
+              <div className="form-group">
+                <label className="form-label">From Member</label>
+                <select
+                  className="form-select"
+                  value={transferData.fromMemberId}
+                  onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      fromMemberId: e.target.value,
+                    })
+                  }
+                  required
+                >
+                  <option value="">Select sender...</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} (Balance: {formatCurrency(member.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">To Member</label>
+                <select
+                  className="form-select"
+                  value={transferData.toMemberId}
+                  onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      toMemberId: e.target.value,
+                    })
+                  }
+                  required
+                >
+                  <option value="">Select recipient...</option>
+                  {members.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name} (Balance: {formatCurrency(member.balance)})
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Enter amount to transfer"
+                  value={transferData.amount}
+                  onChange={(e) =>
+                    setTransferData({ ...transferData, amount: e.target.value })
+                  }
+                  min="0.01"
+                  step="0.01"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter transfer description"
+                  value={transferData.description}
+                  onChange={(e) =>
+                    setTransferData({
+                      ...transferData,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="modal-buttons">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowTransferModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-submit">
+                  Submit Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
