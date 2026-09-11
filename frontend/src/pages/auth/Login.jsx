@@ -445,7 +445,7 @@ const Login = () => {
             >
               Don't have an account?{" "}
               <Link
-                to="/register"
+                to="/admin/users"
                 style={{
                   color: "#059669",
                   fontWeight: "600",

@@ -12,6 +12,9 @@ const AdminTransactions = () => {
   const [itemsPerPage] = useState(10);
   const [selectedTransaction, setSelectedTransaction] = useState(null);
   const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [showRejectModal, setShowRejectModal] = useState(false);
+  const [rejectReason, setRejectReason] = useState("");
+  const [rejectingId, setRejectingId] = useState(null);
   const [stats, setStats] = useState({
     total: 0,
     total_amount: 0,
@@ -33,7 +36,6 @@ const AdminTransactions = () => {
 
       const result = await response.json();
 
-      // Handle different response formats
       let data = [];
       if (Array.isArray(result)) {
         data = result;
@@ -43,11 +45,13 @@ const AdminTransactions = () => {
         data = result.data;
       }
 
-      // Format transactions to match the component's expected structure
       const formattedData = data.map((t) => ({
         id: t.id,
         type: t.type || "deposit",
         amount: parseFloat(t.amount) || 0,
+        charge: parseFloat(t.charge || 0),
+        rate: parseFloat(t.rate || 0),
+        net_amount: parseFloat(t.net_amount || t.amount || 0),
         status: t.status || "pending",
         customer_name: t.memberName || t.customer_name || "Unknown",
         customer_phone: t.accountNumber || t.customer_phone || "",
@@ -61,11 +65,21 @@ const AdminTransactions = () => {
         memberId: t.memberId,
         accountNumber: t.accountNumber,
         memberName: t.memberName,
+
+        // Payment slip
+        payment_slip: t.payment_slip || null,
+        payment_slip_name: t.payment_slip_name || null,
+        payment_slip_type: t.payment_slip_type || null,
+
+        // Rejection
+        rejection_reason: t.rejection_reason || null,
+        rejected_by: t.rejected_by || null,
+        rejected_at: t.rejected_at || null,
+        approved_at: t.approved_at || null,
       }));
 
       setTransactions(formattedData);
 
-      // Calculate stats
       const totalAmount = formattedData.reduce(
         (sum, t) => sum + (parseFloat(t.amount) || 0),
         0,
@@ -100,7 +114,7 @@ const AdminTransactions = () => {
     }
   };
 
-  // Approve transaction
+  // Approve
   const handleApproveTransaction = async (transactionId) => {
     try {
       const response = await fetch(
@@ -111,12 +125,15 @@ const AdminTransactions = () => {
         },
       );
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
         toast.success("✅ Transaction approved!");
-        fetchTransactions(); // Refresh the list
+        fetchTransactions();
       } else {
-        const data = await response.json();
-        toast.error(data.message || "Failed to approve transaction");
+        toast.error(
+          data.error || data.message || "Failed to approve transaction",
+        );
       }
     } catch (error) {
       console.error("Error approving transaction:", error);
@@ -124,23 +141,51 @@ const AdminTransactions = () => {
     }
   };
 
-  // Reject transaction
-  const handleRejectTransaction = async (transactionId) => {
+  // Open the reject modal (which will prompt for reason)
+  const openRejectModal = (transactionId) => {
+    setRejectingId(transactionId);
+    setRejectReason("");
+    setShowRejectModal(true);
+  };
+
+  // Confirm reject — sends the reason to the API
+  const confirmReject = async () => {
+    if (!rejectingId) return;
+    if (!rejectReason.trim()) {
+      toast.error("Please provide a reason for rejection");
+      return;
+    }
+
     try {
+      const adminName =
+        JSON.parse(localStorage.getItem("user") || "{}")?.name || "Admin";
+
       const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/reject`,
+        `${API_BASE_URL}/api/transactions.php/${rejectingId}/reject`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            reason: rejectReason.trim(),
+            rejected_by: adminName,
+          }),
         },
       );
 
+      const data = await response.json().catch(() => ({}));
+
       if (response.ok) {
         toast.success("✅ Transaction rejected!");
-        fetchTransactions(); // Refresh the list
+        setShowRejectModal(false);
+        setRejectReason("");
+        setRejectingId(null);
+        setShowDetailsModal(false);
+        setSelectedTransaction(null);
+        fetchTransactions();
       } else {
-        const data = await response.json();
-        toast.error(data.message || "Failed to reject transaction");
+        toast.error(
+          data.error || data.message || "Failed to reject transaction",
+        );
       }
     } catch (error) {
       console.error("Error rejecting transaction:", error);
@@ -252,6 +297,99 @@ const AdminTransactions = () => {
     setShowDetailsModal(true);
   };
 
+  // Render payment slip preview inside modal
+  const renderPaymentSlip = (t) => {
+    if (!t?.payment_slip) return null;
+
+    const isImage =
+      (t.payment_slip_type || "").startsWith("image/") ||
+      /^data:image\//.test(t.payment_slip);
+
+    return (
+      <div style={{ gridColumn: "1 / -1" }}>
+        <div className="detail-label" style={{ marginBottom: "6px" }}>
+          📎 Payment Slip
+          {t.payment_slip_name && (
+            <span
+              style={{
+                color: "#64748b",
+                fontWeight: "400",
+                marginLeft: "6px",
+              }}
+            >
+              ({t.payment_slip_name})
+            </span>
+          )}
+        </div>
+
+        {isImage ? (
+          <div
+            style={{
+              border: "1px solid rgba(255,255,255,0.1)",
+              borderRadius: "8px",
+              overflow: "hidden",
+              backgroundColor: "rgba(0,0,0,0.2)",
+              textAlign: "center",
+            }}
+          >
+            <a
+              href={t.payment_slip}
+              target="_blank"
+              rel="noreferrer"
+              title="Click to view full size"
+            >
+              <img
+                src={t.payment_slip}
+                alt="Payment slip"
+                style={{
+                  maxWidth: "100%",
+                  maxHeight: "320px",
+                  display: "block",
+                  margin: "0 auto",
+                  cursor: "zoom-in",
+                }}
+              />
+            </a>
+            <div
+              style={{
+                padding: "6px",
+                fontSize: "11px",
+                color: "#94a3b8",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              Click image to open in new tab
+            </div>
+          </div>
+        ) : (
+          <a
+            href={t.payment_slip}
+            download={t.payment_slip_name || `slip-${t.id}`}
+            style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "10px",
+              padding: "12px",
+              borderRadius: "8px",
+              border: "1px solid rgba(96,165,250,0.3)",
+              backgroundColor: "rgba(96,165,250,0.08)",
+              color: "#60a5fa",
+              textDecoration: "none",
+              fontSize: "13px",
+              fontWeight: "500",
+            }}
+          >
+            <span style={{ fontSize: "20px" }}>📄</span>
+            <span style={{ flex: 1 }}>
+              {t.payment_slip_name || "Download payment slip"}
+            </span>
+            <span style={{ fontSize: "12px", opacity: 0.7 }}>Download ⬇</span>
+          </a>
+        )}
+      </div>
+    );
+  };
+
   if (loading) {
     return (
       <div
@@ -325,7 +463,8 @@ const AdminTransactions = () => {
           font-size: 11px;
           font-weight: 500;
         }
-        .badge-completed {
+        .badge-completed,
+        .badge-approved {
           background-color: rgba(16, 185, 129, 0.2);
           color: #34d399;
           border: 1px solid rgba(16, 185, 129, 0.3);
@@ -335,16 +474,7 @@ const AdminTransactions = () => {
           color: #fbbf24;
           border: 1px solid rgba(234, 179, 8, 0.3);
         }
-        .badge-failed {
-          background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
-          border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-        .badge-approved {
-          background-color: rgba(16, 185, 129, 0.2);
-          color: #34d399;
-          border: 1px solid rgba(16, 185, 129, 0.3);
-        }
+        .badge-failed,
         .badge-rejected {
           background-color: rgba(239, 68, 68, 0.2);
           color: #f87171;
@@ -368,11 +498,13 @@ const AdminTransactions = () => {
           font-weight: 500;
           text-transform: uppercase;
         }
-        .type-deposit {
+        .type-deposit,
+        .type-credit {
           background-color: rgba(16, 185, 129, 0.15);
           color: #34d399;
         }
-        .type-withdrawal {
+        .type-withdrawal,
+        .type-debit {
           background-color: rgba(239, 68, 68, 0.15);
           color: #f87171;
         }
@@ -391,14 +523,6 @@ const AdminTransactions = () => {
         .type-transfer {
           background-color: rgba(99, 102, 241, 0.15);
           color: #818cf8;
-        }
-        .type-credit {
-          background-color: rgba(16, 185, 129, 0.15);
-          color: #34d399;
-        }
-        .type-debit {
-          background-color: rgba(239, 68, 68, 0.15);
-          color: #f87171;
         }
         .stats-grid {
           display: grid;
@@ -561,6 +685,17 @@ const AdminTransactions = () => {
         .btn-close:hover {
           background: rgba(255,255,255,0.1);
         }
+        .slip-indicator {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          margin-left: 6px;
+          padding: 1px 5px;
+          border-radius: 4px;
+          background: rgba(96,165,250,0.15);
+          color: #60a5fa;
+          font-size: 10px;
+        }
         @media (max-width: 768px) {
           .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -691,6 +826,14 @@ const AdminTransactions = () => {
                       <div>
                         <div style={{ fontSize: "14px", fontWeight: "500" }}>
                           {t.customer_name || "Walk-in Customer"}
+                          {t.payment_slip && (
+                            <span
+                              className="slip-indicator"
+                              title="Payment slip attached"
+                            >
+                              📎 slip
+                            </span>
+                          )}
                         </div>
                         {t.customer_phone && (
                           <div style={{ fontSize: "12px", color: "#94a3b8" }}>
@@ -951,6 +1094,76 @@ const AdminTransactions = () => {
                   </div>
                 </div>
               )}
+
+              {/* Deposit charge breakdown */}
+              {selectedTransaction.type === "deposit" &&
+                selectedTransaction.charge > 0 && (
+                  <>
+                    <div>
+                      <div className="detail-label">Charge</div>
+                      <div
+                        className="detail-value"
+                        style={{ color: "#fbbf24" }}
+                      >
+                        {formatNaira(selectedTransaction.charge)}
+                      </div>
+                    </div>
+                    <div>
+                      <div className="detail-label">Net Amount</div>
+                      <div
+                        className="detail-value"
+                        style={{ color: "#34d399" }}
+                      >
+                        {formatNaira(selectedTransaction.net_amount)}
+                      </div>
+                    </div>
+                  </>
+                )}
+
+              {/* Rejection reason (if already rejected) */}
+              {selectedTransaction.status === "rejected" &&
+                selectedTransaction.rejection_reason && (
+                  <div style={{ gridColumn: "1 / -1" }}>
+                    <div className="detail-label">Rejection Reason</div>
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        padding: "10px 12px",
+                        backgroundColor: "rgba(239, 68, 68, 0.08)",
+                        border: "1px solid rgba(239, 68, 68, 0.25)",
+                        borderRadius: "8px",
+                        color: "#fca5a5",
+                        fontSize: "13px",
+                        lineHeight: 1.5,
+                      }}
+                    >
+                      {selectedTransaction.rejection_reason}
+                      {(selectedTransaction.rejected_by ||
+                        selectedTransaction.rejected_at) && (
+                        <div
+                          style={{
+                            marginTop: "6px",
+                            fontSize: "11px",
+                            color: "#94a3b8",
+                          }}
+                        >
+                          {selectedTransaction.rejected_by && (
+                            <>By: {selectedTransaction.rejected_by}</>
+                          )}
+                          {selectedTransaction.rejected_by &&
+                            selectedTransaction.rejected_at &&
+                            " • "}
+                          {selectedTransaction.rejected_at && (
+                            <>{formatDate(selectedTransaction.rejected_at)}</>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+              {/* Payment slip */}
+              {renderPaymentSlip(selectedTransaction)}
             </div>
 
             {/* Action Buttons for Pending Transactions */}
@@ -992,11 +1205,7 @@ const AdminTransactions = () => {
                   ✅ Approve
                 </button>
                 <button
-                  onClick={() => {
-                    handleRejectTransaction(selectedTransaction.id);
-                    setShowDetailsModal(false);
-                    setSelectedTransaction(null);
-                  }}
+                  onClick={() => openRejectModal(selectedTransaction.id)}
                   style={{
                     flex: 1,
                     padding: "10px",
@@ -1043,6 +1252,111 @@ const AdminTransactions = () => {
                 }}
               >
                 Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Reject Reason Modal */}
+      {showRejectModal && (
+        <div className="modal-overlay" style={{ zIndex: 1000 }}>
+          <div className="modal-content" style={{ maxWidth: "440px" }}>
+            <div className="modal-header">
+              <h3 className="modal-title" style={{ color: "#f87171" }}>
+                ❌ Reject Transaction
+              </h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                  setRejectingId(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <p
+              style={{
+                color: "#94a3b8",
+                fontSize: "13px",
+                marginBottom: "16px",
+                marginTop: 0,
+              }}
+            >
+              Please provide a reason for rejecting this transaction. The member
+              will see this reason.
+            </p>
+
+            <textarea
+              value={rejectReason}
+              onChange={(e) => setRejectReason(e.target.value)}
+              placeholder="e.g., Payment slip is unclear / Amount doesn't match / Duplicate entry"
+              rows={4}
+              autoFocus
+              style={{
+                width: "100%",
+                padding: "12px",
+                borderRadius: "8px",
+                border: "1px solid rgba(255,255,255,0.1)",
+                backgroundColor: "rgba(255,255,255,0.05)",
+                color: "white",
+                fontSize: "14px",
+                outline: "none",
+                resize: "vertical",
+                fontFamily: "inherit",
+                boxSizing: "border-box",
+              }}
+            />
+
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid rgba(255,255,255,0.05)",
+              }}
+            >
+              <button
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setRejectReason("");
+                  setRejectingId(null);
+                }}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "1px solid rgba(255,255,255,0.1)",
+                  background: "transparent",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmReject}
+                disabled={!rejectReason.trim()}
+                style={{
+                  flex: 1,
+                  padding: "10px",
+                  borderRadius: "8px",
+                  border: "none",
+                  backgroundColor: rejectReason.trim() ? "#ef4444" : "#6b7280",
+                  color: "white",
+                  cursor: rejectReason.trim() ? "pointer" : "not-allowed",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                  opacity: rejectReason.trim() ? 1 : 0.6,
+                }}
+              >
+                Confirm Reject
               </button>
             </div>
           </div>

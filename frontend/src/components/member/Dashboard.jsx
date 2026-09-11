@@ -6,6 +6,53 @@ import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
 
+// ------------------------------------------------------------
+// Extract a rejection reason from any plausible field name
+// ------------------------------------------------------------
+const getRejectionReason = (t) => {
+  if (!t || typeof t !== "object") return null;
+  return (
+    t.rejection_reason ||
+    t.reject_reason ||
+    t.rejectionReason ||
+    t.rejectReason ||
+    t.reason ||
+    t.admin_note ||
+    t.admin_remarks ||
+    t.adminNote ||
+    t.adminRemarks ||
+    t.note ||
+    t.remarks ||
+    t.comment ||
+    null
+  );
+};
+
+const getRejectedBy = (t) => {
+  if (!t || typeof t !== "object") return null;
+  return (
+    t.rejected_by ||
+    t.rejectedBy ||
+    t.approved_by ||
+    t.approvedBy ||
+    t.admin_name ||
+    t.adminName ||
+    null
+  );
+};
+
+const getRejectedAt = (t) => {
+  if (!t || typeof t !== "object") return null;
+  return (
+    t.rejected_at ||
+    t.rejectedAt ||
+    t.updated_at ||
+    t.updatedAt ||
+    t.action_date ||
+    null
+  );
+};
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
@@ -156,7 +203,6 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      // Get fresh user data
       console.log("🔍 Fetching user profile...");
       const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
       const profileData = await profileResponse.json();
@@ -223,7 +269,6 @@ const Dashboard = () => {
         await refreshData();
         toast.success("⏳ Your deposit is pending admin approval");
       } else {
-        // Show the actual error message from the server
         const errorMsg =
           data.error || data.message || `Server error: ${response.status}`;
         toast.error(`❌ ${errorMsg}`);
@@ -231,7 +276,6 @@ const Dashboard = () => {
       }
     } catch (error) {
       console.error("❌ Error submitting deposit:", error);
-      // Show the actual error message
       const errorMsg = error.message || "Failed to submit deposit";
       toast.error(`❌ ${errorMsg}`);
     } finally {
@@ -939,7 +983,6 @@ const Dashboard = () => {
             🔄 Transfer
           </button>
 
-          {/* ADDED: Borrow Button - Navigates to Borrowing Component */}
           <button
             onClick={() => navigate("/member/borrowing")}
             style={{
@@ -1042,7 +1085,6 @@ const Dashboard = () => {
             📊 View Reports
           </button>
 
-          {/* Admin Borrow Management */}
           <button
             onClick={() => navigate("/admin/loans")}
             style={{
@@ -1097,59 +1139,105 @@ const Dashboard = () => {
         </div>
         {transactions.length > 0 ? (
           <div>
-            {transactions.map((t) => (
-              <div
-                key={t.id}
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  alignItems: "center",
-                  padding: "12px 0",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
-                }}
-              >
-                <div>
-                  <div style={{ color: "white", fontSize: "14px" }}>
-                    {t.type.charAt(0).toUpperCase() + t.type.slice(1)}
-                    {t.type === "transfer" &&
-                      ` to ${t.toMemberName || "Recipient"}`}
+            {transactions.map((t) => {
+              const rejectionReason = getRejectionReason(t);
+              const rejectedBy = getRejectedBy(t);
+              const rejectedAt = getRejectedAt(t);
+              const isRejected =
+                t.status === "rejected" || t.status === "failed";
+
+              return (
+                <div
+                  key={t.id}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "flex-start",
+                    padding: "12px 0",
+                    borderBottom: "1px solid rgba(255,255,255,0.05)",
+                    gap: "12px",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ color: "white", fontSize: "14px" }}>
+                      {t.type.charAt(0).toUpperCase() + t.type.slice(1)}
+                      {t.type === "transfer" &&
+                        ` to ${t.toMemberName || "Recipient"}`}
+                    </div>
+                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+                      {t.description || "No description"}
+                    </div>
+
+                    {/* Rejection reason — shown only for rejected/failed transactions */}
+                    {isRejected && rejectionReason && (
+                      <div
+                        style={{
+                          marginTop: "8px",
+                          padding: "8px 10px",
+                          backgroundColor: "rgba(239, 68, 68, 0.08)",
+                          border: "1px solid rgba(239, 68, 68, 0.25)",
+                          borderRadius: "6px",
+                          color: "#fca5a5",
+                          fontSize: "12px",
+                          lineHeight: 1.4,
+                        }}
+                      >
+                        <div style={{ fontWeight: "600", color: "#f87171" }}>
+                          ❌ Rejection reason
+                        </div>
+                        <div style={{ marginTop: "2px" }}>
+                          {rejectionReason}
+                        </div>
+                        {(rejectedBy || rejectedAt) && (
+                          <div
+                            style={{
+                              color: "#9ca3af",
+                              fontSize: "11px",
+                              marginTop: "4px",
+                            }}
+                          >
+                            {rejectedBy && <>By: {rejectedBy}</>}
+                            {rejectedBy && rejectedAt && " • "}
+                            {rejectedAt && formatDate(rejectedAt)}
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    <div style={{ color: "#6b7280", fontSize: "11px" }}>
+                      {formatDate(t.date)}
+                    </div>
                   </div>
-                  <div style={{ color: "#9ca3af", fontSize: "12px" }}>
-                    {t.description || "No description"}
-                  </div>
-                  <div style={{ color: "#6b7280", fontSize: "11px" }}>
-                    {formatDate(t.date)}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div
+                      style={{
+                        color:
+                          t.type === "deposit" || t.type === "transfer_in"
+                            ? "#34d399"
+                            : "#f87171",
+                        fontWeight: "600",
+                      }}
+                    >
+                      {t.type === "deposit" || t.type === "transfer_in"
+                        ? "+"
+                        : "-"}
+                      {formatCurrency(t.amount)}
+                    </div>
+                    <span
+                      style={{
+                        padding: "2px 10px",
+                        borderRadius: "12px",
+                        fontSize: "10px",
+                        ...getStatusBadgeStyle(t.status),
+                      }}
+                    >
+                      {t.status}
+                      {t.status === "pending" && " ⏳"}
+                    </span>
                   </div>
                 </div>
-                <div style={{ textAlign: "right" }}>
-                  <div
-                    style={{
-                      color:
-                        t.type === "deposit" || t.type === "transfer_in"
-                          ? "#34d399"
-                          : "#f87171",
-                      fontWeight: "600",
-                    }}
-                  >
-                    {t.type === "deposit" || t.type === "transfer_in"
-                      ? "+"
-                      : "-"}
-                    {formatCurrency(t.amount)}
-                  </div>
-                  <span
-                    style={{
-                      padding: "2px 10px",
-                      borderRadius: "12px",
-                      fontSize: "10px",
-                      ...getStatusBadgeStyle(t.status),
-                    }}
-                  >
-                    {t.status}
-                    {t.status === "pending" && " ⏳"}
-                  </span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : (
           <div
