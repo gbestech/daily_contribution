@@ -1,5 +1,6 @@
 // src/components/admin/Members.jsx
 import React, { useState, useEffect } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
@@ -12,13 +13,16 @@ const capitalizeWords = (str) =>
     )
     .join(" ");
 
-const AdminMembers = () => {
+const AdminMembers = ({ publicMode = false }) => {
+  const navigate = useNavigate();
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const [editPassword, setEditPassword] = useState("");
   const [newMember, setNewMember] = useState({
@@ -43,23 +47,6 @@ const AdminMembers = () => {
 
   const generateRandomNumber = () => Math.floor(Math.random() * 90000) + 10000;
 
-  const validatePhone = (phone) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length !== 11)
-      return { valid: false, message: "Phone must be exactly 11 digits" };
-    if (!cleaned.startsWith("0"))
-      return { valid: false, message: "Phone must start with 0" };
-    return { valid: true, cleaned };
-  };
-
-  const isPhoneUnique = (phone, excludeId = null) => {
-    const cleanedPhone = phone.replace(/\D/g, "");
-    return !members.some((m) => {
-      const mp = (m.phone || "").replace(/\D/g, "");
-      return mp === cleanedPhone && m.id !== excludeId;
-    });
-  };
-
   useEffect(() => {
     const firstName = newMember.firstName.trim().toLowerCase();
     if (firstName) {
@@ -74,6 +61,7 @@ const AdminMembers = () => {
   useEffect(() => {
     fetchMembers();
     fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const fetchMembers = async () => {
@@ -103,7 +91,7 @@ const AdminMembers = () => {
         setMembers([]);
       }
     } catch (e) {
-      toast.error("Failed to fetch members");
+      if (!publicMode) toast.error("Failed to fetch members");
       setMembers([]);
     } finally {
       setLoading(false);
@@ -158,6 +146,7 @@ const AdminMembers = () => {
         membership_type: "Standard",
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
+        profile_completed: 0,
       };
 
       const res = await fetch(`${API_BASE_URL}/api/members.php`, {
@@ -168,20 +157,46 @@ const AdminMembers = () => {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(`✅ Member created! Account: ${accountNumber}`);
-        toast(
-          "Ask the member to log in and complete their profile (phone, address, passport, savings plan).",
-          { duration: 6000, icon: "📝" },
-        );
+        setCreatedCredentials({
+          name: fullName,
+          email: newMember.email,
+          password: newMember.password,
+          accountNumber,
+        });
+
+        // If we're in publicMode, we still show the credentials modal
         setShowAddModal(false);
+        setShowCredentialsModal(true);
         setNewMember({ firstName: "", lastName: "", email: "", password: "" });
-        fetchMembers();
+        if (!publicMode) fetchMembers();
       } else {
         toast.error(data.message || data.error || "Failed to create member");
       }
     } catch (e) {
       toast.error("Failed to create member");
     }
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success(`📋 ${label} copied!`))
+      .catch(() => toast.error("Copy failed"));
+  };
+
+  const copyAllCredentials = () => {
+    if (!createdCredentials) return;
+    const text = `Welcome ${createdCredentials.name}!
+Your account details:
+📧 Email: ${createdCredentials.email}
+🔑 Password: ${createdCredentials.password}
+💳 Account Number: ${createdCredentials.accountNumber}
+
+Please log in and complete your profile.`;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success("📋 All credentials copied!"))
+      .catch(() => toast.error("Copy failed"));
   };
 
   const handleEditMember = (m) => {
@@ -312,6 +327,400 @@ const AdminMembers = () => {
     }
   };
 
+  // ============================================================
+  // PUBLIC MODE — show only the registration form, no table
+  // ============================================================
+  if (publicMode) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background: "radial-gradient(circle at top, #1e293b 0%, #0f172a 60%)",
+          padding: "20px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <style>{`
+          .pub-card {
+            width: 100%;
+            max-width: 440px;
+            background: rgba(255, 255, 255, 0.04);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 20px;
+            padding: 36px 30px 28px;
+            box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+            position: relative;
+            overflow: hidden;
+            color: white;
+          }
+          .pub-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #059669, #0d9488, #10b981);
+          }
+          .pub-logo {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #059669, #0d9488);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; color: white;
+            margin: 0 auto 14px;
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
+          }
+          .pub-title {
+            font-size: 22px; font-weight: 700;
+            color: white; text-align: center;
+            margin: 0 0 4px 0; letter-spacing: -0.3px;
+          }
+          .pub-subtitle {
+            font-size: 13px; color: #94a3b8;
+            text-align: center; margin: 0 0 22px 0;
+          }
+          .pub-info {
+            background: rgba(59, 130, 246, 0.08);
+            border: 1px solid rgba(59, 130, 246, 0.2);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: #93c5fd;
+            line-height: 1.5;
+          }
+          .pub-group { margin-bottom: 14px; }
+          .pub-label {
+            display: block; font-size: 12px;
+            font-weight: 600; color: #cbd5e1;
+            margin-bottom: 6px;
+            letter-spacing: 0.3px; text-transform: uppercase;
+          }
+          .pub-input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px; color: white;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 10px;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.2s;
+          }
+          .pub-input::placeholder { color: #64748b; }
+          .pub-input:focus {
+            border-color: #10b981;
+            background: rgba(16, 185, 129, 0.06);
+            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+          }
+          .pub-email-note {
+            background: rgba(16, 185, 129, 0.08);
+            border: 1px solid rgba(16, 185, 129, 0.2);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            color: #34d399;
+            word-break: break-all;
+          }
+          .pub-submit {
+            width: 100%; padding: 13px;
+            border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600;
+            color: white; cursor: pointer;
+            background: linear-gradient(135deg, #059669, #0d9488);
+            box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.5);
+            transition: all 0.2s;
+            margin-top: 6px;
+          }
+          .pub-submit:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
+          }
+          .pub-submit:disabled {
+            opacity: 0.6; cursor: not-allowed;
+          }
+          .pub-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: #94a3b8;
+          }
+          .pub-footer a {
+            color: #34d399;
+            text-decoration: none;
+            font-weight: 600;
+          }
+          .pub-footer a:hover { text-decoration: underline; }
+          .pub-note {
+            text-align: center;
+            font-size: 10px;
+            color: #475569;
+            margin-top: 18px;
+          }
+        `}</style>
+
+        <div className="pub-card">
+          <div className="pub-logo">🏦</div>
+          <h1 className="pub-title">Create Account</h1>
+          <p className="pub-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
+
+          <div className="pub-info">
+            💡 Enter your details below. You'll receive your account number
+            after registration and can log in to complete your profile.
+          </div>
+
+          <form onSubmit={handleAddMember}>
+            <div className="pub-group">
+              <label className="pub-label">First Name *</label>
+              <input
+                type="text"
+                className="pub-input"
+                value={newMember.firstName}
+                onChange={(e) =>
+                  setNewMember({
+                    ...newMember,
+                    firstName: capitalizeWords(e.target.value),
+                  })
+                }
+                required
+                placeholder="Enter your first name"
+                autoComplete="given-name"
+              />
+            </div>
+
+            <div className="pub-group">
+              <label className="pub-label">Last Name *</label>
+              <input
+                type="text"
+                className="pub-input"
+                value={newMember.lastName}
+                onChange={(e) =>
+                  setNewMember({
+                    ...newMember,
+                    lastName: capitalizeWords(e.target.value),
+                  })
+                }
+                required
+                placeholder="Enter your last name"
+                autoComplete="family-name"
+              />
+            </div>
+
+            <div className="pub-group">
+              <label className="pub-label">Password *</label>
+              <input
+                type="password"
+                className="pub-input"
+                value={newMember.password}
+                onChange={(e) =>
+                  setNewMember({ ...newMember, password: e.target.value })
+                }
+                required
+                minLength="6"
+                placeholder="Min 6 characters"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="pub-email-note">
+              📧 Your login email will be:{" "}
+              <strong style={{ color: "white" }}>
+                {newMember.email || "—"}
+              </strong>
+            </div>
+
+            <button type="submit" className="pub-submit">
+              Create Account
+            </button>
+          </form>
+
+          <div className="pub-footer">
+            Already have an account? <Link to="/login">Sign in here</Link>
+          </div>
+
+          <div className="pub-note">
+            © {new Date().getFullYear()} AR-RIYAADAH SAVINGS HUB. All rights
+            reserved.
+          </div>
+        </div>
+
+        {/* Credentials modal — shows after successful registration */}
+        {showCredentialsModal && createdCredentials && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "rgba(0,0,0,0.75)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                background: "#1e293b",
+                borderRadius: "14px",
+                padding: "28px",
+                maxWidth: "460px",
+                width: "100%",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                border: "1px solid rgba(255,255,255,0.1)",
+                color: "white",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0",
+                }}
+              >
+                🎉 Account Created!
+              </h3>
+
+              <div
+                style={{
+                  background: "rgba(16, 185, 129, 0.1)",
+                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  marginBottom: "16px",
+                  fontSize: "13px",
+                  color: "#6ee7b7",
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ <strong>Save these credentials</strong>. You'll need them to
+                log in.
+              </div>
+
+              {[
+                { label: "📧 Email", value: createdCredentials.email },
+                { label: "🔑 Password", value: createdCredentials.password },
+                {
+                  label: "💳 Account Number",
+                  value: createdCredentials.accountNumber,
+                },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    background: "rgba(255,255,255,0.05)",
+                    border: "1px solid rgba(255,255,255,0.08)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "#94a3b8",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      {row.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "white",
+                        fontWeight: "600",
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {row.value}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(row.value, row.label)}
+                    style={{
+                      background: "rgba(59, 130, 246, 0.15)",
+                      color: "#60a5fa",
+                      border: "1px solid rgba(59, 130, 246, 0.25)",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ))}
+
+              <div
+                style={{
+                  display: "flex",
+                  gap: "10px",
+                  marginTop: "16px",
+                }}
+              >
+                <button
+                  onClick={copyAllCredentials}
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background: "linear-gradient(to right, #7c3aed, #6d28d9)",
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                  }}
+                >
+                  📋 Copy All
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false);
+                    setCreatedCredentials(null);
+                    navigate("/login");
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    borderRadius: "8px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    background: "transparent",
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                  }}
+                >
+                  ✅ Go to Login
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // ADMIN MODE — original full page with members table
+  // ============================================================
   if (loading) {
     return (
       <div
@@ -407,6 +816,28 @@ const AdminMembers = () => {
           background: rgba(139, 92, 246, 0.15); color: #a78bfa;
           cursor: pointer; font-size: 14px;
         }
+        .credential-row {
+          display: flex; justify-content: space-between; align-items: center;
+          gap: 8px; padding: 10px 12px; border-radius: 8px;
+          background: rgba(255,255,255,0.05);
+          border: 1px solid rgba(255,255,255,0.08);
+          margin-bottom: 8px;
+        }
+        .credential-label {
+          font-size: 11px; color: #94a3b8; text-transform: uppercase;
+          letter-spacing: 0.5px; margin-bottom: 2px;
+        }
+        .credential-value {
+          font-size: 14px; color: white; font-weight: 600;
+          font-family: monospace; word-break: break-all;
+        }
+        .cred-copy-btn {
+          background: rgba(59, 130, 246, 0.15);
+          color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25);
+          padding: 6px 12px; border-radius: 6px; cursor: pointer;
+          font-size: 12px; font-weight: 500; white-space: nowrap;
+        }
+        .cred-copy-btn:hover { background: rgba(59, 130, 246, 0.25); }
       `}</style>
 
       <div
@@ -667,7 +1098,7 @@ const AdminMembers = () => {
         )}
       </div>
 
-      {/* Add Member Modal — MINIMAL */}
+      {/* Add Member Modal */}
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -798,6 +1229,126 @@ const AdminMembers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {showCredentialsModal && createdCredentials && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">🎉 Member Created!</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCreatedCredentials(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "rgba(16, 185, 129, 0.1)",
+                border: "1px solid rgba(16, 185, 129, 0.25)",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                marginBottom: "16px",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13px",
+                  color: "#6ee7b7",
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ <strong>Share these credentials</strong> with{" "}
+                <strong>{createdCredentials.name}</strong>. They'll need them to
+                log in and complete their profile.
+              </p>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">📧 Email</div>
+                <div className="credential-value">
+                  {createdCredentials.email}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(createdCredentials.email, "Email")
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">🔑 Password</div>
+                <div className="credential-value">
+                  {createdCredentials.password}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(createdCredentials.password, "Password")
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">💳 Account Number</div>
+                <div className="credential-value">
+                  {createdCredentials.accountNumber}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(
+                    createdCredentials.accountNumber,
+                    "Account number",
+                  )
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="btn-primary"
+                style={{
+                  flex: 1,
+                  background: "linear-gradient(to right, #7c3aed, #6d28d9)",
+                }}
+                onClick={copyAllCredentials}
+              >
+                📋 Copy All
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCreatedCredentials(null);
+                }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}

@@ -66,6 +66,7 @@ const Layout = ({ children }) => {
     { path: "/admin/pending", label: "Pending", icon: "⏳" },
     { path: "/admin/reports", label: "Reports", icon: "📈" },
     { path: "/admin/users", label: "Users", icon: "👤" },
+    { path: "/admin/staff", label: "Staff", icon: "👤" },
     { path: "/admin/settings", label: "Settings", icon: "⚙️" },
   ];
 

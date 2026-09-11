@@ -25,8 +25,8 @@ import AdminSettings from "./components/admin/Settings";
 import UserManagement from "./components/admin/UserManagement";
 import AdminProfile from "./components/admin/AdminProfile";
 import Broadsheet from "./components/Broadsheet";
-
-// Inside your <Routes>:
+import PublicRegister from "./components/admin/PublicRegister";
+import Staff from "./components/admin/Staff";
 
 // Member Components
 import MemberDashboard from "./components/member/Dashboard";
@@ -43,9 +43,12 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* AUTH ROUTES */}
+      {/* ========== PUBLIC / AUTH ROUTES ========== */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+
+      {/* ✅ PUBLIC: Register member — shows ONLY the registration form */}
+      <Route path="/register-member" element={<PublicRegister />} />
 
       {/* ========== ADMIN ROUTES ========== */}
       <Route
@@ -74,6 +77,17 @@ function AppRoutes() {
           <ProtectedRoute adminOnly>
             <Layout>
               <AdminMembers />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      {/* ✅ NEW: Staff & Roles */}
+      <Route
+        path="/admin/staff"
+        element={
+          <ProtectedRoute adminOnly>
+            <Layout>
+              <Staff />
             </Layout>
           </ProtectedRoute>
         }
@@ -172,16 +186,6 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/register"
-        element={
-          <ProtectedRoute>
-            <Layout>
-              <Register />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      <Route
         path="/member/dashboard"
         element={
           <ProtectedRoute>
@@ -231,7 +235,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* FIXED: Corrected spelling from "burrowing" to "borrowing" */}
       <Route
         path="/member/borrowing"
         element={
