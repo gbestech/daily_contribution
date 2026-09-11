@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
@@ -35,13 +35,69 @@ const MemberHistory = () => {
     rejectedCount: 0,
   });
 
-  useEffect(() => {
-    const storedUser = localStorage.getItem("user");
-    if (storedUser) {
-      setUser(JSON.parse(storedUser));
-    }
-    fetchData();
-  }, []);
+  // ---------- HELPERS (defined before use) ----------
+
+  const formatCurrency = (amount) => {
+    if (!amount && amount !== 0) return "₦0.00";
+    return new Intl.NumberFormat("en-NG", {
+      style: "currency",
+      currency: "NGN",
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    }).format(amount);
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return "N/A";
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return "N/A";
+    return date.toLocaleDateString("en-NG", {
+      year: "numeric",
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  // Stable member lookup (useCallback so it can be safely used in effects)
+  const getMemberName = useCallback(
+    (memberId) => {
+      if (!memberId) return "Unknown";
+      const member = members.find((m) => Number(m.id) === Number(memberId));
+      return member ? member.name : "Unknown";
+    },
+    [members],
+  );
+
+  // ---------- DATA FETCHING ----------
+
+  const calculateStats = (txns) => {
+    const totalDeposits = txns
+      .filter((t) => t.type === "deposit" || t.type === "contribution")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+    const totalWithdrawals = txns
+      .filter((t) => t.type === "withdrawal")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+    const totalTransfers = txns
+      .filter((t) => t.type === "transfer")
+      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+
+    const pendingCount = txns.filter((t) => t.status === "pending").length;
+    const approvedCount = txns.filter((t) => t.status === "approved").length;
+    const rejectedCount = txns.filter((t) => t.status === "rejected").length;
+
+    setStats({
+      totalDeposits,
+      totalWithdrawals,
+      totalTransfers,
+      pendingCount,
+      approvedCount,
+      rejectedCount,
+    });
+  };
 
   const fetchData = async () => {
     setLoading(true);
@@ -49,8 +105,10 @@ const MemberHistory = () => {
       // Fetch members
       const membersResponse = await fetch(`${API_BASE_URL}/api/members.php`);
       const membersData = await membersResponse.json();
+      let membersList = [];
       if (membersData.members) {
-        setMembers(membersData.members);
+        membersList = membersData.members;
+        setMembers(membersList);
       }
 
       // Fetch transactions
@@ -70,20 +128,17 @@ const MemberHistory = () => {
         const userData = JSON.parse(storedUser);
         if (userData.role === "member" || userData.role === "user") {
           allTransactions = allTransactions.filter(
-            (t) =>
-              t.memberId === userData.id ||
-              t.memberId === parseInt(userData.id),
+            (t) => Number(t.memberId) === Number(userData.id),
           );
         }
       }
 
-      // Sort by date (newest first)
-      allTransactions.sort((a, b) => new Date(b.date) - new Date(a.date));
+      // Sort by date (newest first) as default
+      allTransactions.sort(
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+      );
 
       setTransactions(allTransactions);
-      setFilteredTransactions(allTransactions);
-
-      // Calculate stats
       calculateStats(allTransactions);
     } catch (error) {
       console.error("Error fetching data:", error);
@@ -93,84 +148,38 @@ const MemberHistory = () => {
     }
   };
 
-  const calculateStats = (transactions) => {
-    const totalDeposits = transactions
-      .filter((t) => t.type === "deposit" || t.type === "contribution")
-      .reduce((sum, t) => sum + t.amount, 0);
+  useEffect(() => {
+    const storedUser = localStorage.getItem("user");
+    if (storedUser) {
+      setUser(JSON.parse(storedUser));
+    }
+    fetchData();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-    const totalWithdrawals = transactions
-      .filter((t) => t.type === "withdrawal")
-      .reduce((sum, t) => sum + t.amount, 0);
+  // ---------- FILTER + SORT EFFECT ----------
 
-    const totalTransfers = transactions
-      .filter((t) => t.type === "transfer")
-      .reduce((sum, t) => sum + t.amount, 0);
-
-    const pendingCount = transactions.filter(
-      (t) => t.status === "pending",
-    ).length;
-    const approvedCount = transactions.filter(
-      (t) => t.status === "approved",
-    ).length;
-    const rejectedCount = transactions.filter(
-      (t) => t.status === "rejected",
-    ).length;
-
-    setStats({
-      totalDeposits,
-      totalWithdrawals,
-      totalTransfers,
-      pendingCount,
-      approvedCount,
-      rejectedCount,
-    });
-  };
-
-  // Format currency
-  const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return "₦0.00";
-    return new Intl.NumberFormat("en-NG", {
-      style: "currency",
-      currency: "NGN",
-      minimumFractionDigits: 2,
-      maximumFractionDigits: 2,
-    }).format(amount);
-  };
-
-  // Format date
-  const formatDate = (dateString) => {
-    if (!dateString) return "N/A";
-    const date = new Date(dateString);
-    return date.toLocaleDateString("en-NG", {
-      year: "numeric",
-      month: "short",
-      day: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  // Get member name by ID
-  const getMemberName = (memberId) => {
-    if (!memberId) return "Unknown";
-    const member = members.find((m) => m.id === parseInt(memberId));
-    return member ? member.name : "Unknown";
-  };
-
-  // Apply filters
   useEffect(() => {
     let filtered = [...transactions];
 
-    // Search filter
-    if (searchTerm) {
-      const term = searchTerm.toLowerCase();
-      filtered = filtered.filter(
-        (t) =>
-          t.memberName?.toLowerCase().includes(term) ||
-          t.accountNumber?.includes(term) ||
-          t.description?.toLowerCase().includes(term) ||
-          t.id?.toString().includes(term),
-      );
+    // Search (with member name fallback)
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      filtered = filtered.filter((t) => {
+        const name = (
+          t.memberName ||
+          getMemberName(t.memberId) ||
+          ""
+        ).toLowerCase();
+        return (
+          name.includes(term) ||
+          String(t.accountNumber || "").includes(term) ||
+          String(t.description || "")
+            .toLowerCase()
+            .includes(term) ||
+          String(t.id || "").includes(term)
+        );
+      });
     }
 
     // Type filter
@@ -183,33 +192,42 @@ const MemberHistory = () => {
       filtered = filtered.filter((t) => t.status === filterStatus);
     }
 
-    // Date range filter
+    // Date range filter (proper Date comparison)
     if (dateRange.start) {
-      filtered = filtered.filter((t) => t.date >= dateRange.start);
+      const start = new Date(dateRange.start);
+      start.setHours(0, 0, 0, 0);
+      const startTime = start.getTime();
+      filtered = filtered.filter((t) => {
+        const d = new Date(t.date).getTime();
+        return !isNaN(d) && d >= startTime;
+      });
     }
     if (dateRange.end) {
-      filtered = filtered.filter((t) => t.date <= dateRange.end);
+      const end = new Date(dateRange.end);
+      end.setHours(23, 59, 59, 999);
+      const endTime = end.getTime();
+      filtered = filtered.filter((t) => {
+        const d = new Date(t.date).getTime();
+        return !isNaN(d) && d <= endTime;
+      });
     }
 
     // Sorting
     filtered.sort((a, b) => {
-      let compareA = a[sortBy] || "";
-      let compareB = b[sortBy] || "";
-
+      let compareA, compareB;
       if (sortBy === "amount") {
         compareA = parseFloat(a.amount) || 0;
         compareB = parseFloat(b.amount) || 0;
       } else if (sortBy === "date") {
-        compareA = new Date(a.date);
-        compareB = new Date(b.date);
+        compareA = new Date(a.date).getTime() || 0;
+        compareB = new Date(b.date).getTime() || 0;
       } else if (sortBy === "id") {
         compareA = parseInt(a.id) || 0;
         compareB = parseInt(b.id) || 0;
       } else {
-        compareA = String(compareA).toLowerCase();
-        compareB = String(compareB).toLowerCase();
+        compareA = String(a[sortBy] || "").toLowerCase();
+        compareB = String(b[sortBy] || "").toLowerCase();
       }
-
       if (compareA < compareB) return sortOrder === "asc" ? -1 : 1;
       if (compareA > compareB) return sortOrder === "asc" ? 1 : -1;
       return 0;
@@ -225,18 +243,22 @@ const MemberHistory = () => {
     sortBy,
     sortOrder,
     transactions,
+    members,
+    getMemberName,
   ]);
 
-  // Get paginated data
+  // ---------- PAGINATION ----------
+
   const getPaginatedData = () => {
     const startIndex = (currentPage - 1) * itemsPerPage;
     const endIndex = startIndex + itemsPerPage;
     return filteredTransactions.slice(startIndex, endIndex);
   };
 
-  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage);
+  const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage) || 1;
 
-  // Get status badge
+  // ---------- BADGES ----------
+
   const getStatusBadge = (status) => {
     const styles = {
       pending: {
@@ -252,7 +274,6 @@ const MemberHistory = () => {
         color: "#f87171",
       },
     };
-
     const style = styles[status] || styles.pending;
     return (
       <span
@@ -265,12 +286,11 @@ const MemberHistory = () => {
           fontWeight: "500",
         }}
       >
-        {status.toUpperCase()}
+        {String(status || "unknown").toUpperCase()}
       </span>
     );
   };
 
-  // Get type badge
   const getTypeBadge = (type) => {
     const styles = {
       deposit: {
@@ -294,7 +314,6 @@ const MemberHistory = () => {
         icon: "🤝",
       },
     };
-
     const style = styles[type] || styles.deposit;
     return (
       <span
@@ -307,12 +326,13 @@ const MemberHistory = () => {
           fontWeight: "500",
         }}
       >
-        {style.icon} {type.toUpperCase()}
+        {style.icon} {String(type || "").toUpperCase()}
       </span>
     );
   };
 
-  // Reset filters
+  // ---------- RESET ----------
+
   const resetFilters = () => {
     setSearchTerm("");
     setFilterType("all");
@@ -320,7 +340,10 @@ const MemberHistory = () => {
     setDateRange({ start: "", end: "" });
     setSortBy("date");
     setSortOrder("desc");
+    setCurrentPage(1);
   };
+
+  // ---------- RENDER ----------
 
   if (loading) {
     return (
@@ -344,9 +367,7 @@ const MemberHistory = () => {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
         }
-        .fade-in {
-          animation: fadeIn 0.3s ease;
-        }
+        .fade-in { animation: fadeIn 0.3s ease; }
         .stat-card {
           background-color: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
@@ -365,25 +386,17 @@ const MemberHistory = () => {
           max-height: 550px;
           overflow-y: auto;
         }
-        .table-container::-webkit-scrollbar {
-          width: 6px;
-          height: 6px;
-        }
+        .table-container::-webkit-scrollbar { width: 6px; height: 6px; }
         .table-container::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05);
-          border-radius: 3px;
+          background: rgba(255,255,255,0.05); border-radius: 3px;
         }
         .table-container::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.2);
-          border-radius: 3px;
+          background: rgba(255,255,255,0.2); border-radius: 3px;
         }
         .table-container::-webkit-scrollbar-thumb:hover {
           background: rgba(255,255,255,0.3);
         }
-        table {
-          width: 100%;
-          border-collapse: collapse;
-        }
+        table { width: 100%; border-collapse: collapse; }
         th {
           padding: 14px 16px;
           text-align: left;
@@ -398,19 +411,13 @@ const MemberHistory = () => {
           cursor: pointer;
           user-select: none;
         }
-        th:hover {
-          color: white;
-        }
+        th:hover { color: white; }
         td {
           padding: 14px 16px;
           border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
-        tr {
-          transition: background-color 0.2s;
-        }
-        tr:hover {
-          background-color: rgba(255, 255, 255, 0.03);
-        }
+        tr { transition: background-color 0.2s; }
+        tr:hover { background-color: rgba(255, 255, 255, 0.03); }
         .page-btn {
           padding: 6px 12px;
           border-radius: 6px;
@@ -421,9 +428,7 @@ const MemberHistory = () => {
           transition: all 0.2s;
           font-size: 14px;
         }
-        .page-btn:hover {
-          background-color: rgba(255,255,255,0.05);
-        }
+        .page-btn:hover { background-color: rgba(255,255,255,0.05); }
         .page-btn.active {
           background-color: rgba(16, 185, 129, 0.2);
           border-color: #10b981;
@@ -439,9 +444,7 @@ const MemberHistory = () => {
           font-size: 14px;
           transition: border-color 0.2s;
         }
-        .filter-input:focus {
-          border-color: #10b981;
-        }
+        .filter-input:focus { border-color: #10b981; }
         .filter-select {
           background-color: rgba(255, 255, 255, 0.1);
           color: white;
@@ -452,9 +455,10 @@ const MemberHistory = () => {
           font-size: 14px;
           cursor: pointer;
         }
-        .filter-select option {
-          background-color: #1e293b;
-          color: white;
+        .filter-select option { background-color: #1e293b; color: white; }
+        .filter-input::-webkit-calendar-picker-indicator {
+          filter: invert(1);
+          cursor: pointer;
         }
       `}</style>
 
@@ -648,7 +652,7 @@ const MemberHistory = () => {
           <input
             type="text"
             className="filter-input"
-            placeholder="🔍 Search..."
+            placeholder="🔍 Search name, account, ID..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
@@ -683,7 +687,6 @@ const MemberHistory = () => {
             onChange={(e) =>
               setDateRange((prev) => ({ ...prev, start: e.target.value }))
             }
-            placeholder="Start Date"
           />
 
           <input
@@ -693,7 +696,6 @@ const MemberHistory = () => {
             onChange={(e) =>
               setDateRange((prev) => ({ ...prev, end: e.target.value }))
             }
-            placeholder="End Date"
           />
 
           <select
@@ -756,7 +758,9 @@ const MemberHistory = () => {
                       <p style={{ fontSize: "13px", marginTop: "4px" }}>
                         {searchTerm ||
                         filterType !== "all" ||
-                        filterStatus !== "all"
+                        filterStatus !== "all" ||
+                        dateRange.start ||
+                        dateRange.end
                           ? "Try adjusting your filters"
                           : "Your transactions will appear here"}
                       </p>
@@ -862,7 +866,9 @@ const MemberHistory = () => {
                 return (
                   <button
                     key={i}
-                    className={`page-btn ${currentPage === pageNum ? "active" : ""}`}
+                    className={`page-btn ${
+                      currentPage === pageNum ? "active" : ""
+                    }`}
                     onClick={() => setCurrentPage(pageNum)}
                   >
                     {pageNum}
@@ -898,7 +904,6 @@ const MemberHistory = () => {
       >
         <button
           onClick={() => {
-            // Export as CSV
             const headers = [
               "ID",
               "Member",
@@ -915,7 +920,7 @@ const MemberHistory = () => {
               t.amount,
               t.date,
               t.status,
-              t.description || "",
+              (t.description || "").replace(/,/g, ";"),
             ]);
 
             const csv = [
@@ -926,7 +931,9 @@ const MemberHistory = () => {
             const url = URL.createObjectURL(blob);
             const a = document.createElement("a");
             a.href = url;
-            a.download = `transactions_${new Date().toISOString().split("T")[0]}.csv`;
+            a.download = `transactions_${
+              new Date().toISOString().split("T")[0]
+            }.csv`;
             a.click();
             URL.revokeObjectURL(url);
 

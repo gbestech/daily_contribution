@@ -61,7 +61,7 @@ const Layout = ({ children }) => {
 
   const adminNavItems = [
     { path: "/admin", label: "Dashboard", icon: "📊" },
-    // { path: "/admin/members", label: "Members", icon: "👥" },
+    { path: "/admin/broadsheet", label: "Broad Sheet", icon: "👥" },
     { path: "/admin/transactions", label: "Transactions", icon: "💳" },
     { path: "/admin/pending", label: "Pending", icon: "⏳" },
     { path: "/admin/reports", label: "Reports", icon: "📈" },

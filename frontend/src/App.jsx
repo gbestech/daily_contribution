@@ -24,6 +24,9 @@ import AdminReports from "./components/admin/Reports";
 import AdminSettings from "./components/admin/Settings";
 import UserManagement from "./components/admin/UserManagement";
 import AdminProfile from "./components/admin/AdminProfile";
+import Broadsheet from "./components/Broadsheet";
+
+// Inside your <Routes>:
 
 // Member Components
 import MemberDashboard from "./components/member/Dashboard";
@@ -111,6 +114,16 @@ function AppRoutes() {
           <ProtectedRoute adminOnly>
             <Layout>
               <UserManagement />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/broadsheet"
+        element={
+          <ProtectedRoute adminOnly>
+            <Layout>
+              <Broadsheet />
             </Layout>
           </ProtectedRoute>
         }

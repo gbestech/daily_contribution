@@ -13,11 +13,16 @@ const MemberTransfer = () => {
   const [fromBalance, setFromBalance] = useState(0);
   const [user, setUser] = useState(null);
 
+  const isMember = user?.role === "member" || user?.role === "user";
+  const isAdmin = user?.role === "admin";
+
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
       const userData = JSON.parse(storedUser);
       setUser(userData);
+
+      // 🔒 If a member is logged in, lock the sender to themselves
       if (userData.role === "member" || userData.role === "user") {
         setFromMember(userData.id);
         fetchMemberBalance(userData.id);
@@ -78,8 +83,14 @@ const MemberTransfer = () => {
       return;
     }
 
-    if (fromMember === toMember) {
+    if (Number(fromMember) === Number(toMember)) {
       toast.error("Cannot transfer to the same member");
+      return;
+    }
+
+    // 🔒 Extra safety: members can only send from their own account
+    if (isMember && Number(fromMember) !== Number(user.id)) {
+      toast.error("You can only transfer from your own account");
       return;
     }
 
@@ -90,10 +101,14 @@ const MemberTransfer = () => {
     }
 
     // Check if sender has enough balance
-    const fromMemberData = members.find((m) => m.id === parseInt(fromMember));
+    const fromMemberData = members.find(
+      (m) => Number(m.id) === Number(fromMember),
+    );
     if (transferAmount > (fromMemberData?.balance || 0)) {
       toast.error(
-        `Insufficient balance! Available: ${formatCurrency(fromMemberData?.balance || 0)}`,
+        `Insufficient balance! Available: ${formatCurrency(
+          fromMemberData?.balance || 0,
+        )}`,
       );
       return;
     }
@@ -105,15 +120,19 @@ const MemberTransfer = () => {
       toMemberId: parseInt(toMember),
       fromMemberName: fromMemberData?.name || "Unknown",
       toMemberName:
-        members.find((m) => m.id === parseInt(toMember))?.name || "Unknown",
+        members.find((m) => Number(m.id) === Number(toMember))?.name ||
+        "Unknown",
       fromAccountNumber: fromMemberData?.accountNumber || "",
       toAccountNumber:
-        members.find((m) => m.id === parseInt(toMember))?.accountNumber || "",
+        members.find((m) => Number(m.id) === Number(toMember))?.accountNumber ||
+        "",
       amount: transferAmount,
       date: new Date().toISOString().split("T")[0],
       description:
         description ||
-        `Transfer to ${members.find((m) => m.id === parseInt(toMember))?.name}`,
+        `Transfer to ${
+          members.find((m) => Number(m.id) === Number(toMember))?.name
+        }`,
     };
 
     try {
@@ -130,7 +149,9 @@ const MemberTransfer = () => {
 
       if (response.ok) {
         toast.success(
-          `✅ Transfer of ${formatCurrency(transferAmount)} submitted successfully!`,
+          `✅ Transfer of ${formatCurrency(
+            transferAmount,
+          )} submitted successfully!`,
         );
         setAmount("");
         setDescription("");
@@ -148,6 +169,11 @@ const MemberTransfer = () => {
     }
   };
 
+  // 🔒 For members, hide everyone else from the "From" dropdown
+  const senderOptions = isMember
+    ? members.filter((m) => Number(m.id) === Number(user?.id))
+    : members;
+
   return (
     <div
       style={{
@@ -157,6 +183,67 @@ const MemberTransfer = () => {
         margin: "0 auto",
       }}
     >
+      {/* ✅ Global styles for select dropdown fix */}
+      <style>{`
+        .member-select {
+          width: 100%;
+          padding: 12px 40px 12px 16px;
+          border-radius: 8px;
+          border: 1px solid rgba(255, 255, 255, 0.1);
+          background-color: rgba(255, 255, 255, 0.05);
+          color: white;
+          font-size: 14px;
+          outline: none;
+          cursor: pointer;
+          appearance: none;
+          -webkit-appearance: none;
+          -moz-appearance: none;
+          background-image: url("data:image/svg+xml;utf8,<svg fill='white' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+          background-repeat: no-repeat;
+          background-position: right 10px center;
+          transition: border-color 0.2s;
+          box-sizing: border-box;
+        }
+        .member-select:focus {
+          border-color: #7c3aed;
+        }
+        .member-select option {
+          background-color: #1e293b;
+          color: white;
+          padding: 10px;
+        }
+        .member-select option:checked,
+        .member-select option:hover {
+          background: linear-gradient(#7c3aed, #7c3aed);
+          color: white;
+        }
+        .member-select:disabled {
+          cursor: not-allowed;
+          opacity: 0.75;
+        }
+        .sender-locked {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          padding: 12px 16px;
+          border-radius: 8px;
+          border: 1px solid rgba(124, 58, 237, 0.3);
+          background: rgba(124, 58, 237, 0.08);
+        }
+        .sender-locked-avatar {
+          width: 38px;
+          height: 38px;
+          border-radius: 50%;
+          background: rgba(124, 58, 237, 0.25);
+          color: #a78bfa;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          flex-shrink: 0;
+        }
+      `}</style>
+
       <div
         style={{
           backgroundColor: "rgba(255, 255, 255, 0.05)",
@@ -183,7 +270,9 @@ const MemberTransfer = () => {
                 fontSize: "14px",
               }}
             >
-              Send money to other members
+              {isAdmin
+                ? "Transfer funds between members"
+                : "Send money to other members"}
             </p>
           </div>
         </div>
@@ -207,7 +296,7 @@ const MemberTransfer = () => {
             >
               <div>
                 <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>
-                  Your Balance
+                  {isAdmin ? "Sender Balance" : "Your Balance"}
                 </p>
                 <p
                   style={{
@@ -253,28 +342,47 @@ const MemberTransfer = () => {
             >
               From (Sender)
             </label>
-            <select
-              value={fromMember}
-              onChange={handleFromMemberChange}
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
-                fontSize: "14px",
-                outline: "none",
-              }}
-              required
-            >
-              <option value="">Select sender...</option>
-              {members.map((member) => (
-                <option key={member.id} value={member.id}>
-                  {member.name} - Balance: {formatCurrency(member.balance)}
-                </option>
-              ))}
-            </select>
+
+            {isMember ? (
+              // 🔒 Locked display for members — shows only themselves
+              <div className="sender-locked">
+                <div className="sender-locked-avatar">
+                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div
+                    style={{
+                      color: "white",
+                      fontSize: "14px",
+                      fontWeight: "600",
+                      whiteSpace: "nowrap",
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                    }}
+                  >
+                    {user?.name || "You"}
+                  </div>
+                  <div style={{ color: "#94a3b8", fontSize: "12px" }}>
+                    🔒 Your account
+                  </div>
+                </div>
+              </div>
+            ) : (
+              // Admin can pick any member as sender
+              <select
+                className="member-select"
+                value={fromMember}
+                onChange={handleFromMemberChange}
+                required
+              >
+                <option value="">Select sender...</option>
+                {senderOptions.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name} - Balance: {formatCurrency(member.balance)}
+                  </option>
+                ))}
+              </select>
+            )}
           </div>
 
           {/* To Member */}
@@ -291,23 +399,14 @@ const MemberTransfer = () => {
               To (Recipient)
             </label>
             <select
+              className="member-select"
               value={toMember}
               onChange={(e) => setToMember(e.target.value)}
-              style={{
-                width: "100%",
-                padding: "12px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
-                fontSize: "14px",
-                outline: "none",
-              }}
               required
             >
               <option value="">Select recipient...</option>
               {members
-                .filter((m) => m.id !== parseInt(fromMember))
+                .filter((m) => Number(m.id) !== Number(fromMember))
                 .map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.name} - Balance: {formatCurrency(member.balance)}
@@ -357,6 +456,7 @@ const MemberTransfer = () => {
                   color: "white",
                   fontSize: "16px",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
                 min="0.01"
                 step="0.01"
@@ -364,51 +464,24 @@ const MemberTransfer = () => {
               />
             </div>
             <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
-              <button
-                type="button"
-                onClick={() => setAmount("500")}
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "transparent",
-                  color: "#9ca3af",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                }}
-              >
-                ₦500
-              </button>
-              <button
-                type="button"
-                onClick={() => setAmount("1000")}
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "transparent",
-                  color: "#9ca3af",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                }}
-              >
-                ₦1,000
-              </button>
-              <button
-                type="button"
-                onClick={() => setAmount("2000")}
-                style={{
-                  padding: "4px 12px",
-                  borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "transparent",
-                  color: "#9ca3af",
-                  fontSize: "12px",
-                  cursor: "pointer",
-                }}
-              >
-                ₦2,000
-              </button>
+              {["500", "1000", "2000"].map((val) => (
+                <button
+                  key={val}
+                  type="button"
+                  onClick={() => setAmount(val)}
+                  style={{
+                    padding: "4px 12px",
+                    borderRadius: "4px",
+                    border: "1px solid rgba(255,255,255,0.1)",
+                    backgroundColor: "transparent",
+                    color: "#9ca3af",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                  }}
+                >
+                  ₦{Number(val).toLocaleString()}
+                </button>
+              ))}
             </div>
           </div>
 
@@ -439,6 +512,7 @@ const MemberTransfer = () => {
                 color: "white",
                 fontSize: "14px",
                 outline: "none",
+                boxSizing: "border-box",
               }}
             />
           </div>

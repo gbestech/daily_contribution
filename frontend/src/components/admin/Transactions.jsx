@@ -4,6 +4,48 @@ import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
 
+// ------------------------------------------------------------
+// Build a valid data URL from whatever the API returned
+// ------------------------------------------------------------
+const buildSlipSrc = (t) => {
+  if (!t?.payment_slip) return "";
+  let s = String(t.payment_slip).trim().replace(/\s/g, "");
+  if (s.startsWith("data:")) return s;
+
+  const mime =
+    t.payment_slip_type ||
+    (s.startsWith("/9j/")
+      ? "image/jpeg"
+      : s.startsWith("iVBOR")
+        ? "image/png"
+        : s.startsWith("R0lGO")
+          ? "image/gif"
+          : s.startsWith("UklGR")
+            ? "image/webp"
+            : "image/jpeg");
+
+  return `data:${mime};base64,${s}`;
+};
+
+// ------------------------------------------------------------
+// Decide if the slip should be rendered as an <img> or a link
+// ------------------------------------------------------------
+const isSlipImage = (t) => {
+  const type = t?.payment_slip_type || "";
+  if (type.startsWith("image/")) return true;
+  if (type === "application/pdf") return false;
+
+  const s = (t?.payment_slip || "").replace(/\s/g, "");
+  if (s.startsWith("data:image/")) return true;
+  if (s.startsWith("data:application/pdf")) return false;
+  if (s.startsWith("/9j/")) return true; // JPEG
+  if (s.startsWith("iVBOR")) return true; // PNG
+  if (s.startsWith("R0lGO")) return true; // GIF
+  if (s.startsWith("UklGR")) return true; // WEBP
+  if (s.startsWith("JVBER")) return false; // PDF
+  return true;
+};
+
 const AdminTransactions = () => {
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -141,14 +183,14 @@ const AdminTransactions = () => {
     }
   };
 
-  // Open the reject modal (which will prompt for reason)
+  // Open the reject modal
   const openRejectModal = (transactionId) => {
     setRejectingId(transactionId);
     setRejectReason("");
     setShowRejectModal(true);
   };
 
-  // Confirm reject — sends the reason to the API
+  // Confirm reject
   const confirmReject = async () => {
     if (!rejectingId) return;
     if (!rejectReason.trim()) {
@@ -297,13 +339,12 @@ const AdminTransactions = () => {
     setShowDetailsModal(true);
   };
 
-  // Render payment slip preview inside modal
+  // ✅ Render payment slip preview inside modal (robust)
   const renderPaymentSlip = (t) => {
     if (!t?.payment_slip) return null;
 
-    const isImage =
-      (t.payment_slip_type || "").startsWith("image/") ||
-      /^data:image\//.test(t.payment_slip);
+    const src = buildSlipSrc(t);
+    const isImg = isSlipImage(t);
 
     return (
       <div style={{ gridColumn: "1 / -1" }}>
@@ -322,7 +363,7 @@ const AdminTransactions = () => {
           )}
         </div>
 
-        {isImage ? (
+        {isImg ? (
           <div
             style={{
               border: "1px solid rgba(255,255,255,0.1)",
@@ -333,14 +374,19 @@ const AdminTransactions = () => {
             }}
           >
             <a
-              href={t.payment_slip}
+              href={src}
               target="_blank"
               rel="noreferrer"
               title="Click to view full size"
             >
               <img
-                src={t.payment_slip}
+                src={src}
                 alt="Payment slip"
+                onError={(e) => {
+                  console.error("[slip] failed to render. Length:", src.length);
+                  console.error("[slip] first 60 chars:", src.slice(0, 60));
+                  e.target.style.display = "none";
+                }}
                 style={{
                   maxWidth: "100%",
                   maxHeight: "320px",
@@ -360,10 +406,26 @@ const AdminTransactions = () => {
             >
               Click image to open in new tab
             </div>
+
+            {/* Fallback download link */}
+            <a
+              href={src}
+              download={t.payment_slip_name || `slip-${t.id}.jpg`}
+              style={{
+                display: "inline-block",
+                margin: "8px",
+                padding: "6px 12px",
+                fontSize: "12px",
+                color: "#60a5fa",
+                textDecoration: "underline",
+              }}
+            >
+              ⬇ Or download the file
+            </a>
           </div>
         ) : (
           <a
-            href={t.payment_slip}
+            href={src}
             download={t.payment_slip_name || `slip-${t.id}`}
             style={{
               display: "flex",
@@ -1120,7 +1182,7 @@ const AdminTransactions = () => {
                   </>
                 )}
 
-              {/* Rejection reason (if already rejected) */}
+              {/* Rejection reason */}
               {selectedTransaction.status === "rejected" &&
                 selectedTransaction.rejection_reason && (
                   <div style={{ gridColumn: "1 / -1" }}>
