@@ -8,14 +8,14 @@ import {
 } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./context/AuthContext";
+import { PermissionsProvider } from "./context/PermissionsContext";
 
-// Components
 import Layout from "./components/common/Layout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 
-// Admin Components
+// Admin
 import AdminDashboard from "./components/admin/Dashboard";
 import AdminMembers from "./components/admin/Members";
 import AdminTransactions from "./components/admin/Transactions";
@@ -27,8 +27,10 @@ import AdminProfile from "./components/admin/AdminProfile";
 import Broadsheet from "./components/Broadsheet";
 import PublicRegister from "./components/admin/PublicRegister";
 import Staff from "./components/admin/Staff";
+import Permissions from "./components/admin/Permissions";
+import Expenses from "./components/admin/Expenses";
 
-// Member Components
+// Member
 import MemberDashboard from "./components/member/Dashboard";
 import MemberDeposit from "./components/member/Deposit";
 import MemberWithdraw from "./components/member/Withdraw";
@@ -43,18 +45,19 @@ function AppRoutes() {
 
   return (
     <Routes>
-      {/* ========== PUBLIC / AUTH ROUTES ========== */}
+      {/* PUBLIC */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
-
-      {/* ✅ PUBLIC: Register member — shows ONLY the registration form */}
       <Route path="/register-member" element={<PublicRegister />} />
 
-      {/* ========== ADMIN ROUTES ========== */}
+      {/* ============ ADMIN / MANAGER ROUTES ============ */}
+      {/* ProtectedRoute automatically checks ROUTE_PERMISSIONS[path].
+          Managers reach these only if the admin granted the permission. */}
+
       <Route
         path="/admin"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminDashboard />
             </Layout>
@@ -64,7 +67,7 @@ function AppRoutes() {
       <Route
         path="/admin/dashboard"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminDashboard />
             </Layout>
@@ -74,20 +77,9 @@ function AppRoutes() {
       <Route
         path="/admin/members"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminMembers />
-            </Layout>
-          </ProtectedRoute>
-        }
-      />
-      {/* ✅ NEW: Staff & Roles */}
-      <Route
-        path="/admin/staff"
-        element={
-          <ProtectedRoute adminOnly>
-            <Layout>
-              <Staff />
             </Layout>
           </ProtectedRoute>
         }
@@ -95,7 +87,7 @@ function AppRoutes() {
       <Route
         path="/admin/transactions"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminTransactions />
             </Layout>
@@ -105,7 +97,7 @@ function AppRoutes() {
       <Route
         path="/admin/pending"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminPending />
             </Layout>
@@ -115,7 +107,7 @@ function AppRoutes() {
       <Route
         path="/admin/reports"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminReports />
             </Layout>
@@ -125,7 +117,7 @@ function AppRoutes() {
       <Route
         path="/admin/users"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <UserManagement />
             </Layout>
@@ -135,7 +127,7 @@ function AppRoutes() {
       <Route
         path="/admin/broadsheet"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <Broadsheet />
             </Layout>
@@ -143,11 +135,11 @@ function AppRoutes() {
         }
       />
       <Route
-        path="/admin/settings"
+        path="/admin/expenses"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
-              <AdminSettings />
+              <Expenses />
             </Layout>
           </ProtectedRoute>
         }
@@ -155,18 +147,47 @@ function AppRoutes() {
       <Route
         path="/admin/profile"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminProfile />
             </Layout>
           </ProtectedRoute>
         }
       />
-      {/* Admin catch-all route */}
+      <Route
+        path="/admin/staff"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Staff />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/permissions"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Permissions />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/settings"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AdminSettings />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/*"
         element={
-          <ProtectedRoute adminOnly>
+          <ProtectedRoute>
             <Layout>
               <AdminDashboard />
             </Layout>
@@ -174,7 +195,7 @@ function AppRoutes() {
         }
       />
 
-      {/* ========== MEMBER ROUTES ========== */}
+      {/* ============ MEMBER ROUTES ============ */}
       <Route
         path="/member"
         element={
@@ -255,7 +276,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* Member catch-all route */}
       <Route
         path="/member/*"
         element={
@@ -267,7 +287,7 @@ function AppRoutes() {
         }
       />
 
-      {/* ========== DEFAULT ROUTE ========== */}
+      {/* DEFAULT + 404 */}
       <Route
         path="/"
         element={
@@ -282,8 +302,6 @@ function AppRoutes() {
           )
         }
       />
-
-      {/* ========== 404 NOT FOUND ========== */}
       <Route
         path="*"
         element={
@@ -306,25 +324,21 @@ function App() {
   return (
     <Router>
       <AuthProvider>
-        <Toaster
-          position="top-right"
-          toastOptions={{
-            style: {
-              background: "#1a1a2e",
-              color: "#fff",
-              border: "1px solid rgba(255,255,255,0.1)",
-            },
-            success: {
-              icon: "✅",
-              duration: 3000,
-            },
-            error: {
-              icon: "❌",
-              duration: 4000,
-            },
-          }}
-        />
-        <AppRoutes />
+        <PermissionsProvider>
+          <Toaster
+            position="top-right"
+            toastOptions={{
+              style: {
+                background: "#1a1a2e",
+                color: "#fff",
+                border: "1px solid rgba(255,255,255,0.1)",
+              },
+              success: { icon: "✅", duration: 3000 },
+              error: { icon: "❌", duration: 4000 },
+            }}
+          />
+          <AppRoutes />
+        </PermissionsProvider>
       </AuthProvider>
     </Router>
   );

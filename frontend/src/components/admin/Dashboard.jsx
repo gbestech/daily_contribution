@@ -9,6 +9,8 @@ const AdminDashboard = () => {
   const [transactions, setTransactions] = useState([]);
   const [loans, setLoans] = useState([]);
   const [pendingLoans, setPendingLoans] = useState([]);
+  const [expenses, setExpenses] = useState([]);
+  const [pendingExpenses, setPendingExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState([]);
@@ -19,6 +21,7 @@ const AdminDashboard = () => {
   const [showViewModal, setShowViewModal] = useState(false);
   const [showTransactionModal, setShowTransactionModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
+  const [showExpenseModal, setShowExpenseModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
@@ -35,6 +38,15 @@ const AdminDashboard = () => {
     toMemberId: "",
     amount: "",
     description: "",
+  });
+
+  const [expenseData, setExpenseData] = useState({
+    title: "",
+    category: "General",
+    amount: "",
+    description: "",
+    requestedBy: "Admin",
+    date: new Date().toISOString().split("T")[0],
   });
 
   const [newMember, setNewMember] = useState({
@@ -58,6 +70,11 @@ const AdminDashboard = () => {
   const totalCharges = transactions.reduce((sum, t) => {
     const c = parseFloat(t.charge) || 0;
     return sum + c;
+  }, 0);
+
+  const totalExpenses = expenses.reduce((sum, e) => {
+    if (e.status === "approved") return sum + (parseFloat(e.amount) || 0);
+    return sum;
   }, 0);
 
   const testApiConnection = async () => {
@@ -130,6 +147,21 @@ const AdminDashboard = () => {
       } catch (loansError) {
         setLoans([]);
         setPendingLoans([]);
+      }
+
+      try {
+        const response = await fetch(`${API_BASE_URL}/api/expenses.php`);
+        const expensesData = await response.json();
+        if (expensesData.expenses) {
+          setExpenses(expensesData.expenses);
+          const pending = expensesData.expenses.filter(
+            (expense) => expense.status === "pending",
+          );
+          setPendingExpenses(pending);
+        }
+      } catch (expensesError) {
+        setExpenses([]);
+        setPendingExpenses([]);
       }
     } catch (error) {
       throw error;
@@ -213,6 +245,113 @@ const AdminDashboard = () => {
       }
     } catch (error) {
       toast.error("Failed to reject transaction. Please try again.");
+    }
+  };
+
+  // ===== EXPENSE APPROVAL HANDLERS =====
+  const handleApproveExpense = async (expenseId) => {
+    if (!window.confirm("Approve this expense?")) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/expenses.php/${expenseId}/approve`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } },
+      );
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success("✅ Expense approved successfully!");
+        await fetchAllData();
+      } else {
+        toast.error(data.error || "Failed to approve expense");
+      }
+    } catch (error) {
+      toast.error("Failed to approve expense. Please try again.");
+    }
+  };
+
+  const handleRejectExpense = async (expenseId) => {
+    if (!window.confirm("Reject this expense?")) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/expenses.php/${expenseId}/reject`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } },
+      );
+      const data = await response.json();
+      if (response.ok && data.success) {
+        toast.success("❌ Expense rejected!");
+        await fetchAllData();
+      } else {
+        toast.error(data.error || "Failed to reject expense");
+      }
+    } catch (error) {
+      toast.error("Failed to reject expense. Please try again.");
+    }
+  };
+
+  const handleDeleteExpense = async (expenseId) => {
+    if (!window.confirm("⚠️ Delete this expense record permanently?")) return;
+    try {
+      const response = await fetch(
+        `${API_BASE_URL}/api/expenses.php/${expenseId}`,
+        { method: "DELETE", headers: { "Content-Type": "application/json" } },
+      );
+      if (response.ok) {
+        toast.success("✅ Expense deleted!");
+        await fetchAllData();
+      } else {
+        const data = await response.json();
+        toast.error(data.error || "Failed to delete expense");
+      }
+    } catch (error) {
+      toast.error("Failed to delete expense. Please try again.");
+    }
+  };
+
+  const handleCreateExpense = async (e) => {
+    e.preventDefault();
+    const amount = parseFloat(expenseData.amount);
+    if (isNaN(amount) || amount <= 0) {
+      toast.error("Please enter a valid amount");
+      return;
+    }
+    if (!expenseData.title.trim()) {
+      toast.error("Please enter an expense title");
+      return;
+    }
+
+    const expense = {
+      title: expenseData.title,
+      category: expenseData.category,
+      amount: amount,
+      description: expenseData.description || expenseData.title,
+      requested_by: expenseData.requestedBy,
+      date: expenseData.date,
+      status: "pending",
+    };
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/expenses.php`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(expense),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setShowExpenseModal(false);
+        setExpenseData({
+          title: "",
+          category: "General",
+          amount: "",
+          description: "",
+          requestedBy: "Admin",
+          date: new Date().toISOString().split("T")[0],
+        });
+        toast.success("✅ Expense request submitted!");
+        await fetchAllData();
+      } else {
+        toast.error(data.error || "Failed to create expense");
+      }
+    } catch (error) {
+      toast.error("Failed to create expense. Please try again.");
     }
   };
 
@@ -348,13 +487,13 @@ const AdminDashboard = () => {
     {
       icon: "⏳",
       label: "Pending Approvals",
-      value: pendingLoans.length.toString(),
+      value: (pendingLoans.length + pendingExpenses.length).toString(),
       color: "blue",
     },
     {
-      icon: "🔄",
-      label: "Total Loans",
-      value: loans.length.toString(),
+      icon: "🧾",
+      label: "Total Expenses",
+      value: formatCurrency(totalExpenses),
       color: "purple",
     },
   ];
@@ -960,6 +1099,21 @@ const AdminDashboard = () => {
           >
             🔄 Transfer
           </button>
+          <button
+            onClick={() => setShowExpenseModal(true)}
+            style={{
+              backgroundColor: "#ef4444",
+              color: "white",
+              padding: "10px 20px",
+              border: "none",
+              borderRadius: "8px",
+              fontSize: "14px",
+              fontWeight: "600",
+              cursor: "pointer",
+            }}
+          >
+            🧾 New Expense
+          </button>
         </div>
       </div>
 
@@ -1122,6 +1276,47 @@ const AdminDashboard = () => {
           }}
         >
           💳 Transactions
+        </button>
+        {/* ===== EXPENSES TAB ===== */}
+        <button
+          onClick={() => setActiveTab("expenses")}
+          style={{
+            flex: 1,
+            minWidth: "120px",
+            padding: "10px",
+            backgroundColor:
+              activeTab === "expenses"
+                ? "rgba(239, 68, 68, 0.2)"
+                : "transparent",
+            color: activeTab === "expenses" ? "#f87171" : "#9ca3af",
+            border: "none",
+            borderRadius: "8px",
+            cursor: "pointer",
+            fontSize: "14px",
+            fontWeight: "600",
+            position: "relative",
+          }}
+        >
+          🧾 Expenses
+          {pendingExpenses.length > 0 && (
+            <span
+              style={{
+                position: "absolute",
+                top: "-8px",
+                right: "-8px",
+                backgroundColor: "#ef4444",
+                color: "white",
+                fontSize: "10px",
+                fontWeight: "bold",
+                padding: "2px 6px",
+                borderRadius: "50%",
+                minWidth: "18px",
+                textAlign: "center",
+              }}
+            >
+              {pendingExpenses.length}
+            </span>
+          )}
         </button>
       </div>
 
@@ -1800,6 +1995,165 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* ===== EXPENSES TAB ===== */}
+      {activeTab === "expenses" && (
+        <div
+          style={{
+            backgroundColor: "rgba(255, 255, 255, 0.05)",
+            borderRadius: "12px",
+            border: "1px solid rgba(255, 255, 255, 0.1)",
+            overflow: "hidden",
+          }}
+        >
+          <div
+            style={{
+              padding: "20px",
+              borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              flexWrap: "wrap",
+              gap: "12px",
+            }}
+          >
+            <h3 style={{ color: "white", margin: 0 }}>
+              🧾 All Expenses ({expenses.length}) — Pending:{" "}
+              {pendingExpenses.length}
+            </h3>
+            <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
+              <div
+                style={{
+                  backgroundColor: "rgba(239, 68, 68, 0.15)",
+                  color: "#f87171",
+                  padding: "6px 14px",
+                  borderRadius: "8px",
+                  fontSize: "13px",
+                  fontWeight: "600",
+                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                }}
+              >
+                🧾 Total Approved: {formatCurrency(totalExpenses)}
+              </div>
+              <button
+                onClick={refreshData}
+                style={{
+                  backgroundColor: "rgba(59, 130, 246, 0.15)",
+                  color: "#60a5fa",
+                  padding: "6px 16px",
+                  border: "1px solid rgba(59, 130, 246, 0.2)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                }}
+              >
+                🔄 Refresh
+              </button>
+            </div>
+          </div>
+          <div className="table-container">
+            <table>
+              <thead>
+                <tr>
+                  <th>ID</th>
+                  <th>Title</th>
+                  <th>Category</th>
+                  <th>Amount</th>
+                  <th>Requested By</th>
+                  <th>Date</th>
+                  <th>Status</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {expenses.length > 0 ? (
+                  expenses.map((expense) => (
+                    <tr
+                      key={expense.id}
+                      style={{
+                        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+                      }}
+                    >
+                      <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
+                        #{expense.id}
+                      </td>
+                      <td style={{ color: "white", fontWeight: "500" }}>
+                        {expense.title}
+                      </td>
+                      <td style={{ color: "#94a3b8" }}>
+                        {expense.category || "General"}
+                      </td>
+                      <td style={{ color: "#f87171", fontWeight: "600" }}>
+                        {formatCurrency(expense.amount)}
+                      </td>
+                      <td style={{ color: "#d1d5db" }}>
+                        {expense.requested_by || "Admin"}
+                      </td>
+                      <td style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>
+                        {expense.date}
+                      </td>
+                      <td>
+                        <span className={`badge badge-${expense.status}`}>
+                          {expense.status?.toUpperCase() || "PENDING"}
+                        </span>
+                      </td>
+                      <td>
+                        {expense.status === "pending" ? (
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            <button
+                              onClick={() => handleApproveExpense(expense.id)}
+                              className="btn-approve"
+                              style={{ padding: "4px 10px", fontSize: "11px" }}
+                            >
+                              ✅ Approve
+                            </button>
+                            <button
+                              onClick={() => handleRejectExpense(expense.id)}
+                              className="btn-reject"
+                              style={{ padding: "4px 10px", fontSize: "11px" }}
+                            >
+                              ❌ Reject
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => handleDeleteExpense(expense.id)}
+                            style={{
+                              color: "#f87171",
+                              background: "none",
+                              border: "none",
+                              cursor: "pointer",
+                              fontSize: "16px",
+                              padding: "4px 6px",
+                            }}
+                            title="Delete"
+                          >
+                            🗑️
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td
+                      colSpan="8"
+                      style={{ textAlign: "center", padding: "40px" }}
+                    >
+                      <div style={{ color: "#94a3b8" }}>
+                        <div style={{ fontSize: "48px", marginBottom: "8px" }}>
+                          📭
+                        </div>
+                        <p>No expenses found</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Transaction Modal */}
       {showTransactionModal && (
         <div
@@ -2074,6 +2428,128 @@ const AdminDashboard = () => {
                 </button>
                 <button type="submit" className="btn-submit">
                   Submit Transfer
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EXPENSE MODAL ===== */}
+      {showExpenseModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowExpenseModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">🧾 New Expense Request</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowExpenseModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateExpense}>
+              <div className="form-group">
+                <label className="form-label">Expense Title</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="e.g. Office rent, Electricity bill"
+                  value={expenseData.title}
+                  onChange={(e) =>
+                    setExpenseData({ ...expenseData, title: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Category</label>
+                <select
+                  className="form-select"
+                  value={expenseData.category}
+                  onChange={(e) =>
+                    setExpenseData({ ...expenseData, category: e.target.value })
+                  }
+                >
+                  <option value="General">General</option>
+                  <option value="Utilities">Utilities</option>
+                  <option value="Rent">Rent</option>
+                  <option value="Salaries">Salaries</option>
+                  <option value="Maintenance">Maintenance</option>
+                  <option value="Transport">Transport</option>
+                  <option value="Office Supplies">Office Supplies</option>
+                  <option value="Other">Other</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Amount (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="Enter amount"
+                  value={expenseData.amount}
+                  onChange={(e) =>
+                    setExpenseData({ ...expenseData, amount: e.target.value })
+                  }
+                  min="0.01"
+                  step="0.01"
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Requested By</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Name of requester"
+                  value={expenseData.requestedBy}
+                  onChange={(e) =>
+                    setExpenseData({
+                      ...expenseData,
+                      requestedBy: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Date</label>
+                <input
+                  type="date"
+                  className="form-input"
+                  value={expenseData.date}
+                  onChange={(e) =>
+                    setExpenseData({ ...expenseData, date: e.target.value })
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Description (Optional)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter expense description"
+                  value={expenseData.description}
+                  onChange={(e) =>
+                    setExpenseData({
+                      ...expenseData,
+                      description: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="modal-buttons">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowExpenseModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-submit">
+                  Submit Expense
                 </button>
               </div>
             </form>

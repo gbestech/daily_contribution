@@ -2,12 +2,14 @@
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { usePermission } from "../../context/PermissionsContext";
 import Navbar from "./Navbar";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
+  const { can } = usePermission();
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
@@ -16,9 +18,16 @@ const Layout = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [hoveredItem, setHoveredItem] = useState(null);
 
-  const isAdmin = user?.role === "admin" || user?.role === "administrator";
+  // Normalize the role so "Admin" / " admin " / "ADMIN" all match
+  const role = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = role === "admin" || role === "administrator";
+  const isManager = role === "manager";
 
+  // ----------------------------------------------------------
   // Fetch shop name from settings
+  // ----------------------------------------------------------
   useEffect(() => {
     const fetchShopName = async () => {
       try {
@@ -59,27 +68,134 @@ const Layout = ({ children }) => {
     window.location.href = "/login";
   };
 
+  // ----------------------------------------------------------
+  // Nav items — every item declares the permission it needs
+  // ----------------------------------------------------------
   const adminNavItems = [
-    { path: "/admin", label: "Dashboard", icon: "📊" },
-    { path: "/admin/broadsheet", label: "Broad Sheet", icon: "👥" },
-    { path: "/admin/transactions", label: "Transactions", icon: "💳" },
-    { path: "/admin/pending", label: "Pending", icon: "⏳" },
-    { path: "/admin/reports", label: "Reports", icon: "📈" },
-    { path: "/admin/users", label: "Users", icon: "👤" },
-    { path: "/admin/staff", label: "Staff", icon: "👤" },
-    { path: "/admin/settings", label: "Settings", icon: "⚙️" },
+    {
+      path: "/admin",
+      label: "Dashboard",
+      icon: "📊",
+      permission: "view_dashboard",
+    },
+    {
+      path: "/admin/broadsheet",
+      label: "Broad Sheet",
+      icon: "👥",
+      permission: "view_broadsheet",
+    },
+    {
+      path: "/admin/transactions",
+      label: "Transactions",
+      icon: "💳",
+      permission: "view_transactions",
+    },
+    {
+      path: "/admin/pending",
+      label: "Pending",
+      icon: "⏳",
+      permission: "approve_transactions",
+    },
+    {
+      path: "/admin/reports",
+      label: "Reports",
+      icon: "📈",
+      permission: "view_reports",
+    },
+    {
+      path: "/admin/users",
+      label: "Users",
+      icon: "👤",
+      permission: "create_member",
+    },
+    {
+      path: "/admin/expenses",
+      label: "Expenses",
+      icon: "💸",
+      permission: "manage_expenses",
+    },
+    {
+      path: "/admin/staff",
+      label: "Staff & Roles",
+      icon: "🛡️",
+      permission: "manage_staff",
+    },
+    {
+      path: "/admin/permissions",
+      label: "Permissions",
+      icon: "🔒",
+      permission: "manage_permissions",
+    },
+    {
+      path: "/admin/settings",
+      label: "Settings",
+      icon: "⚙️",
+      permission: "manage_settings",
+    },
+    {
+      path: "/admin/profile",
+      label: "Profile",
+      icon: "👤",
+      permission: "view_dashboard",
+    },
   ];
 
   const memberNavItems = [
-    { path: "/member", label: "Dashboard", icon: "📊" },
-    { path: "/member/deposit", label: "Deposit", icon: "💰" },
-    { path: "/member/withdraw", label: "Withdraw", icon: "💸" },
-    { path: "/member/transfer", label: "Transfer", icon: "🔄" },
-    { path: "/member/history", label: "History", icon: "📜" },
-    { path: "/member/profile", label: "Profile", icon: "👤" },
+    {
+      path: "/member/dashboard",
+      label: "Dashboard",
+      icon: "📊",
+      permission: "view_dashboard",
+    },
+    {
+      path: "/member/deposit",
+      label: "Deposit",
+      icon: "💰",
+      permission: "create_deposit",
+    },
+    {
+      path: "/member/withdraw",
+      label: "Withdraw",
+      icon: "💸",
+      permission: "create_withdrawal",
+    },
+    {
+      path: "/member/transfer",
+      label: "Transfer",
+      icon: "🔄",
+      permission: "create_transfer",
+    },
+    {
+      path: "/member/history",
+      label: "History",
+      icon: "📜",
+      permission: "view_history",
+    },
+    {
+      path: "/member/profile",
+      label: "Profile",
+      icon: "👤",
+      permission: "view_dashboard",
+    },
   ];
 
-  const navItems = isAdmin ? adminNavItems : memberNavItems;
+  // Admin + Manager → admin sidebar; Member → member sidebar
+  const rawItems = isAdmin || isManager ? adminNavItems : memberNavItems;
+
+  // Filter by permission (now includes role-level grants)
+  const navItems = rawItems.filter((item) => can(item.permission));
+
+  // Debug (remove in production)
+  useEffect(() => {
+    // eslint-disable-next-line no-console
+    console.log(
+      "[Layout] role:",
+      role,
+      "| navItems:",
+      navItems.map((i) => i.label),
+    );
+  }, [role, navItems]);
+
   const sidebarWidth = isCollapsed ? "70px" : "250px";
 
   return (
@@ -117,8 +233,7 @@ const Layout = ({ children }) => {
             overflowY: "auto",
             transition: "all 0.3s ease",
             zIndex: 999,
-            display: isMobile && !isMobileOpen ? "none" : "block",
-            display: "flex",
+            display: isMobile && !isMobileOpen ? "none" : "flex",
             flexDirection: "column",
           }}
         >
@@ -134,7 +249,7 @@ const Layout = ({ children }) => {
             }}
           >
             {!isCollapsed && (
-              <div style={{ textAlign: isCollapsed ? "center" : "left" }}>
+              <div style={{ textAlign: "left" }}>
                 <h2
                   style={{
                     color: "white",
@@ -152,7 +267,11 @@ const Layout = ({ children }) => {
                     margin: "2px 0 0 0",
                   }}
                 >
-                  {isAdmin ? "Admin Panel" : "Member Panel"}
+                  {isAdmin
+                    ? "Admin Panel"
+                    : isManager
+                      ? "Manager Panel"
+                      : "Member Panel"}
                 </p>
               </div>
             )}
@@ -171,94 +290,122 @@ const Layout = ({ children }) => {
               marginBottom: "16px",
             }}
           >
-            {navItems.map((item) => {
-              const isActive = location.pathname === item.path;
-              return (
-                <div
-                  key={item.path}
-                  style={{
-                    position: "relative",
-                    marginBottom: "4px",
-                  }}
-                  onMouseEnter={() => setHoveredItem(item.path)}
-                  onMouseLeave={() => setHoveredItem(null)}
-                >
-                  <Link
-                    to={item.path}
+            {navItems.length === 0 ? (
+              <div
+                style={{
+                  padding: "20px 12px",
+                  color: "#64748b",
+                  fontSize: "13px",
+                  textAlign: "center",
+                }}
+              >
+                {!isCollapsed && (
+                  <>
+                    <div style={{ fontSize: "32px", marginBottom: "8px" }}>
+                      🔒
+                    </div>
+                    <p style={{ margin: 0 }}>
+                      No permissions assigned.
+                      <br />
+                      Contact your admin.
+                    </p>
+                  </>
+                )}
+              </div>
+            ) : (
+              navItems.map((item) => {
+                const isActive =
+                  location.pathname === item.path ||
+                  (item.path === "/admin" &&
+                    location.pathname === "/admin/dashboard") ||
+                  (item.path === "/member/dashboard" &&
+                    location.pathname === "/member");
+                return (
+                  <div
+                    key={item.path}
                     style={{
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: isCollapsed ? "center" : "flex-start",
-                      gap: isCollapsed ? "0" : "12px",
-                      padding: isCollapsed ? "12px" : "10px 16px",
-                      borderRadius: "8px",
-                      color: isActive ? "white" : "#94a3b8",
-                      backgroundColor: isActive
-                        ? "rgba(16, 185, 129, 0.15)"
-                        : "transparent",
-                      textDecoration: "none",
-                      transition: "all 0.2s",
-                      cursor: "pointer",
-                      minHeight: "44px",
                       position: "relative",
+                      marginBottom: "4px",
                     }}
-                    onMouseEnter={(e) => {
-                      if (!isActive) {
-                        e.target.style.backgroundColor =
-                          "rgba(255,255,255,0.05)";
-                        e.target.style.color = "white";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (!isActive) {
-                        e.target.style.backgroundColor = "transparent";
-                        e.target.style.color = "#94a3b8";
-                      }
-                    }}
+                    onMouseEnter={() => setHoveredItem(item.path)}
+                    onMouseLeave={() => setHoveredItem(null)}
                   >
-                    <span style={{ fontSize: isCollapsed ? "22px" : "18px" }}>
-                      {item.icon}
-                    </span>
-                    {!isCollapsed && (
-                      <span
+                    <Link
+                      to={item.path}
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: isCollapsed ? "center" : "flex-start",
+                        gap: isCollapsed ? "0" : "12px",
+                        padding: isCollapsed ? "12px" : "10px 16px",
+                        borderRadius: "8px",
+                        color: isActive ? "white" : "#94a3b8",
+                        backgroundColor: isActive
+                          ? "rgba(16, 185, 129, 0.15)"
+                          : "transparent",
+                        textDecoration: "none",
+                        transition: "all 0.2s",
+                        cursor: "pointer",
+                        minHeight: "44px",
+                        position: "relative",
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor =
+                            "rgba(255,255,255,0.05)";
+                          e.currentTarget.style.color = "white";
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = "transparent";
+                          e.currentTarget.style.color = "#94a3b8";
+                        }
+                      }}
+                    >
+                      <span style={{ fontSize: isCollapsed ? "22px" : "18px" }}>
+                        {item.icon}
+                      </span>
+                      {!isCollapsed && (
+                        <span
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: isActive ? "600" : "400",
+                            whiteSpace: "nowrap",
+                          }}
+                        >
+                          {item.label}
+                        </span>
+                      )}
+                    </Link>
+
+                    {isCollapsed && hoveredItem === item.path && (
+                      <div
                         style={{
-                          fontSize: "14px",
-                          fontWeight: isActive ? "600" : "400",
+                          position: "fixed",
+                          left: "75px",
+                          top: "50%",
+                          transform: "translateY(-50%)",
+                          backgroundColor: "#1e293b",
+                          color: "white",
+                          padding: "6px 12px",
+                          borderRadius: "6px",
+                          fontSize: "13px",
+                          fontWeight: "500",
+                          border: "1px solid rgba(255,255,255,0.1)",
+                          boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
+                          zIndex: 1000,
                           whiteSpace: "nowrap",
+                          pointerEvents: "none",
                         }}
                       >
                         {item.label}
-                      </span>
+                      </div>
                     )}
-                  </Link>
-
-                  {/* Tooltip for collapsed mode */}
-                  {isCollapsed && hoveredItem === item.path && (
-                    <div
-                      style={{
-                        position: "fixed",
-                        left: "75px",
-                        top: "50%",
-                        transform: "translateY(-50%)",
-                        backgroundColor: "#1e293b",
-                        color: "white",
-                        padding: "6px 12px",
-                        borderRadius: "6px",
-                        fontSize: "13px",
-                        fontWeight: "500",
-                        border: "1px solid rgba(255,255,255,0.1)",
-                        boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
-                        zIndex: 1000,
-                        whiteSpace: "nowrap",
-                        pointerEvents: "none",
-                      }}
-                    >
-                      {item.label}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
+                  </div>
+                );
+              })
+            )}
           </nav>
 
           {/* User Info Section */}
@@ -315,9 +462,11 @@ const Layout = ({ children }) => {
                         "User"}
                     </div>
                     <div style={{ color: "#94a3b8", fontSize: "12px" }}>
-                      {user?.role === "administrator"
+                      {isAdmin
                         ? "Admin"
-                        : user?.role || "Member"}
+                        : isManager
+                          ? "Manager"
+                          : user?.role || "Member"}
                     </div>
                   </div>
                 </div>
@@ -340,10 +489,12 @@ const Layout = ({ children }) => {
                     gap: "8px",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "rgba(239, 68, 68, 0.25)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(239, 68, 68, 0.25)";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(239, 68, 68, 0.15)";
                   }}
                 >
                   🚪 Logout
@@ -386,10 +537,12 @@ const Layout = ({ children }) => {
                     justifyContent: "center",
                   }}
                   onMouseEnter={(e) => {
-                    e.target.style.backgroundColor = "rgba(239, 68, 68, 0.25)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(239, 68, 68, 0.25)";
                   }}
                   onMouseLeave={(e) => {
-                    e.target.style.backgroundColor = "rgba(239, 68, 68, 0.15)";
+                    e.currentTarget.style.backgroundColor =
+                      "rgba(239, 68, 68, 0.15)";
                   }}
                 >
                   🚪
@@ -412,7 +565,6 @@ const Layout = ({ children }) => {
             flexDirection: "column",
           }}
         >
-          {/* Navbar */}
           <Navbar
             isCollapsed={isCollapsed}
             setIsCollapsed={setIsCollapsed}
@@ -420,7 +572,6 @@ const Layout = ({ children }) => {
             setIsMobileOpen={setIsMobileOpen}
           />
 
-          {/* Page Content */}
           <div
             style={{
               padding: "32px",
