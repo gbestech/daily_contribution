@@ -1,7 +1,7 @@
 // src/components/admin/Permissions.jsx
 import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
-import { usePermission } from "../../context/PermissionsContext"; // 👈 NEW
+import { usePermission } from "../../context/PermissionsContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -71,7 +71,10 @@ const ROLES = [
 const ALL_KEYS = OPERATIONS.flatMap((g) => g.items.map((i) => i.key));
 
 const Permissions = () => {
-  const { refreshPermissions } = usePermission(); // 👈 NEW
+  // ✅ Safe destructure — won't crash if context is missing refreshPermissions
+  const permCtx = usePermission() || {};
+  const refreshPermissions = permCtx.refreshPermissions;
+
   const [permissions, setPermissions] = useState({
     admin: [],
     manager: [],
@@ -147,15 +150,28 @@ const Permissions = () => {
   const saveRole = async (role) => {
     setSavingRole(role);
     try {
+      const payload = {
+        role,
+        operations: permissions[role] || [],
+      };
+
+      console.log("Saving role:", role, "payload:", payload);
+
       const res = await fetch(`${API_BASE_URL}/api/permissions.php`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          role,
-          operations: permissions[role] || [],
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
+
+      const text = await res.text();
+      console.log("Response status:", res.status, "body:", text);
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch {
+        throw new Error(`Server returned non-JSON: ${text.slice(0, 200)}`);
+      }
 
       if (res.ok && data.status) {
         setOriginal((prev) => ({
@@ -163,16 +179,26 @@ const Permissions = () => {
           [role]: [...(permissions[role] || [])],
         }));
 
-        // ✅ NEW — make PermissionsContext re-fetch so can() is fresh
-        await refreshPermissions();
+        // ✅ Only call refresh if it actually exists
+        if (typeof refreshPermissions === "function") {
+          try {
+            await refreshPermissions();
+          } catch (e) {
+            console.warn("refreshPermissions failed (non-fatal):", e);
+          }
+        } else {
+          console.warn(
+            "refreshPermissions not available — skipping refresh (save still succeeded)",
+          );
+        }
 
         toast.success(`✅ ${role} permissions saved`);
       } else {
-        toast.error(data.error || "Failed to save");
+        toast.error(data.error || `Save failed (HTTP ${res.status})`);
       }
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to save permissions");
+      console.error("Save error:", err);
+      toast.error(`Save error: ${err.message || "Unknown"}`);
     } finally {
       setSavingRole(null);
     }
