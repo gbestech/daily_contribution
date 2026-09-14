@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
@@ -25,6 +25,13 @@ const AdminDashboard = () => {
   const [selectedMember, setSelectedMember] = useState(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
+
+  // ===== VOICE RECOGNITION STATE =====
+  const [isListening, setIsListening] = useState(false);
+  const [voiceSupported, setVoiceSupported] = useState(true);
+  const [voiceTranscript, setVoiceTranscript] = useState("");
+  const [voiceFeedback, setVoiceFeedback] = useState("");
+  const recognitionRef = useRef(null);
 
   const [transactionData, setTransactionData] = useState({
     memberId: "",
@@ -791,6 +798,336 @@ const AdminDashboard = () => {
     setShowViewModal(true);
   };
 
+  // ============================================================
+  // ===== VOICE RECOGNITION LOGIC =====
+  // ============================================================
+
+  // Helper: show feedback message
+  const showVoiceFeedback = useCallback((msg) => {
+    setVoiceFeedback(msg);
+    setTimeout(() => setVoiceFeedback(""), 4000);
+  }, []);
+
+  // Helper: speak a response back to the user
+  const speak = useCallback((text) => {
+    if (!("speechSynthesis" in window)) return;
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 1;
+    utterance.pitch = 1;
+    utterance.lang = "en-NG";
+    window.speechSynthesis.speak(utterance);
+  }, []);
+
+  // Helper: switch tabs by voice
+  const switchTab = useCallback(
+    (tab) => {
+      setActiveTab(tab);
+      const tabNames = {
+        members: "Members",
+        pending_loans: "Pending Loans",
+        all_loans: "All Loans",
+        transactions: "Transactions",
+        expenses: "Expenses",
+      };
+      showVoiceFeedback(`📂 Opened ${tabNames[tab]}`);
+      speak(`Opening ${tabNames[tab]}`);
+    },
+    [showVoiceFeedback, speak],
+  );
+
+  // Helper: extract number from voice transcript
+  const extractNumber = (text) => {
+    const words = text.toLowerCase().split(/\s+/);
+    const numberWords = {
+      zero: 0,
+      one: 1,
+      two: 2,
+      three: 3,
+      four: 4,
+      five: 5,
+      six: 6,
+      seven: 7,
+      eight: 8,
+      nine: 9,
+      ten: 10,
+      twenty: 20,
+      thirty: 30,
+      forty: 40,
+      fifty: 50,
+      hundred: 100,
+      thousand: 1000,
+      million: 1000000,
+    };
+    // Try direct numeric match first
+    const digitMatch = text.replace(/,/g, "").match(/\d+(\.\d+)?/);
+    if (digitMatch) return parseFloat(digitMatch[0]);
+    // Try word-based number
+    let total = 0;
+    let current = 0;
+    let found = false;
+    for (const w of words) {
+      if (numberWords[w] !== undefined) {
+        found = true;
+        const val = numberWords[w];
+        if (val === 100) current = (current || 1) * 100;
+        else if (val === 1000) {
+          total += (current || 1) * 1000;
+          current = 0;
+        } else if (val === 1000000) {
+          total += (current || 1) * 1000000;
+          current = 0;
+        } else current += val;
+      }
+    }
+    if (found) return total + current;
+    return null;
+  };
+
+  // Main: process a voice command
+  const processVoiceCommand = useCallback(
+    (rawText) => {
+      const text = rawText.toLowerCase().trim();
+      setVoiceTranscript(rawText);
+
+      // ---- TAB NAVIGATION ----
+      if (text.includes("member") && !text.includes("new")) {
+        switchTab("members");
+        return;
+      }
+      if (text.includes("pending loan")) {
+        switchTab("pending_loans");
+        return;
+      }
+      if (text.includes("all loan") || text === "loans") {
+        switchTab("all_loans");
+        return;
+      }
+      if (text.includes("transaction")) {
+        switchTab("transactions");
+        return;
+      }
+      if (text.includes("expense")) {
+        switchTab("expenses");
+        return;
+      }
+
+      // ---- ACTIONS ----
+      if (text.includes("refresh") || text.includes("reload")) {
+        showVoiceFeedback("🔄 Refreshing data...");
+        speak("Refreshing data");
+        refreshData();
+        return;
+      }
+
+      if (
+        text.includes("new transaction") ||
+        text.includes("add transaction") ||
+        text.includes("create transaction")
+      ) {
+        setShowTransactionModal(true);
+        showVoiceFeedback("💳 Opening transaction form");
+        speak("Opening new transaction");
+        return;
+      }
+
+      if (
+        text.includes("new transfer") ||
+        text.includes("make transfer") ||
+        text.includes("transfer funds")
+      ) {
+        setShowTransferModal(true);
+        showVoiceFeedback("🔄 Opening transfer form");
+        speak("Opening transfer form");
+        return;
+      }
+
+      if (
+        text.includes("new expense") ||
+        text.includes("add expense") ||
+        text.includes("create expense")
+      ) {
+        setShowExpenseModal(true);
+        showVoiceFeedback("🧾 Opening expense form");
+        speak("Opening new expense");
+        return;
+      }
+
+      if (text.includes("close") || text.includes("cancel")) {
+        setShowTransactionModal(false);
+        setShowTransferModal(false);
+        setShowExpenseModal(false);
+        setShowCreateModal(false);
+        setShowEditModal(false);
+        setShowViewModal(false);
+        showVoiceFeedback("❌ Closed modal");
+        speak("Closed");
+        return;
+      }
+
+      // ---- SEARCH ----
+      if (text.startsWith("search") || text.startsWith("find")) {
+        const query = text.replace(/^(search|find)( for)?\s*/, "").trim();
+        if (query) {
+          setSearchTerm(query);
+          setActiveTab("members");
+          showVoiceFeedback(`🔍 Searching for "${query}"`);
+          speak(`Searching for ${query}`);
+        } else {
+          showVoiceFeedback("⚠️ Please say a name to search");
+          speak("Please say a name to search");
+        }
+        return;
+      }
+
+      if (text.includes("clear search")) {
+        setSearchTerm("");
+        showVoiceFeedback("🧹 Search cleared");
+        speak("Search cleared");
+        return;
+      }
+
+      // ---- STATS ----
+      if (
+        text.includes("how many members") ||
+        text.includes("total members") ||
+        text.includes("number of members")
+      ) {
+        const msg = `There are ${members.length} members`;
+        showVoiceFeedback(`👥 ${msg}`);
+        speak(msg);
+        return;
+      }
+
+      if (text.includes("total balance") || text.includes("how much balance")) {
+        const total = members.reduce((s, m) => s + (m.balance || 0), 0);
+        const msg = `Total balance is ${formatCurrency(total)}`;
+        showVoiceFeedback(`💰 ${msg}`);
+        speak(msg);
+        return;
+      }
+
+      if (text.includes("pending") && text.includes("count")) {
+        const msg = `There are ${pendingLoans.length} pending loans and ${pendingExpenses.length} pending expenses`;
+        showVoiceFeedback(`⏳ ${msg}`);
+        speak(msg);
+        return;
+      }
+
+      // ---- HELP ----
+      if (text.includes("help") || text.includes("what can i say")) {
+        const helpMsg =
+          "You can say: open members, open transactions, open expenses, new transaction, new transfer, new expense, refresh data, search for a name, how many members, total balance, or close.";
+        showVoiceFeedback(`ℹ️ ${helpMsg}`);
+        speak(helpMsg);
+        return;
+      }
+
+      // ---- FALLBACK ----
+      showVoiceFeedback(`🤔 Didn't understand: "${rawText}"`);
+      speak("Sorry, I did not understand that command");
+    },
+    [
+      switchTab,
+      refreshData,
+      showVoiceFeedback,
+      speak,
+      members,
+      pendingLoans.length,
+      pendingExpenses.length,
+    ],
+  );
+
+  // Setup SpeechRecognition
+  useEffect(() => {
+    const SpeechRecognition =
+      window.SpeechRecognition || window.webkitSpeechRecognition;
+
+    if (!SpeechRecognition) {
+      setVoiceSupported(false);
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.continuous = false;
+    recognition.interimResults = false;
+    recognition.lang = "en-NG";
+    recognition.maxAlternatives = 1;
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      setVoiceFeedback("🎤 Listening...");
+    };
+
+    recognition.onresult = (event) => {
+      const transcript = event.results[0][0].transcript;
+      processVoiceCommand(transcript);
+    };
+
+    recognition.onerror = (event) => {
+      setIsListening(false);
+      if (event.error === "not-allowed") {
+        showVoiceFeedback("🚫 Microphone permission denied");
+        toast.error("Microphone access denied");
+      } else if (event.error === "no-speech") {
+        showVoiceFeedback("🔇 No speech detected");
+      } else {
+        showVoiceFeedback(`⚠️ Voice error: ${event.error}`);
+      }
+    };
+
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+
+    recognitionRef.current = recognition;
+
+    return () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.abort();
+        } catch (e) {}
+      }
+    };
+  }, [processVoiceCommand, showVoiceFeedback]);
+
+  // Toggle listening
+  const toggleVoiceRecognition = useCallback(() => {
+    if (!voiceSupported) {
+      toast.error("Voice recognition not supported in this browser");
+      return;
+    }
+    if (!recognitionRef.current) return;
+
+    if (isListening) {
+      recognitionRef.current.stop();
+      setIsListening(false);
+      setVoiceFeedback("");
+    } else {
+      try {
+        recognitionRef.current.start();
+      } catch (e) {
+        // already started
+      }
+    }
+  }, [isListening, voiceSupported]);
+
+  // Keyboard shortcut: Ctrl + M to toggle mic
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.ctrlKey && e.key.toLowerCase() === "m") {
+        e.preventDefault();
+        toggleVoiceRecognition();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [toggleVoiceRecognition]);
+
+  // ============================================================
+  // ===== END VOICE RECOGNITION LOGIC =====
+  // ============================================================
+
   if (error) {
     return (
       <div
@@ -872,6 +1209,14 @@ const AdminDashboard = () => {
         @keyframes fadeIn {
           from { opacity: 0; transform: translateY(10px); }
           to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes pulseMic {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.7); }
+          50% { box-shadow: 0 0 0 12px rgba(239, 68, 68, 0); }
+        }
+        @keyframes soundWave {
+          0%, 100% { transform: scaleY(0.4); }
+          50% { transform: scaleY(1); }
         }
         .modal-overlay {
           position: fixed; inset: 0;
@@ -1023,6 +1368,86 @@ const AdminDashboard = () => {
           cursor: pointer; font-size: 12px; font-weight: 500;
         }
         .btn-reject:hover { background-color: #dc2626; }
+
+        /* ===== VOICE MIC BUTTON ===== */
+        .mic-btn {
+          position: fixed;
+          bottom: 28px;
+          right: 28px;
+          width: 64px;
+          height: 64px;
+          border-radius: 50%;
+          border: none;
+          cursor: pointer;
+          z-index: 1100;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 28px;
+          transition: all 0.3s ease;
+          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+        }
+        .mic-btn.idle {
+          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
+          color: white;
+        }
+        .mic-btn.idle:hover {
+          transform: scale(1.08);
+        }
+        .mic-btn.listening {
+          background: linear-gradient(135deg, #ef4444, #dc2626);
+          color: white;
+          animation: pulseMic 1.5s infinite;
+        }
+        .mic-btn.disabled {
+          background: #475569;
+          color: #94a3b8;
+          cursor: not-allowed;
+        }
+        .voice-toast {
+          position: fixed;
+          bottom: 108px;
+          right: 28px;
+          max-width: 340px;
+          background-color: rgba(30, 41, 59, 0.98);
+          border: 1px solid rgba(255,255,255,0.15);
+          border-radius: 12px;
+          padding: 14px 18px;
+          color: white;
+          font-size: 14px;
+          z-index: 1100;
+          box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          animation: fadeIn 0.25s ease;
+          backdrop-filter: blur(8px);
+        }
+        .voice-toast .transcript {
+          font-size: 12px;
+          color: #94a3b8;
+          margin-top: 6px;
+          font-style: italic;
+          border-top: 1px solid rgba(255,255,255,0.08);
+          padding-top: 6px;
+        }
+        .sound-wave {
+          display: inline-flex;
+          align-items: center;
+          gap: 2px;
+          height: 16px;
+          margin-left: 6px;
+        }
+        .sound-wave span {
+          display: inline-block;
+          width: 3px;
+          height: 100%;
+          background-color: #ef4444;
+          border-radius: 2px;
+          animation: soundWave 0.8s ease-in-out infinite;
+        }
+        .sound-wave span:nth-child(1) { animation-delay: 0s; }
+        .sound-wave span:nth-child(2) { animation-delay: 0.15s; }
+        .sound-wave span:nth-child(3) { animation-delay: 0.3s; }
+        .sound-wave span:nth-child(4) { animation-delay: 0.45s; }
+        .sound-wave span:nth-child(5) { animation-delay: 0.6s; }
       `}</style>
 
       {/* Header */}
@@ -2556,6 +2981,53 @@ const AdminDashboard = () => {
           </div>
         </div>
       )}
+
+      {/* ===== VOICE RECOGNITION UI ===== */}
+
+      {/* Voice feedback toast */}
+      {voiceFeedback && (
+        <div className="voice-toast">
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+            }}
+          >
+            <span style={{ fontWeight: "600" }}>{voiceFeedback}</span>
+            {isListening && (
+              <span className="sound-wave">
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+                <span></span>
+              </span>
+            )}
+          </div>
+          {voiceTranscript && isListening && (
+            <div className="transcript">"{voiceTranscript}"</div>
+          )}
+        </div>
+      )}
+
+      {/* Floating mic button */}
+      <button
+        className={`mic-btn ${
+          !voiceSupported ? "disabled" : isListening ? "listening" : "idle"
+        }`}
+        onClick={toggleVoiceRecognition}
+        title={
+          !voiceSupported
+            ? "Voice recognition not supported"
+            : isListening
+              ? "Stop listening (Ctrl+M)"
+              : "Start voice command (Ctrl+M)"
+        }
+        disabled={!voiceSupported}
+      >
+        {isListening ? "🎙️" : "🎤"}
+      </button>
     </div>
   );
 };

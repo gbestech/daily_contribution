@@ -89,7 +89,7 @@ const Broadsheet = () => {
       const m = members.find((x) => Number(x.id) === Number(memberId));
       return m ? m.name : "Unknown";
     },
-    [members],
+    [members]
   );
 
   const cleanDescription = (text) => {
@@ -162,7 +162,7 @@ const Broadsheet = () => {
       }
 
       all.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
       );
 
       setTransactions(calculateAndNormalize(all));
@@ -190,14 +190,14 @@ const Broadsheet = () => {
 
       // 1) Exact-ish match (contains)
       let matches = members.filter((m) =>
-        m.name?.toLowerCase().includes(cleaned),
+        m.name?.toLowerCase().includes(cleaned)
       );
 
       // 2) Fallback: match by any word in the name
       if (matches.length === 0) {
         const words = cleaned.split(/\s+/).filter(Boolean);
         matches = members.filter((m) =>
-          words.some((w) => m.name?.toLowerCase().includes(w)),
+          words.some((w) => m.name?.toLowerCase().includes(w))
         );
       }
 
@@ -207,13 +207,13 @@ const Broadsheet = () => {
         toast.success(
           matches.length === 1
             ? `👤 Found: ${matches[0].name}`
-            : `Found ${matches.length} matches — showing ${matches[0].name}`,
+            : `Found ${matches.length} matches — showing ${matches[0].name}`
         );
       } else {
         toast.error(`No member found matching "${spokenText}"`);
       }
     },
-    [members],
+    [members]
   );
 
   // Speech recognition hook
@@ -236,7 +236,7 @@ const Broadsheet = () => {
     console.log("🎙️ Voice supported:", voiceSupported);
     console.log(
       "SpeechRecognition available:",
-      !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition)
     );
     console.log("Protocol:", window.location.protocol);
     console.log("Host:", window.location.host);
@@ -257,13 +257,9 @@ const Broadsheet = () => {
         return (
           name.includes(term) ||
           String(t.accountNumber || "").includes(term) ||
-          String(t.description || "")
-            .toLowerCase()
-            .includes(term) ||
+          String(t.description || "").toLowerCase().includes(term) ||
           String(t.id || "").includes(term) ||
-          String(t.type || "")
-            .toLowerCase()
-            .includes(term)
+          String(t.type || "").toLowerCase().includes(term)
         );
       });
     }
@@ -360,7 +356,7 @@ const Broadsheet = () => {
 
     const totalCharges = filtered.reduce(
       (s, t) => s + (parseFloat(t.charge) || 0),
-      0,
+      0
     );
 
     return {
@@ -377,7 +373,7 @@ const Broadsheet = () => {
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage,
+    currentPage * itemsPerPage
   );
 
   // ---------- BADGES ----------
@@ -792,7 +788,7 @@ const Broadsheet = () => {
               onClick={() => {
                 if (!voiceSupported) {
                   toast.error(
-                    "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS.",
+                    "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS."
                   );
                   return;
                 }
@@ -805,11 +801,15 @@ const Broadsheet = () => {
                 !voiceSupported
                   ? "Voice not supported in this browser/context"
                   : isListening
-                    ? "Stop listening"
-                    : "Speak a name to search & show details"
+                  ? "Stop listening"
+                  : "Speak a name to search & show details"
               }
             >
-              {isListening ? "🔴 Stop" : voiceSupported ? "🎙️ Voice" : "🎙️ N/A"}
+              {isListening
+                ? "🔴 Stop"
+                : voiceSupported
+                ? "🎙️ Voice"
+                : "🎙️ N/A"}
             </button>
           </div>
 
@@ -1005,17 +1005,17 @@ const Broadsheet = () => {
                       const isDebit =
                         t.category === "debit" || t.type === "withdrawal";
                       return s + (isDebit ? -t.amount : t.amount);
-                    }, 0),
+                    }, 0)
                   )}
                 </td>
                 <td className="bs-right bs-charge">
                   {formatCurrency(
-                    paginated.reduce((s, t) => s + (t.charge || 0), 0),
+                    paginated.reduce((s, t) => s + (t.charge || 0), 0)
                   )}
                 </td>
                 <td className="bs-right bs-net">
                   {formatCurrency(
-                    paginated.reduce((s, t) => s + (t.net || 0), 0),
+                    paginated.reduce((s, t) => s + (t.net || 0), 0)
                   )}
                 </td>
                 <td colSpan="2"></td>

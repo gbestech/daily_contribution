@@ -1,11 +1,6 @@
 // src/App.jsx
 import React from "react";
-import {
-  BrowserRouter as Router,
-  Routes,
-  Route,
-  Navigate,
-} from "react-router-dom";
+import { Routes, Route, Navigate } from "react-router-dom";
 import { Toaster } from "react-hot-toast";
 import { AuthProvider, useAuth } from "./context/AuthContext";
 import { PermissionsProvider } from "./context/PermissionsContext";
@@ -51,9 +46,6 @@ function AppRoutes() {
       <Route path="/register-member" element={<PublicRegister />} />
 
       {/* ============ ADMIN / MANAGER ROUTES ============ */}
-      {/* ProtectedRoute automatically checks ROUTE_PERMISSIONS[path].
-          Managers reach these only if the admin granted the permission. */}
-
       <Route
         path="/admin"
         element={
@@ -322,25 +314,23 @@ function AppRoutes() {
 
 function App() {
   return (
-    <Router>
-      <AuthProvider>
-        <PermissionsProvider>
-          <Toaster
-            position="top-right"
-            toastOptions={{
-              style: {
-                background: "#1a1a2e",
-                color: "#fff",
-                border: "1px solid rgba(255,255,255,0.1)",
-              },
-              success: { icon: "✅", duration: 3000 },
-              error: { icon: "❌", duration: 4000 },
-            }}
-          />
-          <AppRoutes />
-        </PermissionsProvider>
-      </AuthProvider>
-    </Router>
+    <AuthProvider>
+      <PermissionsProvider>
+        <Toaster
+          position="top-right"
+          toastOptions={{
+            style: {
+              background: "var(--bg-surface, #1a1a2e)",
+              color: "var(--text, #fff)",
+              border: "1px solid var(--border, rgba(255,255,255,0.1))",
+            },
+            success: { icon: "✅", duration: 3000 },
+            error: { icon: "❌", duration: 4000 },
+          }}
+        />
+        <AppRoutes />
+      </PermissionsProvider>
+    </AuthProvider>
   );
 }
 
