@@ -1,5 +1,9 @@
+// src/components/Broadsheet.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
+
+import useSpeechRecognition from "../hooks/useSpeechRecognition";
+import MemberDetailModal from "./MemberDetailModal";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -43,6 +47,10 @@ const Broadsheet = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
+  // Speech + modal state
+  const [selectedMember, setSelectedMember] = useState(null);
+  const [showMemberModal, setShowMemberModal] = useState(false);
+
   // ---------- HELPERS ----------
   const formatCurrency = (amt) => {
     const num = parseFloat(amt) || 0;
@@ -84,7 +92,6 @@ const Broadsheet = () => {
     [members],
   );
 
-  // ✅ Clean up the description — removes "(ID: xx)" from any text
   const cleanDescription = (text) => {
     if (!text) return "";
     return String(text)
@@ -121,7 +128,6 @@ const Broadsheet = () => {
         amount,
         charge,
         net,
-        // ✅ Strip out "(ID: xx)" from the description
         description: cleanDescription(t.description),
       };
     });
@@ -147,7 +153,6 @@ const Broadsheet = () => {
         all = [...tData.transactions];
       }
 
-      // Role filter
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const u = JSON.parse(storedUser);
@@ -175,6 +180,67 @@ const Broadsheet = () => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Voice result handler
+  const handleVoiceResult = useCallback(
+    (spokenText) => {
+      if (!spokenText) return;
+      const cleaned = spokenText.toLowerCase().trim();
+      setSearchTerm(cleaned);
+
+      // 1) Exact-ish match (contains)
+      let matches = members.filter((m) =>
+        m.name?.toLowerCase().includes(cleaned),
+      );
+
+      // 2) Fallback: match by any word in the name
+      if (matches.length === 0) {
+        const words = cleaned.split(/\s+/).filter(Boolean);
+        matches = members.filter((m) =>
+          words.some((w) => m.name?.toLowerCase().includes(w)),
+        );
+      }
+
+      if (matches.length > 0) {
+        setSelectedMember(matches[0]);
+        setShowMemberModal(true);
+        toast.success(
+          matches.length === 1
+            ? `👤 Found: ${matches[0].name}`
+            : `Found ${matches.length} matches — showing ${matches[0].name}`,
+        );
+      } else {
+        toast.error(`No member found matching "${spokenText}"`);
+      }
+    },
+    [members],
+  );
+
+  // Speech recognition hook
+  const {
+    isListening,
+    transcript,
+    isSupported: voiceSupported,
+    toggleListening,
+  } = useSpeechRecognition({
+    onResult: handleVoiceResult,
+    onError: (err) => {
+      if (err !== "aborted" && err !== "no-speech") {
+        toast.error(`🎙️ Mic error: ${err}`);
+      }
+    },
+  });
+
+  // Debug logs — remove later if you want
+  useEffect(() => {
+    console.log("🎙️ Voice supported:", voiceSupported);
+    console.log(
+      "SpeechRecognition available:",
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition),
+    );
+    console.log("Protocol:", window.location.protocol);
+    console.log("Host:", window.location.host);
+  }, [voiceSupported]);
 
   // ---------- FILTERING + SORTING ----------
   const filtered = useMemo(() => {
@@ -214,7 +280,6 @@ const Broadsheet = () => {
       list = list.filter((t) => Number(t.memberId) === Number(filterMember));
     }
 
-    // Date granularity
     list = list.filter((t) => {
       if (!t.date) return false;
       const d = new Date(t.date);
@@ -234,7 +299,6 @@ const Broadsheet = () => {
       return true;
     });
 
-    // Sort
     list.sort((a, b) => {
       let ca, cb;
       if (sortBy === "amount") {
@@ -539,6 +603,46 @@ const Broadsheet = () => {
         .bs-filter-summary { margin-top: 12px; color: #9ca3af; font-size: 13px; }
         .bs-filter-summary strong { color: white; }
 
+        .bs-search-wrap {
+          display: flex;
+          gap: 8px;
+          align-items: stretch;
+        }
+        .bs-search-wrap .bs-input { flex: 1; }
+        .bs-mic-btn {
+          padding: 9px 14px;
+          border-radius: 6px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s;
+          border: 1px solid rgba(16,185,129,0.3);
+          background: rgba(16,185,129,0.15);
+          color: #34d399;
+        }
+        .bs-mic-btn:hover { background: rgba(16,185,129,0.25); }
+        .bs-mic-btn.listening {
+          border-color: #ef4444;
+          background: rgba(239,68,68,0.25);
+          color: #fca5a5;
+          animation: bs-pulse 1.2s infinite;
+        }
+        @keyframes bs-pulse {
+          0%, 100% { box-shadow: 0 0 0 0 rgba(239,68,68,0.5); }
+          50% { box-shadow: 0 0 0 8px rgba(239,68,68,0); }
+        }
+        .bs-mic-btn.unsupported {
+          opacity: 0.5;
+          cursor: not-allowed;
+          border-color: rgba(148,163,184,0.3);
+          background: rgba(148,163,184,0.15);
+          color: #94a3b8;
+        }
+        .bs-mic-btn.unsupported:hover {
+          background: rgba(148,163,184,0.15);
+        }
+
         .bs-table-wrap {
           background: rgba(255,255,255,0.05);
           border: 1px solid rgba(255,255,255,0.1);
@@ -670,13 +774,44 @@ const Broadsheet = () => {
       {/* Filters */}
       <div className="bs-filter-bar">
         <div className="bs-filter-grid">
-          <input
-            className="bs-input"
-            type="text"
-            placeholder="🔍 Search name, account, ID, description..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
+          {/* Search + Voice button */}
+          <div className="bs-search-wrap">
+            <input
+              className="bs-input"
+              type="text"
+              placeholder={
+                isListening
+                  ? `🎙️ Listening... ${transcript || ""}`
+                  : "🔍 Search name, account, ID, description..."
+              }
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => {
+                if (!voiceSupported) {
+                  toast.error(
+                    "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS.",
+                  );
+                  return;
+                }
+                toggleListening();
+              }}
+              className={`bs-mic-btn ${isListening ? "listening" : ""} ${
+                !voiceSupported ? "unsupported" : ""
+              }`}
+              title={
+                !voiceSupported
+                  ? "Voice not supported in this browser/context"
+                  : isListening
+                    ? "Stop listening"
+                    : "Speak a name to search & show details"
+              }
+            >
+              {isListening ? "🔴 Stop" : voiceSupported ? "🎙️ Voice" : "🎙️ N/A"}
+            </button>
+          </div>
 
           <select
             className="bs-select"
@@ -809,12 +944,14 @@ const Broadsheet = () => {
                 </td>
               </tr>
             ) : (
-              paginated.map((t) => {
+              paginated.map((t, idx) => {
                 const isDebit =
                   t.category === "debit" || t.type === "withdrawal";
                 return (
                   <tr key={t.id}>
-                    <td className="bs-mono">#{t.id}</td>
+                    <td className="bs-mono">
+                      {(currentPage - 1) * itemsPerPage + idx + 1}
+                    </td>
                     <td>{formatDate(t.date)}</td>
                     <td className="bs-muted">{formatTime(t.date) || "—"}</td>
                     <td>
@@ -931,6 +1068,20 @@ const Broadsheet = () => {
             </button>
           </div>
         </div>
+      )}
+
+      {/* Member Detail Modal */}
+      {showMemberModal && selectedMember && (
+        <MemberDetailModal
+          member={selectedMember}
+          transactions={transactions}
+          formatCurrency={formatCurrency}
+          formatDate={formatDate}
+          onClose={() => {
+            setShowMemberModal(false);
+            setSelectedMember(null);
+          }}
+        />
       )}
     </div>
   );
