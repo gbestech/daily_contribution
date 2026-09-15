@@ -4,6 +4,51 @@ import React, { createContext, useContext, useEffect, useState } from "react";
 const ThemeContext = createContext();
 
 export const THEMES = {
+  light: {
+    name: "Light",
+    icon: "☀️",
+    vars: {
+      // Page background: soft grey so white surfaces stand out
+      "--bg-app": "#eef2f7",
+      // Cards / panels: pure white
+      "--bg-surface": "#ffffff",
+      // Hover rows, subtle fills: clearly visible grey
+      "--bg-surface-2": "#f1f5f9",
+      // Active nav, chips: stronger grey
+      "--bg-surface-3": "#e2e8f0",
+      // Overlay behind modals
+      "--bg-overlay": "rgba(15,23,42,0.45)",
+
+      // Borders: visible but not heavy
+      "--border": "#cbd5e1",
+      "--border-strong": "#94a3b8",
+
+      // Text hierarchy: dark, high contrast
+      "--text": "#0f172a",
+      "--text-muted": "#475569",
+      "--text-dim": "#64748b",
+
+      // Accent (emerald, slightly deeper for contrast on white)
+      "--accent": "#047857",
+      "--accent-hover": "#065f46",
+      "--accent-text": "#065f46",
+
+      // Semantic colors
+      "--credit": "#047857",
+      "--debit": "#b91c1c",
+      "--warning": "#b45309",
+      "--info": "#1d4ed8",
+      "--purple": "#6d28d9",
+
+      // Status badges (more opaque so they read clearly)
+      "--pending-bg": "rgba(217,119,6,0.15)",
+      "--pending-border": "#b45309",
+      "--approved-bg": "rgba(5,150,105,0.15)",
+      "--approved-border": "#047857",
+      "--rejected-bg": "rgba(185,28,28,0.15)",
+      "--rejected-border": "#b91c1c",
+    },
+  },
   dark: {
     name: "Dark",
     icon: "🌙",
@@ -35,7 +80,7 @@ export const THEMES = {
     },
   },
   midnight: {
-    name: "Midnight",
+    name: "Moonlight",
     icon: "🌌",
     vars: {
       "--bg-app": "#0a0e27",
@@ -94,6 +139,36 @@ export const THEMES = {
       "--rejected-border": "#ef4444",
     },
   },
+  grey: {
+    name: "Grey",
+    icon: "🩶",
+    vars: {
+      "--bg-app": "#1c1c1e",
+      "--bg-surface": "#2c2c2e",
+      "--bg-surface-2": "rgba(255,255,255,0.06)",
+      "--bg-surface-3": "rgba(255,255,255,0.1)",
+      "--bg-overlay": "rgba(0,0,0,0.7)",
+      "--border": "rgba(255,255,255,0.12)",
+      "--border-strong": "rgba(255,255,255,0.22)",
+      "--text": "#f2f2f7",
+      "--text-muted": "#aeaeb2",
+      "--text-dim": "#8e8e93",
+      "--accent": "#8e8e93",
+      "--accent-hover": "#636366",
+      "--accent-text": "#d1d1d6",
+      "--credit": "#30d158",
+      "--debit": "#ff453a",
+      "--warning": "#ffd60a",
+      "--info": "#64d2ff",
+      "--purple": "#bf5af2",
+      "--pending-bg": "rgba(255,214,10,0.08)",
+      "--pending-border": "#ffd60a",
+      "--approved-bg": "rgba(48,209,88,0.08)",
+      "--approved-border": "#30d158",
+      "--rejected-bg": "rgba(255,69,58,0.08)",
+      "--rejected-border": "#ff453a",
+    },
+  },
 };
 
 export const ThemeProvider = ({ children }) => {
@@ -106,7 +181,7 @@ export const ThemeProvider = ({ children }) => {
     const vars = (THEMES[themeKey] || THEMES.dark).vars;
     const root = document.documentElement;
     Object.entries(vars).forEach(([k, v]) => root.style.setProperty(k, v));
-    root.setAttribute("data-theme", themeKey); // 👈 add this
+    root.setAttribute("data-theme", themeKey);
     localStorage.setItem("theme", themeKey);
   }, [themeKey]);
 

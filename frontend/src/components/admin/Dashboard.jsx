@@ -1,3 +1,4 @@
+// src/pages/admin/AdminDashboard.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 
@@ -26,12 +27,13 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
 
-  // ===== VOICE RECOGNITION STATE =====
+  // ===== VOICE STATE (mirrors Broadsheet) =====
   const [isListening, setIsListening] = useState(false);
-  const [voiceSupported, setVoiceSupported] = useState(true);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceFeedback, setVoiceFeedback] = useState("");
+  const [voiceSupported, setVoiceSupported] = useState(true);
   const recognitionRef = useRef(null);
+  const voiceFeedbackTimerRef = useRef(null);
 
   const [transactionData, setTransactionData] = useState({
     memberId: "",
@@ -94,7 +96,7 @@ const AdminDashboard = () => {
     }
   };
 
-  const refreshData = async () => {
+  const refreshData = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
@@ -105,7 +107,8 @@ const AdminDashboard = () => {
     } finally {
       setLoading(false);
     }
-  };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const fetchAllData = async () => {
     try {
@@ -255,7 +258,6 @@ const AdminDashboard = () => {
     }
   };
 
-  // ===== EXPENSE APPROVAL HANDLERS =====
   const handleApproveExpense = async (expenseId) => {
     if (!window.confirm("Approve this expense?")) return;
     try {
@@ -799,27 +801,33 @@ const AdminDashboard = () => {
   };
 
   // ============================================================
-  // ===== VOICE RECOGNITION LOGIC =====
+  // ===== VOICE RECOGNITION (mirrors Broadsheet pattern) =====
   // ============================================================
 
-  // Helper: show feedback message
   const showVoiceFeedback = useCallback((msg) => {
     setVoiceFeedback(msg);
-    setTimeout(() => setVoiceFeedback(""), 4000);
+    if (voiceFeedbackTimerRef.current) {
+      clearTimeout(voiceFeedbackTimerRef.current);
+    }
+    voiceFeedbackTimerRef.current = setTimeout(() => {
+      setVoiceFeedback("");
+    }, 4000);
   }, []);
 
-  // Helper: speak a response back to the user
   const speak = useCallback((text) => {
     if (!("speechSynthesis" in window)) return;
-    window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.rate = 1;
-    utterance.pitch = 1;
-    utterance.lang = "en-NG";
-    window.speechSynthesis.speak(utterance);
+    try {
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.rate = 1;
+      utterance.pitch = 1;
+      utterance.lang = "en-US";
+      window.speechSynthesis.speak(utterance);
+    } catch (e) {
+      // silent
+    }
   }, []);
 
-  // Helper: switch tabs by voice
   const switchTab = useCallback(
     (tab) => {
       setActiveTab(tab);
@@ -836,65 +844,12 @@ const AdminDashboard = () => {
     [showVoiceFeedback, speak],
   );
 
-  // Helper: extract number from voice transcript
-  const extractNumber = (text) => {
-    const words = text.toLowerCase().split(/\s+/);
-    const numberWords = {
-      zero: 0,
-      one: 1,
-      two: 2,
-      three: 3,
-      four: 4,
-      five: 5,
-      six: 6,
-      seven: 7,
-      eight: 8,
-      nine: 9,
-      ten: 10,
-      twenty: 20,
-      thirty: 30,
-      forty: 40,
-      fifty: 50,
-      hundred: 100,
-      thousand: 1000,
-      million: 1000000,
-    };
-    // Try direct numeric match first
-    const digitMatch = text.replace(/,/g, "").match(/\d+(\.\d+)?/);
-    if (digitMatch) return parseFloat(digitMatch[0]);
-    // Try word-based number
-    let total = 0;
-    let current = 0;
-    let found = false;
-    for (const w of words) {
-      if (numberWords[w] !== undefined) {
-        found = true;
-        const val = numberWords[w];
-        if (val === 100) current = (current || 1) * 100;
-        else if (val === 1000) {
-          total += (current || 1) * 1000;
-          current = 0;
-        } else if (val === 1000000) {
-          total += (current || 1) * 1000000;
-          current = 0;
-        } else current += val;
-      }
-    }
-    if (found) return total + current;
-    return null;
-  };
-
-  // Main: process a voice command
   const processVoiceCommand = useCallback(
     (rawText) => {
       const text = rawText.toLowerCase().trim();
       setVoiceTranscript(rawText);
 
       // ---- TAB NAVIGATION ----
-      if (text.includes("member") && !text.includes("new")) {
-        switchTab("members");
-        return;
-      }
       if (text.includes("pending loan")) {
         switchTab("pending_loans");
         return;
@@ -903,12 +858,16 @@ const AdminDashboard = () => {
         switchTab("all_loans");
         return;
       }
-      if (text.includes("transaction")) {
+      if (text.includes("transaction") && !text.includes("new")) {
         switchTab("transactions");
         return;
       }
-      if (text.includes("expense")) {
+      if (text.includes("expense") && !text.includes("new")) {
         switchTab("expenses");
+        return;
+      }
+      if (text.includes("member") && !text.includes("new")) {
+        switchTab("members");
         return;
       }
 
@@ -953,7 +912,7 @@ const AdminDashboard = () => {
         return;
       }
 
-      if (text.includes("close") || text.includes("cancel")) {
+      if (text === "close" || text === "cancel") {
         setShowTransactionModal(false);
         setShowTransferModal(false);
         setShowExpenseModal(false);
@@ -962,28 +921,6 @@ const AdminDashboard = () => {
         setShowViewModal(false);
         showVoiceFeedback("❌ Closed modal");
         speak("Closed");
-        return;
-      }
-
-      // ---- SEARCH ----
-      if (text.startsWith("search") || text.startsWith("find")) {
-        const query = text.replace(/^(search|find)( for)?\s*/, "").trim();
-        if (query) {
-          setSearchTerm(query);
-          setActiveTab("members");
-          showVoiceFeedback(`🔍 Searching for "${query}"`);
-          speak(`Searching for ${query}`);
-        } else {
-          showVoiceFeedback("⚠️ Please say a name to search");
-          speak("Please say a name to search");
-        }
-        return;
-      }
-
-      if (text.includes("clear search")) {
-        setSearchTerm("");
-        showVoiceFeedback("🧹 Search cleared");
-        speak("Search cleared");
         return;
       }
 
@@ -1023,7 +960,35 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- FALLBACK ----
+      // ---- SEARCH (explicit) ----
+      const searchMatch = text.match(
+        /^(search|find|look for|lookup)( for)?\s+(.+)$/,
+      );
+      if (searchMatch) {
+        const query = searchMatch[3].trim();
+        setSearchTerm(query);
+        setActiveTab("members");
+        showVoiceFeedback(`🔍 Searching for "${query}"`);
+        speak(`Searching for ${query}`);
+        return;
+      }
+
+      if (text.includes("clear search") || text === "clear") {
+        setSearchTerm("");
+        showVoiceFeedback("🧹 Search cleared");
+        speak("Search cleared");
+        return;
+      }
+
+      // ---- FALLBACK: treat short phrases as a name search ----
+      if (text.split(/\s+/).length <= 4) {
+        setSearchTerm(text);
+        setActiveTab("members");
+        showVoiceFeedback(`🔍 Searching for "${text}"`);
+        speak(`Searching for ${text}`);
+        return;
+      }
+
       showVoiceFeedback(`🤔 Didn't understand: "${rawText}"`);
       speak("Sorry, I did not understand that command");
     },
@@ -1038,7 +1003,13 @@ const AdminDashboard = () => {
     ],
   );
 
-  // Setup SpeechRecognition
+  // Keep handler in a ref (avoids stale closures)
+  const processCommandRef = useRef(processVoiceCommand);
+  useEffect(() => {
+    processCommandRef.current = processVoiceCommand;
+  }, [processVoiceCommand]);
+
+  // Setup SpeechRecognition once
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1051,7 +1022,7 @@ const AdminDashboard = () => {
     const recognition = new SpeechRecognition();
     recognition.continuous = false;
     recognition.interimResults = false;
-    recognition.lang = "en-NG";
+    recognition.lang = "en-US";
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -1061,7 +1032,7 @@ const AdminDashboard = () => {
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
-      processVoiceCommand(transcript);
+      processCommandRef.current(transcript);
     };
 
     recognition.onerror = (event) => {
@@ -1071,7 +1042,7 @@ const AdminDashboard = () => {
         toast.error("Microphone access denied");
       } else if (event.error === "no-speech") {
         showVoiceFeedback("🔇 No speech detected");
-      } else {
+      } else if (event.error !== "aborted") {
         showVoiceFeedback(`⚠️ Voice error: ${event.error}`);
       }
     };
@@ -1088,11 +1059,14 @@ const AdminDashboard = () => {
           recognitionRef.current.abort();
         } catch (e) {}
       }
+      if (voiceFeedbackTimerRef.current) {
+        clearTimeout(voiceFeedbackTimerRef.current);
+      }
     };
-  }, [processVoiceCommand, showVoiceFeedback]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
-  // Toggle listening
-  const toggleVoiceRecognition = useCallback(() => {
+  const toggleListening = useCallback(() => {
     if (!voiceSupported) {
       toast.error("Voice recognition not supported in this browser");
       return;
@@ -1100,7 +1074,9 @@ const AdminDashboard = () => {
     if (!recognitionRef.current) return;
 
     if (isListening) {
-      recognitionRef.current.stop();
+      try {
+        recognitionRef.current.stop();
+      } catch (e) {}
       setIsListening(false);
       setVoiceFeedback("");
     } else {
@@ -1112,20 +1088,20 @@ const AdminDashboard = () => {
     }
   }, [isListening, voiceSupported]);
 
-  // Keyboard shortcut: Ctrl + M to toggle mic
+  // Ctrl + M shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key.toLowerCase() === "m") {
         e.preventDefault();
-        toggleVoiceRecognition();
+        toggleListening();
       }
     };
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [toggleVoiceRecognition]);
+  }, [toggleListening]);
 
   // ============================================================
-  // ===== END VOICE RECOGNITION LOGIC =====
+  // ===== END VOICE RECOGNITION =====
   // ============================================================
 
   if (error) {
@@ -1295,7 +1271,6 @@ const AdminDashboard = () => {
           border-top: 1px solid rgba(255, 255, 255, 0.05);
         }
 
-        /* ====== STAT CARDS — auto-shrinking value ====== */
         .stat-card {
           background-color: rgba(255, 255, 255, 0.05);
           backdrop-filter: blur(10px);
@@ -1369,46 +1344,43 @@ const AdminDashboard = () => {
         }
         .btn-reject:hover { background-color: #dc2626; }
 
-        /* ===== VOICE MIC BUTTON ===== */
-        .mic-btn {
+        /* ===== VOICE MIC BUTTON (matches Broadsheet) ===== */
+        .ad-mic-btn {
+          padding: 10px 16px;
+          border-radius: 8px;
+          font-size: 14px;
+          font-weight: 600;
+          cursor: pointer;
+          white-space: nowrap;
+          transition: all 0.2s;
+          border: 1px solid rgba(16,185,129,0.3);
+          background: rgba(16,185,129,0.15);
+          color: #34d399;
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+        }
+        .ad-mic-btn:hover { background: rgba(16,185,129,0.25); }
+        .ad-mic-btn.listening {
+          border-color: #ef4444;
+          background: rgba(239,68,68,0.25);
+          color: #fca5a5;
+          animation: pulseMic 1.2s infinite;
+        }
+        .ad-mic-btn.unsupported {
+          opacity: 0.5;
+          cursor: not-allowed;
+          border-color: rgba(148,163,184,0.3);
+          background: rgba(148,163,184,0.15);
+          color: #94a3b8;
+        }
+        .ad-mic-btn.unsupported:hover { background: rgba(148,163,184,0.15); }
+
+        .voice-toast {
           position: fixed;
           bottom: 28px;
           right: 28px;
-          width: 64px;
-          height: 64px;
-          border-radius: 50%;
-          border: none;
-          cursor: pointer;
-          z-index: 1100;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          font-size: 28px;
-          transition: all 0.3s ease;
-          box-shadow: 0 8px 24px rgba(0,0,0,0.4);
-        }
-        .mic-btn.idle {
-          background: linear-gradient(135deg, #3b82f6, #8b5cf6);
-          color: white;
-        }
-        .mic-btn.idle:hover {
-          transform: scale(1.08);
-        }
-        .mic-btn.listening {
-          background: linear-gradient(135deg, #ef4444, #dc2626);
-          color: white;
-          animation: pulseMic 1.5s infinite;
-        }
-        .mic-btn.disabled {
-          background: #475569;
-          color: #94a3b8;
-          cursor: not-allowed;
-        }
-        .voice-toast {
-          position: fixed;
-          bottom: 108px;
-          right: 28px;
-          max-width: 340px;
+          max-width: 360px;
           background-color: rgba(30, 41, 59, 0.98);
           border: 1px solid rgba(255,255,255,0.15);
           border-radius: 12px;
@@ -1494,6 +1466,33 @@ const AdminDashboard = () => {
           >
             🔄 Refresh
           </button>
+
+          {/* 🎙️ Voice button — same style as Broadsheet */}
+          <button
+            type="button"
+            onClick={() => {
+              if (!voiceSupported) {
+                toast.error(
+                  "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS.",
+                );
+                return;
+              }
+              toggleListening();
+            }}
+            className={`ad-mic-btn ${isListening ? "listening" : ""} ${
+              !voiceSupported ? "unsupported" : ""
+            }`}
+            title={
+              !voiceSupported
+                ? "Voice not supported in this browser/context"
+                : isListening
+                  ? "Stop listening (Ctrl+M)"
+                  : "Speak a command (Ctrl+M)"
+            }
+          >
+            {isListening ? "🔴 Stop" : voiceSupported ? "🎙️ Voice" : "🎙️ N/A"}
+          </button>
+
           <button
             onClick={() => setShowTransactionModal(true)}
             style={{
@@ -1702,7 +1701,6 @@ const AdminDashboard = () => {
         >
           💳 Transactions
         </button>
-        {/* ===== EXPENSES TAB ===== */}
         <button
           onClick={() => setActiveTab("expenses")}
           style={{
@@ -1947,48 +1945,27 @@ const AdminDashboard = () => {
                         <div
                           style={{
                             display: "flex",
-                            gap: "4px",
+                            gap: "6px",
                             alignItems: "center",
                           }}
                         >
                           <button
                             onClick={() => handleViewMember(member)}
-                            style={{
-                              color: "#60a5fa",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "18px",
-                              padding: "4px 6px",
-                            }}
+                            className="action-btn action-btn-view"
                             title="View"
                           >
                             👁️
                           </button>
                           <button
                             onClick={() => handleEditMember(member)}
-                            style={{
-                              color: "#34d399",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "18px",
-                              padding: "4px 6px",
-                            }}
+                            className="action-btn action-btn-edit"
                             title="Edit"
                           >
                             ✏️
                           </button>
                           <button
                             onClick={() => handleDeleteMember(member.id)}
-                            style={{
-                              color: "#f87171",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "18px",
-                              padding: "4px 6px",
-                            }}
+                            className="action-btn action-btn-delete"
                             title="Delete"
                           >
                             🗑️
@@ -2420,7 +2397,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== EXPENSES TAB ===== */}
+      {/* Expenses Tab */}
       {activeTab === "expenses" && (
         <div
           style={{
@@ -2542,14 +2519,7 @@ const AdminDashboard = () => {
                         ) : (
                           <button
                             onClick={() => handleDeleteExpense(expense.id)}
-                            style={{
-                              color: "#f87171",
-                              background: "none",
-                              border: "none",
-                              cursor: "pointer",
-                              fontSize: "16px",
-                              padding: "4px 6px",
-                            }}
+                            className="action-btn action-btn-delete"
                             title="Delete"
                           >
                             🗑️
@@ -2860,7 +2830,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== EXPENSE MODAL ===== */}
+      {/* Expense Modal */}
       {showExpenseModal && (
         <div
           className="modal-overlay"
@@ -2982,9 +2952,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== VOICE RECOGNITION UI ===== */}
-
-      {/* Voice feedback toast */}
+      {/* ===== VOICE FEEDBACK TOAST ===== */}
       {voiceFeedback && (
         <div className="voice-toast">
           <div
@@ -3010,24 +2978,6 @@ const AdminDashboard = () => {
           )}
         </div>
       )}
-
-      {/* Floating mic button */}
-      <button
-        className={`mic-btn ${
-          !voiceSupported ? "disabled" : isListening ? "listening" : "idle"
-        }`}
-        onClick={toggleVoiceRecognition}
-        title={
-          !voiceSupported
-            ? "Voice recognition not supported"
-            : isListening
-              ? "Stop listening (Ctrl+M)"
-              : "Start voice command (Ctrl+M)"
-        }
-        disabled={!voiceSupported}
-      >
-        {isListening ? "🎙️" : "🎤"}
-      </button>
     </div>
   );
 };

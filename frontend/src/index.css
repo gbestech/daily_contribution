@@ -9,6 +9,190 @@
 }
 
 /* ============================================
+   THEME VARIABLES
+   Default = dark. Toggle via data-theme on <html>.
+   ============================================ */
+
+:root,
+[data-theme="dark"] {
+  --bg-app: #0f172a;
+  --bg-surface: #1e293b;
+  --bg-surface-2: #334155;
+  --bg-surface-3: #475569;
+  --bg-hover: #334155;
+
+  --text: #f1f5f9;
+  --text-muted: #94a3b8;
+  --text-dim: #64748b;
+  --text-inverse: #0f172a;
+
+  --border: #334155;
+  --border-strong: #475569;
+
+  --accent: #00aa69;
+  --accent-hover: #008f58;
+  --accent-text: #34d399;
+
+  --credit: #34d399;
+  --debit: #ef4444;
+  --warning: #f59e0b;
+  --info: #3b82f6;
+  --purple: #a855f7;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.3);
+
+  --debit-bg: rgba(239, 68, 68, 0.15);
+  --accent-bg: rgba(0, 170, 105, 0.2);
+  --approved-bg: rgba(16, 185, 129, 0.15);
+}
+
+/* ============================================ */
+
+[data-theme="light"] {
+  --bg-app: #f8fafc;
+  --bg-surface: #ffffff;
+  --bg-surface-2: #f1f5f9;
+  --bg-surface-3: #e2e8f0;
+  --bg-hover: #f1f5f9;
+
+  --text: #1e293b;
+  --text-muted: #64748b;
+  --text-dim: #94a3b8;
+  --text-inverse: #ffffff;
+
+  --border: #e2e8f0;
+  --border-strong: #cbd5e1;
+
+  --accent: #059669;
+  --accent-hover: #047857;
+  --accent-text: #047857;
+
+  --credit: #059669;
+  --debit: #dc2626;
+  --warning: #d97706;
+  --info: #2563eb;
+  --purple: #7c3aed;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+
+  --debit-bg: rgba(220, 38, 38, 0.1);
+  --accent-bg: rgba(5, 150, 105, 0.1);
+  --approved-bg: rgba(5, 150, 105, 0.1);
+}
+
+/* ============================================ */
+
+[data-theme="forest"] {
+  --bg-app: #0a1f14;
+  --bg-surface: #0f2b1c;
+  --bg-surface-2: #163a26;
+  --bg-surface-3: #1e4a31;
+  --bg-hover: #163a26;
+
+  --text: #d1fae5;
+  --text-muted: #6ee7b7;
+  --text-dim: #4ade80;
+  --text-inverse: #0a1f14;
+
+  --border: #1e4a31;
+  --border-strong: #2d5f3f;
+
+  --accent: #34d399;
+  --accent-hover: #10b981;
+  --accent-text: #6ee7b7;
+
+  --credit: #34d399;
+  --debit: #f87171;
+  --warning: #fbbf24;
+  --info: #38bdf8;
+  --purple: #c084fc;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  --debit-bg: rgba(248, 113, 113, 0.15);
+  --accent-bg: rgba(52, 211, 153, 0.15);
+  --approved-bg: rgba(52, 211, 153, 0.15);
+}
+
+/* ============================================ */
+
+[data-theme="moonlight"] {
+  --bg-app: #0b1026;
+  --bg-surface: #131a35;
+  --bg-surface-2: #1c2547;
+  --bg-surface-3: #2a3560;
+  --bg-hover: #1c2547;
+
+  --text: #e0e7ff;
+  --text-muted: #a5b4fc;
+  --text-dim: #818cf8;
+  --text-inverse: #0b1026;
+
+  --border: #2a3560;
+  --border-strong: #3b4675;
+
+  --accent: #a78bfa;
+  --accent-hover: #8b5cf6;
+  --accent-text: #c4b5fd;
+
+  --credit: #a78bfa;
+  --debit: #fb7185;
+  --warning: #fbbf24;
+  --info: #60a5fa;
+  --purple: #c084fc;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.5);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.5);
+
+  --debit-bg: rgba(251, 113, 133, 0.15);
+  --accent-bg: rgba(167, 139, 250, 0.15);
+  --approved-bg: rgba(167, 139, 250, 0.15);
+}
+
+/* ============================================ */
+
+[data-theme="grey"] {
+  --bg-app: #1c1c1e;
+  --bg-surface: #2c2c2e;
+  --bg-surface-2: #3a3a3c;
+  --bg-surface-3: #48484a;
+  --bg-hover: #3a3a3c;
+
+  --text: #f2f2f7;
+  --text-muted: #aeaeb2;
+  --text-dim: #8e8e93;
+  --text-inverse: #1c1c1e;
+
+  --border: #3a3a3c;
+  --border-strong: #48484a;
+
+  --accent: #8e8e93;
+  --accent-hover: #636366;
+  --accent-text: #d1d1d6;
+
+  --credit: #30d158;
+  --debit: #ff453a;
+  --warning: #ffd60a;
+  --info: #64d2ff;
+  --purple: #bf5af2;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
+  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.4);
+
+  --debit-bg: rgba(255, 69, 58, 0.15);
+  --accent-bg: rgba(142, 142, 147, 0.2);
+  --approved-bg: rgba(48, 209, 88, 0.15);
+}
+
+/* ============================================
    ROOT — apply theme variables to whole document
    ============================================ */
 html, body, #root {
