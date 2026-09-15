@@ -67,7 +67,7 @@
 //           left: 0,
 //           height: "100vh",
 //           width: "280px",
-//           backgroundColor: "#1e293b",
+//           backgroundColor: "var(--bg-surface)",
 //           borderRight: "1px solid rgba(255,255,255,0.1)",
 //           display: "flex",
 //           flexDirection: "column",
@@ -87,7 +87,7 @@
 //               right: "12px",
 //               background: "none",
 //               border: "none",
-//               color: "#9ca3af",
+//               color: "var(--text-muted)",
 //               fontSize: "24px",
 //               cursor: "pointer",
 //             }}
@@ -110,7 +110,7 @@
 //           <div>
 //             <h2
 //               style={{
-//                 color: "white",
+//                 color: "var(--text)",
 //                 margin: 0,
 //                 fontSize: "20px",
 //                 fontWeight: "bold",
@@ -118,7 +118,7 @@
 //             >
 //               Vault App
 //             </h2>
-//             <p style={{ color: "#9ca3af", margin: 0, fontSize: "12px" }}>
+//             <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "12px" }}>
 //               {isAdmin ? "Admin Panel" : "Member Panel"}
 //             </p>
 //           </div>
@@ -143,7 +143,7 @@
 //               display: "flex",
 //               alignItems: "center",
 //               justifyContent: "center",
-//               color: "#34d399",
+//               color: "var(--credit)",
 //               fontWeight: "bold",
 //               fontSize: "18px",
 //             }}
@@ -153,7 +153,7 @@
 //           <div style={{ flex: 1 }}>
 //             <p
 //               style={{
-//                 color: "white",
+//                 color: "var(--text)",
 //                 margin: 0,
 //                 fontSize: "14px",
 //                 fontWeight: "500",
@@ -161,7 +161,7 @@
 //             >
 //               {user?.name || "User"}
 //             </p>
-//             <p style={{ color: "#9ca3af", margin: 0, fontSize: "12px" }}>
+//             <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "12px" }}>
 //               {user?.accountNumber || "No account"}
 //             </p>
 //           </div>
@@ -174,7 +174,7 @@
 //               backgroundColor: isAdmin
 //                 ? "rgba(234, 179, 8, 0.2)"
 //                 : "rgba(16, 185, 129, 0.2)",
-//               color: isAdmin ? "#fbbf24" : "#34d399",
+//               color: isAdmin ? "var(--warning)" : "var(--credit)",
 //             }}
 //           >
 //             {isAdmin ? "Admin" : "Member"}
@@ -215,7 +215,7 @@
 //                   backgroundColor: isActive
 //                     ? "rgba(16, 185, 129, 0.15)"
 //                     : "transparent",
-//                   color: isActive ? "#34d399" : "#d1d5db",
+//                   color: isActive ? "var(--credit)" : "var(--text)",
 //                   textDecoration: "none",
 //                   transition: "all 0.2s",
 //                   cursor: "pointer",
@@ -243,7 +243,7 @@
 //                       marginLeft: "auto",
 //                       width: "4px",
 //                       height: "24px",
-//                       backgroundColor: "#10b981",
+//                       backgroundColor: "var(--accent)",
 //                       borderRadius: "2px",
 //                     }}
 //                   />
@@ -270,7 +270,7 @@
 //               padding: "12px 16px",
 //               borderRadius: "8px",
 //               backgroundColor: "rgba(239, 68, 68, 0.1)",
-//               color: "#f87171",
+//               color: "var(--debit)",
 //               border: "none",
 //               cursor: "pointer",
 //               fontSize: "14px",
@@ -376,7 +376,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           left: 0,
           height: "100vh",
           width: "280px",
-          backgroundColor: "#1e293b",
+          backgroundColor: "var(--bg-surface)",
           borderRight: "1px solid rgba(255,255,255,0.1)",
           display: "flex",
           flexDirection: "column",
@@ -396,7 +396,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               right: "12px",
               background: "none",
               border: "none",
-              color: "#9ca3af",
+              color: "var(--text-muted)",
               fontSize: "24px",
               cursor: "pointer",
               zIndex: 1001,
@@ -420,7 +420,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <div>
             <h2
               style={{
-                color: "white",
+                color: "var(--text)",
                 margin: 0,
                 fontSize: "20px",
                 fontWeight: "bold",
@@ -428,7 +428,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             >
               Vault App
             </h2>
-            <p style={{ color: "#9ca3af", margin: 0, fontSize: "12px" }}>
+            <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "12px" }}>
               {isAdmin ? "Admin Panel" : "Member Panel"}
             </p>
           </div>
@@ -453,7 +453,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               display: "flex",
               alignItems: "center",
               justifyContent: "center",
-              color: "#34d399",
+              color: "var(--credit)",
               fontWeight: "bold",
               fontSize: "18px",
             }}
@@ -463,7 +463,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
           <div style={{ flex: 1 }}>
             <p
               style={{
-                color: "white",
+                color: "var(--text)",
                 margin: 0,
                 fontSize: "14px",
                 fontWeight: "500",
@@ -471,7 +471,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
             >
               {user?.name || "User"}
             </p>
-            <p style={{ color: "#9ca3af", margin: 0, fontSize: "12px" }}>
+            <p style={{ color: "var(--text-muted)", margin: 0, fontSize: "12px" }}>
               {user?.email || "No email"}
             </p>
           </div>
@@ -484,7 +484,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               backgroundColor: isAdmin
                 ? "rgba(234, 179, 8, 0.2)"
                 : "rgba(16, 185, 129, 0.2)",
-              color: isAdmin ? "#fbbf24" : "#34d399",
+              color: isAdmin ? "var(--warning)" : "var(--credit)",
             }}
           >
             {isAdmin ? "Admin" : "Member"}
@@ -522,7 +522,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                   backgroundColor: isActive
                     ? "rgba(16, 185, 129, 0.15)"
                     : "transparent",
-                  color: isActive ? "#34d399" : "#d1d5db",
+                  color: isActive ? "var(--credit)" : "var(--text)",
                   textDecoration: "none",
                   transition: "all 0.2s",
                   cursor: "pointer",
@@ -551,7 +551,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
                       marginLeft: "auto",
                       width: "4px",
                       height: "24px",
-                      backgroundColor: "#10b981",
+                      backgroundColor: "var(--accent)",
                       borderRadius: "2px",
                     }}
                   />
@@ -578,7 +578,7 @@ const Sidebar = ({ isOpen, setIsOpen }) => {
               padding: "12px 16px",
               borderRadius: "8px",
               backgroundColor: "rgba(239, 68, 68, 0.1)",
-              color: "#f87171",
+              color: "var(--debit)",
               border: "none",
               cursor: "pointer",
               fontSize: "14px",

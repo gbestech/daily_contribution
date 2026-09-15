@@ -508,11 +508,11 @@ const AdminDashboard = () => {
   ];
 
   const colorMap = {
-    emerald: { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" },
-    gold: { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" },
+    emerald: { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" },
+    gold: { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" },
     cyan: { bg: "rgba(6, 182, 212, 0.2)", color: "#22d3ee" },
-    blue: { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" },
-    purple: { bg: "rgba(139, 92, 246, 0.2)", color: "#a78bfa" },
+    blue: { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" },
+    purple: { bg: "rgba(139, 92, 246, 0.2)", color: "var(--purple)" },
   };
 
   const filteredMembers = members.filter(
@@ -1129,16 +1129,16 @@ const AdminDashboard = () => {
         >
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
           <h2
-            style={{ color: "#f87171", fontSize: "20px", marginBottom: "12px" }}
+            style={{ color: "var(--debit)", fontSize: "20px", marginBottom: "12px" }}
           >
             Connection Error
           </h2>
-          <p style={{ color: "#9ca3af", marginBottom: "16px" }}>{error}</p>
+          <p style={{ color: "var(--text-muted)", marginBottom: "16px" }}>{error}</p>
           <button
             onClick={() => window.location.reload()}
             style={{
               backgroundColor: "#3b82f6",
-              color: "white",
+              color: "var(--text)",
               padding: "10px 24px",
               border: "none",
               borderRadius: "8px",
@@ -1166,7 +1166,7 @@ const AdminDashboard = () => {
           justifyContent: "center",
         }}
       >
-        <div style={{ color: "white", fontSize: "20px" }}>Loading...</div>
+        <div style={{ color: "var(--text)", fontSize: "20px" }}>Loading...</div>
       </div>
     );
   }
@@ -1202,7 +1202,7 @@ const AdminDashboard = () => {
           z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b; border-radius: 16px;
+          background-color: var(--bg-surface); border-radius: 16px;
           padding: 32px; max-width: 500px; width: 100%;
           max-height: 90vh; overflow-y: auto;
           border: 1px solid rgba(255,255,255,0.1);
@@ -1214,14 +1214,14 @@ const AdminDashboard = () => {
         }
         .modal-title { font-size: 18px; font-weight: bold; color: white; }
         .modal-close {
-          background: none; border: none; color: #94a3b8;
+          background: none; border: none; color: var(--text-muted);
           cursor: pointer; padding: 4px; font-size: 24px;
         }
         .modal-close:hover { color: white; }
         .form-group { margin-bottom: 16px; }
         .form-label {
           display: block; font-size: 14px; font-weight: 500;
-          color: #d1d5db; margin-bottom: 6px;
+          color: var(--text); margin-bottom: 6px;
         }
         .form-input {
           width: 100%; padding: 10px 14px; border-radius: 8px;
@@ -1230,16 +1230,16 @@ const AdminDashboard = () => {
           color: white; font-size: 14px; outline: none;
           box-sizing: border-box;
         }
-        .form-input:focus { border-color: #10b981; }
-        .form-input::placeholder { color: #6b7280; }
+        .form-input:focus { border-color: var(--accent); }
+        .form-input::placeholder { color: var(--text-dim); }
         .form-select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background-color: rgba(255,255,255,0.05);
           color: white; font-size: 14px; outline: none; cursor: pointer;
         }
-        .form-select:focus { border-color: #10b981; }
-        .form-select option { background-color: #1e293b; color: white; }
+        .form-select:focus { border-color: var(--accent); }
+        .form-select option { background-color: var(--bg-surface); color: white; }
         .btn-submit {
           width: 100%; padding: 12px; border-radius: 8px; border: none;
           background: linear-gradient(to right, #059669, #0d9488);
@@ -1261,7 +1261,7 @@ const AdminDashboard = () => {
         table { width: 100%; border-collapse: collapse; }
         th {
           padding: 14px 16px; text-align: left; font-size: 12px;
-          font-weight: 600; color: #9ca3af;
+          font-weight: 600; color: var(--text-muted);
           background-color: rgba(255, 255, 255, 0.08);
           position: sticky; top: 0; z-index: 10;
           white-space: nowrap;
@@ -1296,7 +1296,7 @@ const AdminDashboard = () => {
           height: 48px;
         }
         .stat-label {
-          color: #9ca3af;
+          color: var(--text-muted);
           font-size: 13px;
           margin: 0 0 4px 0;
           white-space: nowrap;
@@ -1321,24 +1321,24 @@ const AdminDashboard = () => {
           padding: 4px 12px; font-size: 12px; border-radius: 20px;
           font-weight: 500; display: inline-block;
         }
-        .badge-active { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
-        .badge-inactive { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
-        .badge-suspended { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
-        .badge-standard { background-color: rgba(59, 130, 246, 0.2); color: #60a5fa; }
-        .badge-premium { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
-        .badge-vip { background-color: rgba(168, 85, 247, 0.2); color: #a78bfa; }
-        .badge-pending { background-color: rgba(234, 179, 8, 0.2); color: #fbbf24; }
-        .badge-approved { background-color: rgba(16, 185, 129, 0.2); color: #34d399; }
-        .badge-rejected { background-color: rgba(239, 68, 68, 0.2); color: #f87171; }
+        .badge-active { background-color: rgba(16, 185, 129, 0.2); color: var(--credit); }
+        .badge-inactive { background-color: rgba(239, 68, 68, 0.2); color: var(--debit); }
+        .badge-suspended { background-color: rgba(234, 179, 8, 0.2); color: var(--warning); }
+        .badge-standard { background-color: rgba(59, 130, 246, 0.2); color: var(--info); }
+        .badge-premium { background-color: rgba(234, 179, 8, 0.2); color: var(--warning); }
+        .badge-vip { background-color: rgba(168, 85, 247, 0.2); color: var(--purple); }
+        .badge-pending { background-color: rgba(234, 179, 8, 0.2); color: var(--warning); }
+        .badge-approved { background-color: rgba(16, 185, 129, 0.2); color: var(--credit); }
+        .badge-rejected { background-color: rgba(239, 68, 68, 0.2); color: var(--debit); }
         .loan-actions { display: flex; gap: 8px; }
         .btn-approve {
-          background-color: #10b981; color: white;
+          background-color: var(--accent); color: white;
           padding: 6px 16px; border: none; border-radius: 6px;
           cursor: pointer; font-size: 12px; font-weight: 500;
         }
         .btn-approve:hover { background-color: #059669; }
         .btn-reject {
-          background-color: #ef4444; color: white;
+          background-color: var(--debit); color: white;
           padding: 6px 16px; border: none; border-radius: 6px;
           cursor: pointer; font-size: 12px; font-weight: 500;
         }
@@ -1355,14 +1355,14 @@ const AdminDashboard = () => {
           transition: all 0.2s;
           border: 1px solid rgba(16,185,129,0.3);
           background: rgba(16,185,129,0.15);
-          color: #34d399;
+          color: var(--credit);
           display: inline-flex;
           align-items: center;
           gap: 6px;
         }
         .ad-mic-btn:hover { background: rgba(16,185,129,0.25); }
         .ad-mic-btn.listening {
-          border-color: #ef4444;
+          border-color: var(--debit);
           background: rgba(239,68,68,0.25);
           color: #fca5a5;
           animation: pulseMic 1.2s infinite;
@@ -1372,7 +1372,7 @@ const AdminDashboard = () => {
           cursor: not-allowed;
           border-color: rgba(148,163,184,0.3);
           background: rgba(148,163,184,0.15);
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .ad-mic-btn.unsupported:hover { background: rgba(148,163,184,0.15); }
 
@@ -1394,7 +1394,7 @@ const AdminDashboard = () => {
         }
         .voice-toast .transcript {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-top: 6px;
           font-style: italic;
           border-top: 1px solid rgba(255,255,255,0.08);
@@ -1411,7 +1411,7 @@ const AdminDashboard = () => {
           display: inline-block;
           width: 3px;
           height: 100%;
-          background-color: #ef4444;
+          background-color: var(--debit);
           border-radius: 2px;
           animation: soundWave 0.8s ease-in-out infinite;
         }
@@ -1438,14 +1438,14 @@ const AdminDashboard = () => {
             style={{
               fontSize: "24px",
               fontWeight: "bold",
-              color: "white",
+              color: "var(--text)",
               margin: 0,
             }}
           >
             Admin Dashboard
           </h2>
           <p
-            style={{ fontSize: "14px", color: "#9ca3af", margin: "4px 0 0 0" }}
+            style={{ fontSize: "14px", color: "var(--text-muted)", margin: "4px 0 0 0" }}
           >
             Welcome back, {adminUsername} 👋
           </p>
@@ -1455,7 +1455,7 @@ const AdminDashboard = () => {
             onClick={refreshData}
             style={{
               backgroundColor: "rgba(59, 130, 246, 0.15)",
-              color: "#60a5fa",
+              color: "var(--info)",
               padding: "10px 20px",
               border: "1px solid rgba(59, 130, 246, 0.2)",
               borderRadius: "8px",
@@ -1497,7 +1497,7 @@ const AdminDashboard = () => {
             onClick={() => setShowTransactionModal(true)}
             style={{
               backgroundColor: "#3b82f6",
-              color: "white",
+              color: "var(--text)",
               padding: "10px 20px",
               border: "none",
               borderRadius: "8px",
@@ -1512,7 +1512,7 @@ const AdminDashboard = () => {
             onClick={() => setShowTransferModal(true)}
             style={{
               backgroundColor: "#8b5cf6",
-              color: "white",
+              color: "var(--text)",
               padding: "10px 20px",
               border: "none",
               borderRadius: "8px",
@@ -1526,8 +1526,8 @@ const AdminDashboard = () => {
           <button
             onClick={() => setShowExpenseModal(true)}
             style={{
-              backgroundColor: "#ef4444",
-              color: "white",
+              backgroundColor: "var(--debit)",
+              color: "var(--text)",
               padding: "10px 20px",
               border: "none",
               borderRadius: "8px",
@@ -1611,7 +1611,7 @@ const AdminDashboard = () => {
               activeTab === "members"
                 ? "rgba(16, 185, 129, 0.2)"
                 : "transparent",
-            color: activeTab === "members" ? "#34d399" : "#9ca3af",
+            color: activeTab === "members" ? "var(--credit)" : "var(--text-muted)",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
@@ -1631,7 +1631,7 @@ const AdminDashboard = () => {
               activeTab === "pending_loans"
                 ? "rgba(234, 179, 8, 0.2)"
                 : "transparent",
-            color: activeTab === "pending_loans" ? "#fbbf24" : "#9ca3af",
+            color: activeTab === "pending_loans" ? "var(--warning)" : "var(--text-muted)",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
@@ -1647,8 +1647,8 @@ const AdminDashboard = () => {
                 position: "absolute",
                 top: "-8px",
                 right: "-8px",
-                backgroundColor: "#ef4444",
-                color: "white",
+                backgroundColor: "var(--debit)",
+                color: "var(--text)",
                 fontSize: "10px",
                 fontWeight: "bold",
                 padding: "2px 6px",
@@ -1671,7 +1671,7 @@ const AdminDashboard = () => {
               activeTab === "all_loans"
                 ? "rgba(139, 92, 246, 0.2)"
                 : "transparent",
-            color: activeTab === "all_loans" ? "#a78bfa" : "#9ca3af",
+            color: activeTab === "all_loans" ? "var(--purple)" : "var(--text-muted)",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
@@ -1691,7 +1691,7 @@ const AdminDashboard = () => {
               activeTab === "transactions"
                 ? "rgba(59, 130, 246, 0.2)"
                 : "transparent",
-            color: activeTab === "transactions" ? "#60a5fa" : "#9ca3af",
+            color: activeTab === "transactions" ? "var(--info)" : "var(--text-muted)",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
@@ -1711,7 +1711,7 @@ const AdminDashboard = () => {
               activeTab === "expenses"
                 ? "rgba(239, 68, 68, 0.2)"
                 : "transparent",
-            color: activeTab === "expenses" ? "#f87171" : "#9ca3af",
+            color: activeTab === "expenses" ? "var(--debit)" : "var(--text-muted)",
             border: "none",
             borderRadius: "8px",
             cursor: "pointer",
@@ -1727,8 +1727,8 @@ const AdminDashboard = () => {
                 position: "absolute",
                 top: "-8px",
                 right: "-8px",
-                backgroundColor: "#ef4444",
-                color: "white",
+                backgroundColor: "var(--debit)",
+                color: "var(--text)",
                 fontSize: "10px",
                 fontWeight: "bold",
                 padding: "2px 6px",
@@ -1763,7 +1763,7 @@ const AdminDashboard = () => {
               style={{
                 width: "100%",
                 backgroundColor: "rgba(255, 255, 255, 0.1)",
-                color: "white",
+                color: "var(--text)",
                 padding: "12px 18px",
                 borderRadius: "8px",
                 border: "1px solid rgba(255, 255, 255, 0.1)",
@@ -1788,7 +1788,7 @@ const AdminDashboard = () => {
                 flexWrap: "wrap",
               }}
             >
-              <span style={{ color: "#94a3b8", fontSize: "13px" }}>
+              <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                 {selectedMembers.length} selected
               </span>
               {selectedMembers.length > 0 && (
@@ -1797,7 +1797,7 @@ const AdminDashboard = () => {
                     onClick={handleBulkSuspend}
                     style={{
                       backgroundColor: "rgba(234, 179, 8, 0.15)",
-                      color: "#fbbf24",
+                      color: "var(--warning)",
                       padding: "6px 16px",
                       border: "1px solid rgba(234, 179, 8, 0.2)",
                       borderRadius: "6px",
@@ -1812,7 +1812,7 @@ const AdminDashboard = () => {
                     onClick={handleBulkDelete}
                     style={{
                       backgroundColor: "rgba(239, 68, 68, 0.15)",
-                      color: "#f87171",
+                      color: "var(--debit)",
                       padding: "6px 16px",
                       border: "1px solid rgba(239, 68, 68, 0.2)",
                       borderRadius: "6px",
@@ -1845,7 +1845,7 @@ const AdminDashboard = () => {
                         type="checkbox"
                         checked={selectAll}
                         onChange={handleSelectAll}
-                        style={{ accentColor: "#10b981", cursor: "pointer" }}
+                        style={{ accentColor: "var(--accent)", cursor: "pointer" }}
                       />
                     </th>
                     <th>Member</th>
@@ -1869,7 +1869,7 @@ const AdminDashboard = () => {
                           type="checkbox"
                           checked={selectedMembers.includes(member.id)}
                           onChange={() => handleSelectMember(member.id)}
-                          style={{ accentColor: "#10b981", cursor: "pointer" }}
+                          style={{ accentColor: "var(--accent)", cursor: "pointer" }}
                         />
                       </td>
                       <td>
@@ -1889,7 +1889,7 @@ const AdminDashboard = () => {
                               display: "flex",
                               alignItems: "center",
                               justifyContent: "center",
-                              color: "#34d399",
+                              color: "var(--credit)",
                               fontSize: "18px",
                               fontWeight: "bold",
                               flexShrink: 0,
@@ -1899,7 +1899,7 @@ const AdminDashboard = () => {
                           </div>
                           <div
                             style={{
-                              color: "white",
+                              color: "var(--text)",
                               fontSize: "14px",
                               fontWeight: "500",
                             }}
@@ -1909,10 +1909,10 @@ const AdminDashboard = () => {
                         </div>
                       </td>
                       <td>
-                        <div style={{ color: "#d1d5db", fontSize: "13px" }}>
+                        <div style={{ color: "var(--text)", fontSize: "13px" }}>
                           {member.email}
                         </div>
-                        <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+                        <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                           {member.phone || "No phone"}
                         </div>
                       </td>
@@ -1933,7 +1933,7 @@ const AdminDashboard = () => {
                       <td
                         style={{
                           textAlign: "right",
-                          color: "#34d399",
+                          color: "var(--credit)",
                           fontWeight: "600",
                           fontSize: "15px",
                           whiteSpace: "nowrap",
@@ -2000,14 +2000,14 @@ const AdminDashboard = () => {
               alignItems: "center",
             }}
           >
-            <h3 style={{ color: "white", margin: 0 }}>
+            <h3 style={{ color: "var(--text)", margin: 0 }}>
               ⏳ Pending Loans ({pendingLoans.length})
             </h3>
             <button
               onClick={refreshData}
               style={{
                 backgroundColor: "rgba(59, 130, 246, 0.15)",
-                color: "#60a5fa",
+                color: "var(--info)",
                 padding: "6px 16px",
                 border: "1px solid rgba(59, 130, 246, 0.2)",
                 borderRadius: "6px",
@@ -2045,31 +2045,31 @@ const AdminDashboard = () => {
                         }}
                       >
                         <td
-                          style={{ color: "#60a5fa", fontFamily: "monospace" }}
+                          style={{ color: "var(--info)", fontFamily: "monospace" }}
                         >
                           #{loan.id}
                         </td>
                         <td>
-                          <div style={{ color: "white" }}>
+                          <div style={{ color: "var(--text)" }}>
                             {member ? member.name : "Unknown"}
                           </div>
                         </td>
-                        <td style={{ color: "#34d399", fontWeight: "600" }}>
+                        <td style={{ color: "var(--credit)", fontWeight: "600" }}>
                           {formatCurrency(loan.amount)}
                         </td>
-                        <td style={{ color: "#fbbf24" }}>
+                        <td style={{ color: "var(--warning)" }}>
                           {formatCurrency(loan.interest)}
                         </td>
-                        <td style={{ color: "white", fontWeight: "600" }}>
+                        <td style={{ color: "var(--text)", fontWeight: "600" }}>
                           {formatCurrency(loan.total_payable)}
                         </td>
-                        <td style={{ color: "#94a3b8" }}>
+                        <td style={{ color: "var(--text-muted)" }}>
                           {formatCurrency(loan.monthly_payment)}
                         </td>
-                        <td style={{ color: "#94a3b8" }}>
+                        <td style={{ color: "var(--text-muted)" }}>
                           {loan.duration_months} months
                         </td>
-                        <td style={{ color: "#94a3b8", fontSize: "13px" }}>
+                        <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                           {new Date(loan.request_date).toLocaleDateString()}
                         </td>
                         <td>
@@ -2097,7 +2097,7 @@ const AdminDashboard = () => {
                       colSpan="9"
                       style={{ textAlign: "center", padding: "40px" }}
                     >
-                      <div style={{ color: "#94a3b8" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
                         <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                           ✅
                         </div>
@@ -2128,7 +2128,7 @@ const AdminDashboard = () => {
               borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
             }}
           >
-            <h3 style={{ color: "white", margin: 0 }}>
+            <h3 style={{ color: "var(--text)", margin: 0 }}>
               📊 All Loans ({loans.length})
             </h3>
           </div>
@@ -2158,23 +2158,23 @@ const AdminDashboard = () => {
                         }}
                       >
                         <td
-                          style={{ color: "#60a5fa", fontFamily: "monospace" }}
+                          style={{ color: "var(--info)", fontFamily: "monospace" }}
                         >
                           #{loan.id}
                         </td>
-                        <td style={{ color: "white" }}>
+                        <td style={{ color: "var(--text)" }}>
                           {member ? member.name : "Unknown"}
                         </td>
-                        <td style={{ color: "#34d399", fontWeight: "600" }}>
+                        <td style={{ color: "var(--credit)", fontWeight: "600" }}>
                           {formatCurrency(loan.amount)}
                         </td>
-                        <td style={{ color: "#fbbf24" }}>
+                        <td style={{ color: "var(--warning)" }}>
                           {formatCurrency(loan.interest)}
                         </td>
-                        <td style={{ color: "white", fontWeight: "600" }}>
+                        <td style={{ color: "var(--text)", fontWeight: "600" }}>
                           {formatCurrency(loan.total_payable)}
                         </td>
-                        <td style={{ color: "#94a3b8" }}>
+                        <td style={{ color: "var(--text-muted)" }}>
                           {formatCurrency(loan.monthly_payment)}
                         </td>
                         <td>
@@ -2182,7 +2182,7 @@ const AdminDashboard = () => {
                             {loan.status.toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ color: "#94a3b8", fontSize: "13px" }}>
+                        <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                           {new Date(loan.request_date).toLocaleDateString()}
                         </td>
                       </tr>
@@ -2194,7 +2194,7 @@ const AdminDashboard = () => {
                       colSpan="8"
                       style={{ textAlign: "center", padding: "40px" }}
                     >
-                      <div style={{ color: "#94a3b8" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
                         <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                           📭
                         </div>
@@ -2230,7 +2230,7 @@ const AdminDashboard = () => {
               gap: "12px",
             }}
           >
-            <h3 style={{ color: "white", margin: 0 }}>
+            <h3 style={{ color: "var(--text)", margin: 0 }}>
               💳 All Transactions ({transactions.length})
             </h3>
             <div
@@ -2268,10 +2268,10 @@ const AdminDashboard = () => {
                     key={transaction.id}
                     style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}
                   >
-                    <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
+                    <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
                       #{transaction.id}
                     </td>
-                    <td style={{ color: "white" }}>{transaction.memberName}</td>
+                    <td style={{ color: "var(--text)" }}>{transaction.memberName}</td>
                     <td>
                       <span
                         style={{
@@ -2286,10 +2286,10 @@ const AdminDashboard = () => {
                                 : "rgba(239, 68, 68, 0.2)",
                           color:
                             transaction.type === "deposit"
-                              ? "#34d399"
+                              ? "var(--credit)"
                               : transaction.type === "transfer"
-                                ? "#a78bfa"
-                                : "#f87171",
+                                ? "var(--purple)"
+                                : "var(--debit)",
                         }}
                       >
                         {transaction.type.toUpperCase()}
@@ -2297,21 +2297,21 @@ const AdminDashboard = () => {
                     </td>
                     <td
                       style={{
-                        color: "white",
+                        color: "var(--text)",
                         fontWeight: "600",
                         whiteSpace: "nowrap",
                       }}
                     >
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ color: "#fbbf24", whiteSpace: "nowrap" }}>
+                    <td style={{ color: "var(--warning)", whiteSpace: "nowrap" }}>
                       {transaction.charge > 0
                         ? `−${formatCurrency(transaction.charge)}`
                         : "—"}
                     </td>
                     <td
                       style={{
-                        color: "#34d399",
+                        color: "var(--credit)",
                         fontWeight: "600",
                         whiteSpace: "nowrap",
                       }}
@@ -2334,16 +2334,16 @@ const AdminDashboard = () => {
                                 : "rgba(239, 68, 68, 0.2)",
                           color:
                             transaction.status === "approved"
-                              ? "#34d399"
+                              ? "var(--credit)"
                               : transaction.status === "pending"
-                                ? "#fbbf24"
-                                : "#f87171",
+                                ? "var(--warning)"
+                                : "var(--debit)",
                         }}
                       >
                         {transaction.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>
+                    <td style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                       {transaction.date}
                     </td>
                     <td>
@@ -2369,7 +2369,7 @@ const AdminDashboard = () => {
                           </button>
                         </div>
                       ) : (
-                        <span style={{ color: "#64748b", fontSize: "12px" }}>
+                        <span style={{ color: "var(--text-dim)", fontSize: "12px" }}>
                           —
                         </span>
                       )}
@@ -2382,7 +2382,7 @@ const AdminDashboard = () => {
                       colSpan="9"
                       style={{ textAlign: "center", padding: "40px" }}
                     >
-                      <div style={{ color: "#94a3b8" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
                         <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                           📭
                         </div>
@@ -2418,7 +2418,7 @@ const AdminDashboard = () => {
               gap: "12px",
             }}
           >
-            <h3 style={{ color: "white", margin: 0 }}>
+            <h3 style={{ color: "var(--text)", margin: 0 }}>
               🧾 All Expenses ({expenses.length}) — Pending:{" "}
               {pendingExpenses.length}
             </h3>
@@ -2426,7 +2426,7 @@ const AdminDashboard = () => {
               <div
                 style={{
                   backgroundColor: "rgba(239, 68, 68, 0.15)",
-                  color: "#f87171",
+                  color: "var(--debit)",
                   padding: "6px 14px",
                   borderRadius: "8px",
                   fontSize: "13px",
@@ -2440,7 +2440,7 @@ const AdminDashboard = () => {
                 onClick={refreshData}
                 style={{
                   backgroundColor: "rgba(59, 130, 246, 0.15)",
-                  color: "#60a5fa",
+                  color: "var(--info)",
                   padding: "6px 16px",
                   border: "1px solid rgba(59, 130, 246, 0.2)",
                   borderRadius: "6px",
@@ -2475,22 +2475,22 @@ const AdminDashboard = () => {
                         borderTop: "1px solid rgba(255, 255, 255, 0.05)",
                       }}
                     >
-                      <td style={{ color: "#9ca3af", fontFamily: "monospace" }}>
+                      <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
                         #{expense.id}
                       </td>
-                      <td style={{ color: "white", fontWeight: "500" }}>
+                      <td style={{ color: "var(--text)", fontWeight: "500" }}>
                         {expense.title}
                       </td>
-                      <td style={{ color: "#94a3b8" }}>
+                      <td style={{ color: "var(--text-muted)" }}>
                         {expense.category || "General"}
                       </td>
-                      <td style={{ color: "#f87171", fontWeight: "600" }}>
+                      <td style={{ color: "var(--debit)", fontWeight: "600" }}>
                         {formatCurrency(expense.amount)}
                       </td>
-                      <td style={{ color: "#d1d5db" }}>
+                      <td style={{ color: "var(--text)" }}>
                         {expense.requested_by || "Admin"}
                       </td>
-                      <td style={{ color: "#9ca3af", whiteSpace: "nowrap" }}>
+                      <td style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
                         {expense.date}
                       </td>
                       <td>
@@ -2534,7 +2534,7 @@ const AdminDashboard = () => {
                       colSpan="8"
                       style={{ textAlign: "center", padding: "40px" }}
                     >
-                      <div style={{ color: "#94a3b8" }}>
+                      <div style={{ color: "var(--text-muted)" }}>
                         <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                           📭
                         </div>
@@ -2645,12 +2645,12 @@ const AdminDashboard = () => {
                           display: "flex",
                           justifyContent: "space-between",
                           fontSize: "13px",
-                          color: "#94a3b8",
+                          color: "var(--text-muted)",
                           marginBottom: "6px",
                         }}
                       >
                         <span>Deposit Amount</span>
-                        <span style={{ color: "white" }}>
+                        <span style={{ color: "var(--text)" }}>
                           {formatCurrency(amt)}
                         </span>
                       </div>
@@ -2659,7 +2659,7 @@ const AdminDashboard = () => {
                           display: "flex",
                           justifyContent: "space-between",
                           fontSize: "13px",
-                          color: "#94a3b8",
+                          color: "var(--text-muted)",
                           marginBottom: "6px",
                         }}
                       >
@@ -2667,7 +2667,7 @@ const AdminDashboard = () => {
                           Charge ({(rate * 100).toFixed(1)}%{" "}
                           {amt > 200000 ? "> ₦200k" : "≤ ₦200k"})
                         </span>
-                        <span style={{ color: "#fbbf24" }}>
+                        <span style={{ color: "var(--warning)" }}>
                           −{formatCurrency(charge)}
                         </span>
                       </div>
@@ -2676,7 +2676,7 @@ const AdminDashboard = () => {
                           display: "flex",
                           justifyContent: "space-between",
                           fontSize: "14px",
-                          color: "#d1d5db",
+                          color: "var(--text)",
                           fontWeight: "600",
                           borderTop: "1px solid rgba(6, 182, 212, 0.2)",
                           paddingTop: "8px",
@@ -2684,7 +2684,7 @@ const AdminDashboard = () => {
                         }}
                       >
                         <span>Member Receives</span>
-                        <span style={{ color: "#34d399" }}>
+                        <span style={{ color: "var(--credit)" }}>
                           {formatCurrency(net)}
                         </span>
                       </div>

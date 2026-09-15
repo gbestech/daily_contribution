@@ -261,7 +261,7 @@ const AdminPending = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -293,7 +293,7 @@ const AdminPending = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
         }}
@@ -315,7 +315,7 @@ const AdminPending = () => {
             padding: "20px",
             border: "1px solid rgba(255,255,255,0.1)",
             textAlign: "center",
-            color: "#9ca3af",
+            color: "var(--text-muted)",
           }}
         >
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
@@ -332,7 +332,7 @@ const AdminPending = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -350,7 +350,7 @@ const AdminPending = () => {
           padding: 12px 16px;
           font-size: 12px;
           font-weight: 600;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
           border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -371,7 +371,7 @@ const AdminPending = () => {
         }
         .badge-pending {
           background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
+          color: var(--warning);
           border: 1px solid rgba(234, 179, 8, 0.3);
         }
         .stats-grid {
@@ -388,7 +388,7 @@ const AdminPending = () => {
         }
         .stat-label {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .stat-value {
           font-size: 20px;
@@ -412,7 +412,7 @@ const AdminPending = () => {
           border-color: #00aa69;
         }
         .search-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .pagination {
           display: flex;
@@ -426,7 +426,7 @@ const AdminPending = () => {
         }
         .pagination-info {
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .pagination-buttons {
           display: flex;
@@ -438,7 +438,7 @@ const AdminPending = () => {
           border-radius: 6px;
           border: 1px solid rgba(255,255,255,0.1);
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 13px;
           transition: all 0.2s;
@@ -468,7 +468,7 @@ const AdminPending = () => {
           padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           border-radius: 16px;
           padding: 24px;
           max-width: 500px;
@@ -490,7 +490,7 @@ const AdminPending = () => {
         .modal-close {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           padding: 4px;
           font-size: 24px;
@@ -506,7 +506,7 @@ const AdminPending = () => {
         }
         .detail-label {
           font-size: 11px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .detail-value {
           font-weight: 500;
@@ -530,7 +530,7 @@ const AdminPending = () => {
           padding: 8px 20px;
           border-radius: 8px;
           border: none;
-          background: #ef4444;
+          background: var(--debit);
           color: white;
           cursor: pointer;
           font-size: 13px;
@@ -543,7 +543,7 @@ const AdminPending = () => {
         .btn-view {
           background: none;
           border: none;
-          color: #60a5fa;
+          color: var(--info);
           cursor: pointer;
           padding: 4px 8px;
           border-radius: 4px;
@@ -571,7 +571,7 @@ const AdminPending = () => {
           background: #008854;
         }
         .btn-confirm-reject {
-          background: #ef4444;
+          background: var(--debit);
           color: white;
         }
         .btn-confirm-reject:hover {
@@ -623,10 +623,10 @@ const AdminPending = () => {
           font-family: inherit;
         }
         .textarea-input:focus {
-          border-color: #ef4444;
+          border-color: var(--debit);
         }
         .textarea-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         @media (max-width: 768px) {
           .stats-grid {
@@ -659,37 +659,37 @@ const AdminPending = () => {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Pending</div>
-          <div className="stat-value" style={{ color: "#fbbf24" }}>
+          <div className="stat-value" style={{ color: "var(--warning)" }}>
             {stats.total}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Amount</div>
-          <div className="stat-value" style={{ color: "#34d399" }}>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
             {formatNaira(stats.total_amount)}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Deposits</div>
-          <div className="stat-value" style={{ color: "#34d399" }}>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
             {stats.deposits}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Withdrawals</div>
-          <div className="stat-value" style={{ color: "#f87171" }}>
+          <div className="stat-value" style={{ color: "var(--debit)" }}>
             {stats.withdrawals}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Transfers</div>
-          <div className="stat-value" style={{ color: "#60a5fa" }}>
+          <div className="stat-value" style={{ color: "var(--info)" }}>
             {stats.transfers}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Today</div>
-          <div className="stat-value" style={{ color: "white" }}>
+          <div className="stat-value" style={{ color: "var(--text)" }}>
             {stats.today}
           </div>
         </div>
@@ -708,12 +708,12 @@ const AdminPending = () => {
         <div
           style={{
             fontSize: "13px",
-            color: "#94a3b8",
+            color: "var(--text-muted)",
             marginBottom: "12px",
           }}
         >
           Found{" "}
-          <span style={{ color: "#fbbf24", fontWeight: "600" }}>
+          <span style={{ color: "var(--warning)", fontWeight: "600" }}>
             {filteredRequests().length}
           </span>{" "}
           pending request{filteredRequests().length !== 1 ? "s" : ""}
@@ -767,7 +767,7 @@ const AdminPending = () => {
                         <div style={{ fontSize: "14px", fontWeight: "500" }}>
                           {request.customer}
                         </div>
-                        <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                           {request.phone}
                         </div>
                       </div>
@@ -777,7 +777,7 @@ const AdminPending = () => {
                         style={{
                           fontSize: "14px",
                           fontWeight: "600",
-                          color: "#34d399",
+                          color: "var(--credit)",
                         }}
                       >
                         {formatNaira(request.amount)}
@@ -793,7 +793,7 @@ const AdminPending = () => {
                       </span>
                     </td>
                     <td>
-                      <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                      <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                         {formatDate(request.date)}
                       </div>
                     </td>
@@ -845,7 +845,7 @@ const AdminPending = () => {
                       style={{
                         textAlign: "center",
                         padding: "48px 20px",
-                        color: "#94a3b8",
+                        color: "var(--text-muted)",
                       }}
                     >
                       <div style={{ fontSize: "48px", marginBottom: "8px" }}>
@@ -857,7 +857,7 @@ const AdminPending = () => {
                       <p
                         style={{
                           fontSize: "14px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -879,7 +879,7 @@ const AdminPending = () => {
             <div className="pagination-info">
               Showing {indexOfFirstItem + 1} to{" "}
               {Math.min(indexOfLastItem, pendingRequests.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "white" }}>
+              <span style={{ fontWeight: "600", color: "var(--text)" }}>
                 {pendingRequests.length}
               </span>{" "}
               requests
@@ -962,7 +962,7 @@ const AdminPending = () => {
                   style={{
                     fontSize: "20px",
                     fontWeight: "bold",
-                    color: "#34d399",
+                    color: "var(--credit)",
                   }}
                 >
                   {formatNaira(selectedRequest.amount)}
@@ -1111,13 +1111,13 @@ const AdminPending = () => {
                 Approve {selectedRequest.type} request?
               </p>
               <p
-                style={{ fontSize: "14px", color: "#94a3b8", marginTop: "4px" }}
+                style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}
               >
                 Customer: <strong>{selectedRequest.customer}</strong>
               </p>
-              <p style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Amount:{" "}
-                <strong style={{ color: "#34d399" }}>
+                <strong style={{ color: "var(--credit)" }}>
                   {formatNaira(selectedRequest.amount)}
                 </strong>
               </p>
@@ -1180,12 +1180,12 @@ const AdminPending = () => {
                 marginBottom: "16px",
               }}
             >
-              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Customer: <strong>{selectedRequest.customer}</strong>
               </div>
-              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Amount:{" "}
-                <strong style={{ color: "#f87171" }}>
+                <strong style={{ color: "var(--debit)" }}>
                   {formatNaira(selectedRequest.amount)}
                 </strong>
               </div>

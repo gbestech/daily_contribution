@@ -195,7 +195,7 @@ const Login = () => {
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(circle at top, #1e293b 0%, #0f172a 60%)",
+        background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
         padding: "20px",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
@@ -218,7 +218,7 @@ const Login = () => {
           position: absolute;
           top: 0; left: 0; right: 0;
           height: 3px;
-          background: linear-gradient(90deg, #059669, #0d9488, #10b981);
+          background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
         }
         .login-logo {
           width: 64px; height: 64px;
@@ -239,7 +239,7 @@ const Login = () => {
         }
         .login-subtitle {
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-align: center;
           margin: 0 0 26px 0;
         }
@@ -248,7 +248,7 @@ const Login = () => {
           display: block;
           font-size: 12px;
           font-weight: 600;
-          color: #cbd5e1;
+          color: var(--text);
           margin-bottom: 6px;
           letter-spacing: 0.3px;
           text-transform: uppercase;
@@ -260,7 +260,7 @@ const Login = () => {
           top: 50%;
           transform: translateY(-50%);
           font-size: 15px;
-          color: #64748b;
+          color: var(--text-dim);
           pointer-events: none;
         }
         .field-input {
@@ -275,9 +275,9 @@ const Login = () => {
           box-sizing: border-box;
           transition: all 0.2s;
         }
-        .field-input::placeholder { color: #64748b; }
+        .field-input::placeholder { color: var(--text-dim); }
         .field-input:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
           background: rgba(16, 185, 129, 0.06);
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
         }
@@ -291,7 +291,7 @@ const Login = () => {
           border: none;
           cursor: pointer;
           font-size: 15px;
-          color: #94a3b8;
+          color: var(--text-muted);
           padding: 4px;
           line-height: 1;
         }
@@ -309,18 +309,18 @@ const Login = () => {
           align-items: center;
           gap: 6px;
           font-size: 12px;
-          color: #cbd5e1;
+          color: var(--text);
           cursor: pointer;
         }
         .remember input {
-          accent-color: #10b981;
+          accent-color: var(--accent);
           width: 14px;
           height: 14px;
           cursor: pointer;
         }
         .forgot-link {
           font-size: 12px;
-          color: #34d399;
+          color: var(--credit);
           text-decoration: none;
           font-weight: 500;
         }
@@ -354,7 +354,7 @@ const Login = () => {
           align-items: center;
           gap: 10px;
           margin: 22px 0 18px;
-          color: #475569;
+          color: var(--text-dim);
           font-size: 11px;
           text-transform: uppercase;
           letter-spacing: 1px;
@@ -369,10 +369,10 @@ const Login = () => {
         .register-row {
           text-align: center;
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .register-link {
-          color: #34d399;
+          color: var(--credit);
           font-weight: 600;
           text-decoration: none;
           margin-left: 4px;
@@ -381,7 +381,7 @@ const Login = () => {
         .footer-note {
           text-align: center;
           font-size: 10px;
-          color: #475569;
+          color: var(--text-dim);
           margin-top: 20px;
         }
       `}</style>

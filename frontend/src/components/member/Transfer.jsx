@@ -178,7 +178,7 @@ const MemberTransfer = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         maxWidth: "600px",
         margin: "0 auto",
       }}
@@ -205,16 +205,16 @@ const MemberTransfer = () => {
           box-sizing: border-box;
         }
         .member-select:focus {
-          border-color: #7c3aed;
+          border-color: var(--purple);
         }
         .member-select option {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           color: white;
           padding: 10px;
         }
         .member-select option:checked,
         .member-select option:hover {
-          background: linear-gradient(#7c3aed, #7c3aed);
+          background: linear-gradient(var(--purple), var(--purple));
           color: white;
         }
         .member-select:disabled {
@@ -235,7 +235,7 @@ const MemberTransfer = () => {
           height: 38px;
           border-radius: 50%;
           background: rgba(124, 58, 237, 0.25);
-          color: #a78bfa;
+          color: var(--purple);
           display: flex;
           align-items: center;
           justify-content: center;
@@ -262,10 +262,10 @@ const MemberTransfer = () => {
         >
           <span style={{ fontSize: "32px" }}>🔄</span>
           <div>
-            <h2 style={{ margin: 0, color: "white" }}>Transfer Funds</h2>
+            <h2 style={{ margin: 0, color: "var(--text)" }}>Transfer Funds</h2>
             <p
               style={{
-                color: "#9ca3af",
+                color: "var(--text-muted)",
                 margin: "4px 0 0 0",
                 fontSize: "14px",
               }}
@@ -295,12 +295,12 @@ const MemberTransfer = () => {
               }}
             >
               <div>
-                <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
                   {isAdmin ? "Sender Balance" : "Your Balance"}
                 </p>
                 <p
                   style={{
-                    color: "#34d399",
+                    color: "var(--credit)",
                     fontSize: "28px",
                     fontWeight: "bold",
                     margin: "4px 0 0 0",
@@ -310,12 +310,12 @@ const MemberTransfer = () => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
                   Available for transfer
                 </p>
                 <p
                   style={{
-                    color: "#60a5fa",
+                    color: "var(--info)",
                     fontSize: "16px",
                     fontWeight: "600",
                     margin: "4px 0 0 0",
@@ -336,7 +336,7 @@ const MemberTransfer = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -352,7 +352,7 @@ const MemberTransfer = () => {
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
                     style={{
-                      color: "white",
+                      color: "var(--text)",
                       fontSize: "14px",
                       fontWeight: "600",
                       whiteSpace: "nowrap",
@@ -362,7 +362,7 @@ const MemberTransfer = () => {
                   >
                     {user?.name || "You"}
                   </div>
-                  <div style={{ color: "#94a3b8", fontSize: "12px" }}>
+                  <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                     🔒 Your account
                   </div>
                 </div>
@@ -392,7 +392,7 @@ const MemberTransfer = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -422,7 +422,7 @@ const MemberTransfer = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -435,7 +435,7 @@ const MemberTransfer = () => {
                   left: "16px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#6b7280",
+                  color: "var(--text-dim)",
                   fontSize: "18px",
                   fontWeight: "bold",
                 }}
@@ -453,7 +453,7 @@ const MemberTransfer = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "rgba(255,255,255,0.05)",
-                  color: "white",
+                  color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
                   boxSizing: "border-box",
@@ -474,7 +474,7 @@ const MemberTransfer = () => {
                     borderRadius: "4px",
                     border: "1px solid rgba(255,255,255,0.1)",
                     backgroundColor: "transparent",
-                    color: "#9ca3af",
+                    color: "var(--text-muted)",
                     fontSize: "12px",
                     cursor: "pointer",
                   }}
@@ -492,7 +492,7 @@ const MemberTransfer = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -509,7 +509,7 @@ const MemberTransfer = () => {
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.1)",
                 backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
+                color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
                 boxSizing: "border-box",
@@ -526,9 +526,9 @@ const MemberTransfer = () => {
               borderRadius: "8px",
               border: "none",
               background: loading
-                ? "#6b7280"
-                : "linear-gradient(to right, #7c3aed, #6d28d9)",
-              color: "white",
+                ? "var(--text-dim)"
+                : "linear-gradient(to right, var(--purple), #6d28d9)",
+              color: "var(--text)",
               fontSize: "16px",
               fontWeight: "600",
               cursor: loading ? "not-allowed" : "pointer",
@@ -550,7 +550,7 @@ const MemberTransfer = () => {
           >
             <p
               style={{
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 fontSize: "12px",
                 margin: 0,
                 textAlign: "center",

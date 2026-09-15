@@ -353,7 +353,7 @@ const AdminTransactions = () => {
           {t.payment_slip_name && (
             <span
               style={{
-                color: "#64748b",
+                color: "var(--text-dim)",
                 fontWeight: "400",
                 marginLeft: "6px",
               }}
@@ -400,7 +400,7 @@ const AdminTransactions = () => {
               style={{
                 padding: "6px",
                 fontSize: "11px",
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 borderTop: "1px solid rgba(255,255,255,0.05)",
               }}
             >
@@ -416,7 +416,7 @@ const AdminTransactions = () => {
                 margin: "8px",
                 padding: "6px 12px",
                 fontSize: "12px",
-                color: "#60a5fa",
+                color: "var(--info)",
                 textDecoration: "underline",
               }}
             >
@@ -435,7 +435,7 @@ const AdminTransactions = () => {
               borderRadius: "8px",
               border: "1px solid rgba(96,165,250,0.3)",
               backgroundColor: "rgba(96,165,250,0.08)",
-              color: "#60a5fa",
+              color: "var(--info)",
               textDecoration: "none",
               fontSize: "13px",
               fontWeight: "500",
@@ -457,7 +457,7 @@ const AdminTransactions = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -488,7 +488,7 @@ const AdminTransactions = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -506,7 +506,7 @@ const AdminTransactions = () => {
           padding: 12px 16px;
           font-size: 12px;
           font-weight: 600;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
           border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -528,28 +528,28 @@ const AdminTransactions = () => {
         .badge-completed,
         .badge-approved {
           background-color: rgba(16, 185, 129, 0.2);
-          color: #34d399;
+          color: var(--credit);
           border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .badge-pending {
           background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
+          color: var(--warning);
           border: 1px solid rgba(234, 179, 8, 0.3);
         }
         .badge-failed,
         .badge-rejected {
           background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          color: var(--debit);
           border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .badge-cancelled {
           background-color: rgba(107, 114, 128, 0.2);
-          color: #9ca3af;
+          color: var(--text-muted);
           border: 1px solid rgba(107, 114, 128, 0.3);
         }
         .badge-processing {
           background-color: rgba(59, 130, 246, 0.2);
-          color: #60a5fa;
+          color: var(--info);
           border: 1px solid rgba(59, 130, 246, 0.3);
         }
         .type-badge {
@@ -563,24 +563,24 @@ const AdminTransactions = () => {
         .type-deposit,
         .type-credit {
           background-color: rgba(16, 185, 129, 0.15);
-          color: #34d399;
+          color: var(--credit);
         }
         .type-withdrawal,
         .type-debit {
           background-color: rgba(239, 68, 68, 0.15);
-          color: #f87171;
+          color: var(--debit);
         }
         .type-payment {
           background-color: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
+          color: var(--info);
         }
         .type-refund {
           background-color: rgba(234, 179, 8, 0.15);
-          color: #fbbf24;
+          color: var(--warning);
         }
         .type-fee {
           background-color: rgba(168, 85, 247, 0.15);
-          color: #a78bfa;
+          color: var(--purple);
         }
         .type-transfer {
           background-color: rgba(99, 102, 241, 0.15);
@@ -600,7 +600,7 @@ const AdminTransactions = () => {
         }
         .stat-label {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .stat-value {
           font-size: 20px;
@@ -624,7 +624,7 @@ const AdminTransactions = () => {
           border-color: #00aa69;
         }
         .search-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .pagination {
           display: flex;
@@ -638,7 +638,7 @@ const AdminTransactions = () => {
         }
         .pagination-info {
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .pagination-buttons {
           display: flex;
@@ -650,7 +650,7 @@ const AdminTransactions = () => {
           border-radius: 6px;
           border: 1px solid rgba(255,255,255,0.1);
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 13px;
           transition: all 0.2s;
@@ -671,7 +671,7 @@ const AdminTransactions = () => {
         .empty-state {
           text-align: center;
           padding: 48px 20px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .empty-icon {
           font-size: 48px;
@@ -689,7 +689,7 @@ const AdminTransactions = () => {
           padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           border-radius: 16px;
           padding: 24px;
           max-width: 500px;
@@ -711,7 +711,7 @@ const AdminTransactions = () => {
         .modal-close {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           padding: 4px;
           font-size: 24px;
@@ -727,7 +727,7 @@ const AdminTransactions = () => {
         }
         .detail-label {
           font-size: 11px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .detail-value {
           font-weight: 500;
@@ -755,7 +755,7 @@ const AdminTransactions = () => {
           padding: 1px 5px;
           border-radius: 4px;
           background: rgba(96,165,250,0.15);
-          color: #60a5fa;
+          color: var(--info);
           font-size: 10px;
         }
         @media (max-width: 768px) {
@@ -782,37 +782,37 @@ const AdminTransactions = () => {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total</div>
-          <div className="stat-value" style={{ color: "white" }}>
+          <div className="stat-value" style={{ color: "var(--text)" }}>
             {stats.total}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Amount</div>
-          <div className="stat-value" style={{ color: "#34d399" }}>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
             {formatNaira(stats.total_amount)}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Deposits</div>
-          <div className="stat-value" style={{ color: "#34d399" }}>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
             {stats.deposits}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Withdrawals</div>
-          <div className="stat-value" style={{ color: "#f87171" }}>
+          <div className="stat-value" style={{ color: "var(--debit)" }}>
             {stats.withdrawals}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Pending</div>
-          <div className="stat-value" style={{ color: "#fbbf24" }}>
+          <div className="stat-value" style={{ color: "var(--warning)" }}>
             {stats.pending}
           </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Completed</div>
-          <div className="stat-value" style={{ color: "#60a5fa" }}>
+          <div className="stat-value" style={{ color: "var(--info)" }}>
             {stats.completed}
           </div>
         </div>
@@ -831,12 +831,12 @@ const AdminTransactions = () => {
         <div
           style={{
             fontSize: "13px",
-            color: "#94a3b8",
+            color: "var(--text-muted)",
             marginBottom: "12px",
           }}
         >
           Found{" "}
-          <span style={{ color: "#34d399", fontWeight: "600" }}>
+          <span style={{ color: "var(--credit)", fontWeight: "600" }}>
             {filteredTransactions().length}
           </span>{" "}
           transaction{filteredTransactions().length !== 1 ? "s" : ""}
@@ -898,7 +898,7 @@ const AdminTransactions = () => {
                           )}
                         </div>
                         {t.customer_phone && (
-                          <div style={{ fontSize: "12px", color: "#94a3b8" }}>
+                          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                             {t.customer_phone}
                           </div>
                         )}
@@ -911,8 +911,8 @@ const AdminTransactions = () => {
                           fontWeight: "600",
                           color:
                             t.type === "deposit" || t.type === "credit"
-                              ? "#34d399"
-                              : "#f87171",
+                              ? "var(--credit)"
+                              : "var(--debit)",
                         }}
                       >
                         {formatNaira(t.amount)}
@@ -924,7 +924,7 @@ const AdminTransactions = () => {
                       </span>
                     </td>
                     <td>
-                      <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                      <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                         {formatDate(t.created_at)}
                       </div>
                     </td>
@@ -933,7 +933,7 @@ const AdminTransactions = () => {
                         style={{
                           background: "none",
                           border: "none",
-                          color: "#60a5fa",
+                          color: "var(--info)",
                           cursor: "pointer",
                           padding: "4px 8px",
                           borderRadius: "4px",
@@ -967,7 +967,7 @@ const AdminTransactions = () => {
                       <p
                         style={{
                           fontSize: "14px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -989,7 +989,7 @@ const AdminTransactions = () => {
             <div className="pagination-info">
               Showing {indexOfFirstItem + 1} to{" "}
               {Math.min(indexOfLastItem, transactions.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "white" }}>
+              <span style={{ fontWeight: "600", color: "var(--text)" }}>
                 {transactions.length}
               </span>{" "}
               entries
@@ -1070,7 +1070,7 @@ const AdminTransactions = () => {
                   style={{
                     fontSize: "20px",
                     fontWeight: "bold",
-                    color: "#34d399",
+                    color: "var(--credit)",
                   }}
                 >
                   {formatNaira(selectedTransaction.amount)}
@@ -1165,7 +1165,7 @@ const AdminTransactions = () => {
                       <div className="detail-label">Charge</div>
                       <div
                         className="detail-value"
-                        style={{ color: "#fbbf24" }}
+                        style={{ color: "var(--warning)" }}
                       >
                         {formatNaira(selectedTransaction.charge)}
                       </div>
@@ -1174,7 +1174,7 @@ const AdminTransactions = () => {
                       <div className="detail-label">Net Amount</div>
                       <div
                         className="detail-value"
-                        style={{ color: "#34d399" }}
+                        style={{ color: "var(--credit)" }}
                       >
                         {formatNaira(selectedTransaction.net_amount)}
                       </div>
@@ -1206,7 +1206,7 @@ const AdminTransactions = () => {
                           style={{
                             marginTop: "6px",
                             fontSize: "11px",
-                            color: "#94a3b8",
+                            color: "var(--text-muted)",
                           }}
                         >
                           {selectedTransaction.rejected_by && (
@@ -1250,8 +1250,8 @@ const AdminTransactions = () => {
                     padding: "10px",
                     borderRadius: "8px",
                     border: "none",
-                    backgroundColor: "#10b981",
-                    color: "white",
+                    backgroundColor: "var(--accent)",
+                    color: "var(--text)",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: "500",
@@ -1261,7 +1261,7 @@ const AdminTransactions = () => {
                     (e.target.style.backgroundColor = "#059669")
                   }
                   onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "#10b981")
+                    (e.target.style.backgroundColor = "var(--accent)")
                   }
                 >
                   ✅ Approve
@@ -1273,8 +1273,8 @@ const AdminTransactions = () => {
                     padding: "10px",
                     borderRadius: "8px",
                     border: "none",
-                    backgroundColor: "#ef4444",
-                    color: "white",
+                    backgroundColor: "var(--debit)",
+                    color: "var(--text)",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: "500",
@@ -1284,7 +1284,7 @@ const AdminTransactions = () => {
                     (e.target.style.backgroundColor = "#dc2626")
                   }
                   onMouseLeave={(e) =>
-                    (e.target.style.backgroundColor = "#ef4444")
+                    (e.target.style.backgroundColor = "var(--debit)")
                   }
                 >
                   ❌ Reject
@@ -1325,7 +1325,7 @@ const AdminTransactions = () => {
         <div className="modal-overlay" style={{ zIndex: 1000 }}>
           <div className="modal-content" style={{ maxWidth: "440px" }}>
             <div className="modal-header">
-              <h3 className="modal-title" style={{ color: "#f87171" }}>
+              <h3 className="modal-title" style={{ color: "var(--debit)" }}>
                 ❌ Reject Transaction
               </h3>
               <button
@@ -1342,7 +1342,7 @@ const AdminTransactions = () => {
 
             <p
               style={{
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 fontSize: "13px",
                 marginBottom: "16px",
                 marginTop: 0,
@@ -1364,7 +1364,7 @@ const AdminTransactions = () => {
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.1)",
                 backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
+                color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
                 resize: "vertical",
@@ -1394,7 +1394,7 @@ const AdminTransactions = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   background: "transparent",
-                  color: "white",
+                  color: "var(--text)",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: "500",
@@ -1410,8 +1410,8 @@ const AdminTransactions = () => {
                   padding: "10px",
                   borderRadius: "8px",
                   border: "none",
-                  backgroundColor: rejectReason.trim() ? "#ef4444" : "#6b7280",
-                  color: "white",
+                  backgroundColor: rejectReason.trim() ? "var(--debit)" : "var(--text-dim)",
+                  color: "var(--text)",
                   cursor: rejectReason.trim() ? "pointer" : "not-allowed",
                   fontSize: "13px",
                   fontWeight: "500",

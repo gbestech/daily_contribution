@@ -263,15 +263,15 @@ const MemberHistory = () => {
     const styles = {
       pending: {
         backgroundColor: "rgba(234, 179, 8, 0.2)",
-        color: "#fbbf24",
+        color: "var(--warning)",
       },
       approved: {
         backgroundColor: "rgba(16, 185, 129, 0.2)",
-        color: "#34d399",
+        color: "var(--credit)",
       },
       rejected: {
         backgroundColor: "rgba(239, 68, 68, 0.2)",
-        color: "#f87171",
+        color: "var(--debit)",
       },
     };
     const style = styles[status] || styles.pending;
@@ -295,22 +295,22 @@ const MemberHistory = () => {
     const styles = {
       deposit: {
         backgroundColor: "rgba(16, 185, 129, 0.2)",
-        color: "#34d399",
+        color: "var(--credit)",
         icon: "💰",
       },
       withdrawal: {
         backgroundColor: "rgba(239, 68, 68, 0.2)",
-        color: "#f87171",
+        color: "var(--debit)",
         icon: "💸",
       },
       transfer: {
         backgroundColor: "rgba(139, 92, 246, 0.2)",
-        color: "#a78bfa",
+        color: "var(--purple)",
         icon: "🔄",
       },
       contribution: {
         backgroundColor: "rgba(59, 130, 246, 0.2)",
-        color: "#60a5fa",
+        color: "var(--info)",
         icon: "🤝",
       },
     };
@@ -347,7 +347,7 @@ const MemberHistory = () => {
 
   if (loading) {
     return (
-      <div style={{ padding: "24px", color: "white", textAlign: "center" }}>
+      <div style={{ padding: "24px", color: "var(--text)", textAlign: "center" }}>
         <div style={{ fontSize: "20px" }}>⏳ Loading transactions...</div>
       </div>
     );
@@ -357,7 +357,7 @@ const MemberHistory = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         maxWidth: "1200px",
         margin: "0 auto",
       }}
@@ -402,7 +402,7 @@ const MemberHistory = () => {
           text-align: left;
           font-size: 12px;
           font-weight: 600;
-          color: #9ca3af;
+          color: var(--text-muted);
           background-color: rgba(255, 255, 255, 0.08);
           position: sticky;
           top: 0;
@@ -431,8 +431,8 @@ const MemberHistory = () => {
         .page-btn:hover { background-color: rgba(255,255,255,0.05); }
         .page-btn.active {
           background-color: rgba(16, 185, 129, 0.2);
-          border-color: #10b981;
-          color: #34d399;
+          border-color: var(--accent);
+          color: var(--credit);
         }
         .filter-input {
           background-color: rgba(255, 255, 255, 0.1);
@@ -444,7 +444,7 @@ const MemberHistory = () => {
           font-size: 14px;
           transition: border-color 0.2s;
         }
-        .filter-input:focus { border-color: #10b981; }
+        .filter-input:focus { border-color: var(--accent); }
         .filter-select {
           background-color: rgba(255, 255, 255, 0.1);
           color: white;
@@ -455,7 +455,7 @@ const MemberHistory = () => {
           font-size: 14px;
           cursor: pointer;
         }
-        .filter-select option { background-color: #1e293b; color: white; }
+        .filter-select option { background-color: var(--bg-surface); color: white; }
         .filter-input::-webkit-calendar-picker-indicator {
           filter: invert(1);
           cursor: pointer;
@@ -477,7 +477,7 @@ const MemberHistory = () => {
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
             📊 Transaction History
           </h2>
-          <p style={{ color: "#9ca3af", margin: "4px 0 0 0" }}>
+          <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
             {user?.role === "admin"
               ? "All member transactions"
               : "Your transaction history"}
@@ -488,7 +488,7 @@ const MemberHistory = () => {
             onClick={fetchData}
             style={{
               backgroundColor: "rgba(59, 130, 246, 0.15)",
-              color: "#60a5fa",
+              color: "var(--info)",
               padding: "8px 16px",
               border: "1px solid rgba(59, 130, 246, 0.2)",
               borderRadius: "6px",
@@ -510,7 +510,7 @@ const MemberHistory = () => {
             onClick={resetFilters}
             style={{
               backgroundColor: "rgba(239, 68, 68, 0.15)",
-              color: "#f87171",
+              color: "var(--debit)",
               padding: "8px 16px",
               border: "1px solid rgba(239, 68, 68, 0.2)",
               borderRadius: "6px",
@@ -541,12 +541,12 @@ const MemberHistory = () => {
         }}
       >
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             💰 Total Deposits
           </p>
           <p
             style={{
-              color: "#34d399",
+              color: "var(--credit)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -556,12 +556,12 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             💸 Total Withdrawals
           </p>
           <p
             style={{
-              color: "#f87171",
+              color: "var(--debit)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -571,12 +571,12 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             🔄 Total Transfers
           </p>
           <p
             style={{
-              color: "#a78bfa",
+              color: "var(--purple)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -586,12 +586,12 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             ⏳ Pending
           </p>
           <p
             style={{
-              color: "#fbbf24",
+              color: "var(--warning)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -601,12 +601,12 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             ✅ Approved
           </p>
           <p
             style={{
-              color: "#34d399",
+              color: "var(--credit)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -616,12 +616,12 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
             ❌ Rejected
           </p>
           <p
             style={{
-              color: "#f87171",
+              color: "var(--debit)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -716,7 +716,7 @@ const MemberHistory = () => {
           </select>
         </div>
 
-        <div style={{ marginTop: "12px", color: "#9ca3af", fontSize: "13px" }}>
+        <div style={{ marginTop: "12px", color: "var(--text-muted)", fontSize: "13px" }}>
           {filteredTransactions.length} transaction(s) found
         </div>
       </div>
@@ -750,7 +750,7 @@ const MemberHistory = () => {
                     colSpan="7"
                     style={{ textAlign: "center", padding: "40px" }}
                   >
-                    <div style={{ color: "#94a3b8" }}>
+                    <div style={{ color: "var(--text-muted)" }}>
                       <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                         📭
                       </div>
@@ -772,7 +772,7 @@ const MemberHistory = () => {
                   <tr key={transaction.id} className="fade-in">
                     <td
                       style={{
-                        color: "#9ca3af",
+                        color: "var(--text-muted)",
                         fontFamily: "monospace",
                         fontSize: "13px",
                       }}
@@ -780,12 +780,12 @@ const MemberHistory = () => {
                       #{transaction.id}
                     </td>
                     <td>
-                      <div style={{ color: "white", fontSize: "14px" }}>
+                      <div style={{ color: "var(--text)", fontSize: "14px" }}>
                         {transaction.memberName ||
                           getMemberName(transaction.memberId)}
                       </div>
                       {transaction.accountNumber && (
-                        <div style={{ fontSize: "12px", color: "#6b7280" }}>
+                        <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
                           Acc: {transaction.accountNumber}
                         </div>
                       )}
@@ -795,8 +795,8 @@ const MemberHistory = () => {
                       style={{
                         color:
                           transaction.type === "withdrawal"
-                            ? "#f87171"
-                            : "#34d399",
+                            ? "var(--debit)"
+                            : "var(--credit)",
                         fontWeight: "600",
                         fontSize: "16px",
                       }}
@@ -804,11 +804,11 @@ const MemberHistory = () => {
                       {transaction.type === "withdrawal" ? "-" : ""}
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ color: "#9ca3af", fontSize: "13px" }}>
+                    <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                       {formatDate(transaction.date)}
                     </td>
                     <td>{getStatusBadge(transaction.status)}</td>
-                    <td style={{ color: "#d1d5db", fontSize: "13px" }}>
+                    <td style={{ color: "var(--text)", fontSize: "13px" }}>
                       {transaction.description || "—"}
                     </td>
                   </tr>
@@ -831,7 +831,7 @@ const MemberHistory = () => {
               gap: "12px",
             }}
           >
-            <div style={{ color: "#9ca3af", fontSize: "13px" }}>
+            <div style={{ color: "var(--text-muted)", fontSize: "13px" }}>
               Showing {(currentPage - 1) * itemsPerPage + 1} -{" "}
               {Math.min(
                 currentPage * itemsPerPage,
@@ -941,7 +941,7 @@ const MemberHistory = () => {
           }}
           style={{
             backgroundColor: "rgba(16, 185, 129, 0.15)",
-            color: "#34d399",
+            color: "var(--credit)",
             padding: "8px 16px",
             border: "1px solid rgba(16, 185, 129, 0.2)",
             borderRadius: "6px",

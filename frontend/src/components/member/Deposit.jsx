@@ -508,7 +508,7 @@ const MemberDeposit = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         maxWidth: "600px",
         margin: "0 auto",
       }}
@@ -531,10 +531,10 @@ const MemberDeposit = () => {
         >
           <span style={{ fontSize: "32px" }}>💰</span>
           <div>
-            <h2 style={{ margin: 0, color: "white" }}>Make a Deposit</h2>
+            <h2 style={{ margin: 0, color: "var(--text)" }}>Make a Deposit</h2>
             <p
               style={{
-                color: "#9ca3af",
+                color: "var(--text-muted)",
                 margin: "4px 0 0 0",
                 fontSize: "14px",
               }}
@@ -564,26 +564,26 @@ const MemberDeposit = () => {
               }}
             >
               <div>
-                <span style={{ color: "#94a3b8" }}>Min per deposit: </span>
-                <span style={{ color: "white", fontWeight: "600" }}>
+                <span style={{ color: "var(--text-muted)" }}>Min per deposit: </span>
+                <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.min_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "#94a3b8" }}>Max per deposit: </span>
-                <span style={{ color: "white", fontWeight: "600" }}>
+                <span style={{ color: "var(--text-muted)" }}>Max per deposit: </span>
+                <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.max_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "#94a3b8" }}>Daily limit: </span>
-                <span style={{ color: "white", fontWeight: "600" }}>
+                <span style={{ color: "var(--text-muted)" }}>Daily limit: </span>
+                <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.daily_limit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "#94a3b8" }}>Max per day: </span>
-                <span style={{ color: "white", fontWeight: "600" }}>
+                <span style={{ color: "var(--text-muted)" }}>Max per day: </span>
+                <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {settings.allow_multiple_deposits
                     ? settings.max_daily_deposits
                     : 1}
@@ -612,12 +612,12 @@ const MemberDeposit = () => {
               }}
             >
               <div>
-                <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
                   Current Balance
                 </p>
                 <p
                   style={{
-                    color: "#34d399",
+                    color: "var(--credit)",
                     fontSize: "28px",
                     fontWeight: "bold",
                     margin: "4px 0 0 0",
@@ -627,12 +627,12 @@ const MemberDeposit = () => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
                   Today's Deposits
                 </p>
                 <p
                   style={{
-                    color: "#fbbf24",
+                    color: "var(--warning)",
                     fontSize: "16px",
                     fontWeight: "600",
                     margin: "4px 0 0 0",
@@ -642,7 +642,7 @@ const MemberDeposit = () => {
                 </p>
                 <p
                   style={{
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     fontSize: "11px",
                     margin: "2px 0 0 0",
                   }}
@@ -667,7 +667,7 @@ const MemberDeposit = () => {
                   display: "block",
                   fontSize: "14px",
                   fontWeight: "500",
-                  color: "#d1d5db",
+                  color: "var(--text)",
                   marginBottom: "6px",
                 }}
               >
@@ -682,7 +682,7 @@ const MemberDeposit = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "rgba(255,255,255,0.05)",
-                  color: "white",
+                  color: "var(--text)",
                   fontSize: "14px",
                   outline: "none",
                 }}
@@ -705,7 +705,7 @@ const MemberDeposit = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -718,7 +718,7 @@ const MemberDeposit = () => {
                   left: "16px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#6b7280",
+                  color: "var(--text-dim)",
                   fontSize: "18px",
                   fontWeight: "bold",
                 }}
@@ -736,7 +736,7 @@ const MemberDeposit = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "rgba(255,255,255,0.05)",
-                  color: "white",
+                  color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
                 }}
@@ -757,7 +757,7 @@ const MemberDeposit = () => {
                     borderRadius: "4px",
                     border: "1px solid rgba(255,255,255,0.1)",
                     backgroundColor: "transparent",
-                    color: "#9ca3af",
+                    color: "var(--text-muted)",
                     fontSize: "12px",
                     cursor: "pointer",
                   }}
@@ -775,7 +775,7 @@ const MemberDeposit = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -792,7 +792,7 @@ const MemberDeposit = () => {
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.1)",
                 backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
+                color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
               }}
@@ -806,7 +806,7 @@ const MemberDeposit = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -843,7 +843,7 @@ const MemberDeposit = () => {
                 </span>
                 <span
                   style={{
-                    color: "#d1d5db",
+                    color: "var(--text)",
                     fontSize: "14px",
                     fontWeight: "500",
                   }}
@@ -852,7 +852,7 @@ const MemberDeposit = () => {
                 </span>
                 <span
                   style={{
-                    color: "#6b7280",
+                    color: "var(--text-dim)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -927,7 +927,7 @@ const MemberDeposit = () => {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div
                         style={{
-                          color: "white",
+                          color: "var(--text)",
                           fontSize: "13px",
                           fontWeight: "500",
                           overflow: "hidden",
@@ -937,7 +937,7 @@ const MemberDeposit = () => {
                       >
                         {slipFile.name}
                       </div>
-                      <div style={{ color: "#94a3b8", fontSize: "11px" }}>
+                      <div style={{ color: "var(--text-muted)", fontSize: "11px" }}>
                         {(slipFile.size / 1024).toFixed(1)} KB •{" "}
                         {slipFile.type
                           .replace("image/", "")
@@ -954,7 +954,7 @@ const MemberDeposit = () => {
                       borderRadius: "6px",
                       border: "1px solid rgba(239,68,68,0.3)",
                       backgroundColor: "rgba(239,68,68,0.15)",
-                      color: "#f87171",
+                      color: "var(--debit)",
                       fontSize: "12px",
                       cursor: "pointer",
                       fontWeight: "500",
@@ -979,9 +979,9 @@ const MemberDeposit = () => {
                 borderRadius: "8px",
                 border: "none",
                 background: loading
-                  ? "#6b7280"
+                  ? "var(--text-dim)"
                   : "linear-gradient(to right, #059669, #0d9488)",
-                color: "white",
+                color: "var(--text)",
                 fontSize: "16px",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
@@ -1001,7 +1001,7 @@ const MemberDeposit = () => {
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.15)",
                 background: "transparent",
-                color: "#d1d5db",
+                color: "var(--text)",
                 fontSize: "16px",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
@@ -1023,7 +1023,7 @@ const MemberDeposit = () => {
           >
             <p
               style={{
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 fontSize: "12px",
                 margin: 0,
                 textAlign: "center",

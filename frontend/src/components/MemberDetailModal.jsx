@@ -42,7 +42,7 @@ const MemberDetailModal = ({
       <div
         onClick={(e) => e.stopPropagation()}
         style={{
-          background: "#1e293b",
+          background: "var(--bg-surface)",
           border: "1px solid rgba(255,255,255,0.1)",
           borderRadius: "16px",
           padding: "24px",
@@ -50,7 +50,7 @@ const MemberDetailModal = ({
           width: "100%",
           maxHeight: "90vh",
           overflowY: "auto",
-          color: "white",
+          color: "var(--text)",
           boxShadow: "0 20px 60px rgba(0,0,0,0.5)",
           animation: "popIn 0.2s ease-out",
         }}
@@ -74,7 +74,7 @@ const MemberDetailModal = ({
           <div>
             <h3 style={{ margin: 0, fontSize: "22px" }}>👤 {member.name}</h3>
             <p
-              style={{ margin: "4px 0 0", color: "#94a3b8", fontSize: "13px" }}
+              style={{ margin: "4px 0 0", color: "var(--text-muted)", fontSize: "13px" }}
             >
               Member ID: #{member.id}
             </p>
@@ -85,7 +85,7 @@ const MemberDetailModal = ({
             style={{
               background: "rgba(255,255,255,0.1)",
               border: "none",
-              color: "white",
+              color: "var(--text)",
               width: "32px",
               height: "32px",
               borderRadius: "8px",
@@ -130,7 +130,7 @@ const MemberDetailModal = ({
           </div>
           <div style={cardStyle}>
             <span style={labelStyle}>Status</span>
-            <span style={{ ...valueStyle, color: "#34d399" }}>
+            <span style={{ ...valueStyle, color: "var(--credit)" }}>
               {member.status || "Active"}
             </span>
           </div>
@@ -147,13 +147,13 @@ const MemberDetailModal = ({
         >
           <div style={statCardStyle}>
             <span style={labelStyle}>Credits</span>
-            <span style={{ ...valueStyle, color: "#34d399" }}>
+            <span style={{ ...valueStyle, color: "var(--credit)" }}>
               {formatCurrency(totalCredit)}
             </span>
           </div>
           <div style={statCardStyle}>
             <span style={labelStyle}>Debits</span>
-            <span style={{ ...valueStyle, color: "#f87171" }}>
+            <span style={{ ...valueStyle, color: "var(--debit)" }}>
               {formatCurrency(totalDebit)}
             </span>
           </div>
@@ -162,7 +162,7 @@ const MemberDetailModal = ({
             <span
               style={{
                 ...valueStyle,
-                color: balance >= 0 ? "#34d399" : "#f87171",
+                color: balance >= 0 ? "var(--credit)" : "var(--debit)",
               }}
             >
               {formatCurrency(balance)}
@@ -171,7 +171,7 @@ const MemberDetailModal = ({
         </div>
 
         {/* Recent Transactions */}
-        <h4 style={{ margin: "0 0 10px", fontSize: "14px", color: "#cbd5e1" }}>
+        <h4 style={{ margin: "0 0 10px", fontSize: "14px", color: "var(--text)" }}>
           Recent Transactions ({memberTxns.length})
         </h4>
         <div
@@ -186,7 +186,7 @@ const MemberDetailModal = ({
           {memberTxns.length === 0 ? (
             <p
               style={{
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 fontSize: "13px",
                 textAlign: "center",
                 padding: "20px",
@@ -208,16 +208,16 @@ const MemberDetailModal = ({
                 }}
               >
                 <div>
-                  <div style={{ color: "white", textTransform: "capitalize" }}>
+                  <div style={{ color: "var(--text)", textTransform: "capitalize" }}>
                     {t.type}
                   </div>
-                  <div style={{ color: "#64748b", fontSize: "11px" }}>
+                  <div style={{ color: "var(--text-dim)", fontSize: "11px" }}>
                     {formatDate(t.date)}
                   </div>
                 </div>
                 <div
                   style={{
-                    color: t.category === "debit" ? "#f87171" : "#34d399",
+                    color: t.category === "debit" ? "var(--debit)" : "var(--credit)",
                     fontWeight: 600,
                   }}
                 >
@@ -238,8 +238,8 @@ const MemberDetailModal = ({
             padding: "12px",
             borderRadius: "8px",
             border: "none",
-            background: "linear-gradient(135deg, #10b981, #059669)",
-            color: "white",
+            background: "linear-gradient(135deg, var(--accent), #059669)",
+            color: "var(--text)",
             fontWeight: 600,
             cursor: "pointer",
             fontSize: "14px",
@@ -265,14 +265,14 @@ const cardStyle = {
 const statCardStyle = { ...cardStyle, textAlign: "center" };
 
 const labelStyle = {
-  color: "#94a3b8",
+  color: "var(--text-muted)",
   fontSize: "11px",
   textTransform: "uppercase",
   letterSpacing: "0.5px",
 };
 
 const valueStyle = {
-  color: "white",
+  color: "var(--text)",
   fontSize: "15px",
   fontWeight: 600,
   wordBreak: "break-word",

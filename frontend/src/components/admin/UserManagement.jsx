@@ -306,24 +306,24 @@ Please log in and complete your profile.`;
     switch (role?.toLowerCase()) {
       case "admin":
       case "administrator":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
       case "manager":
-        return { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
+        return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
       default:
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
       case "inactive":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
       case "suspended":
-        return { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" };
+        return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
       default:
-        return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+        return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
     }
   };
 
@@ -338,7 +338,7 @@ Please log in and complete your profile.`;
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle at top, #1e293b 0%, #0f172a 60%)",
+          background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
           padding: "20px",
           fontFamily: "system-ui, -apple-system, sans-serif",
         }}
@@ -362,7 +362,7 @@ Please log in and complete your profile.`;
             position: absolute;
             top: 0; left: 0; right: 0;
             height: 3px;
-            background: linear-gradient(90deg, #059669, #0d9488, #10b981);
+            background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
           }
           .pub-logo {
             width: 64px; height: 64px;
@@ -379,7 +379,7 @@ Please log in and complete your profile.`;
             margin: 0 0 4px 0; letter-spacing: -0.3px;
           }
           .pub-subtitle {
-            font-size: 13px; color: #94a3b8;
+            font-size: 13px; color: var(--text-muted);
             text-align: center; margin: 0 0 22px 0;
           }
           .pub-info {
@@ -395,7 +395,7 @@ Please log in and complete your profile.`;
           .pub-group { margin-bottom: 14px; }
           .pub-label {
             display: block; font-size: 12px;
-            font-weight: 600; color: #cbd5e1;
+            font-weight: 600; color: var(--text);
             margin-bottom: 6px;
             letter-spacing: 0.3px; text-transform: uppercase;
           }
@@ -410,9 +410,9 @@ Please log in and complete your profile.`;
             box-sizing: border-box;
             transition: all 0.2s;
           }
-          .pub-input::placeholder { color: #64748b; }
+          .pub-input::placeholder { color: var(--text-dim); }
           .pub-input:focus {
-            border-color: #10b981;
+            border-color: var(--accent);
             background: rgba(16, 185, 129, 0.06);
             box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
           }
@@ -423,7 +423,7 @@ Please log in and complete your profile.`;
             padding: 10px 14px;
             margin-bottom: 14px;
             font-size: 12px;
-            color: #34d399;
+            color: var(--credit);
             word-break: break-all;
           }
           .pub-submit {
@@ -447,10 +447,10 @@ Please log in and complete your profile.`;
             text-align: center;
             margin-top: 20px;
             font-size: 13px;
-            color: #94a3b8;
+            color: var(--text-muted);
           }
           .pub-footer a {
-            color: #34d399;
+            color: var(--credit);
             text-decoration: none;
             font-weight: 600;
           }
@@ -458,7 +458,7 @@ Please log in and complete your profile.`;
           .pub-note {
             text-align: center;
             font-size: 10px;
-            color: #475569;
+            color: var(--text-dim);
             margin-top: 18px;
           }
         `}</style>
@@ -528,7 +528,7 @@ Please log in and complete your profile.`;
 
             <div className="pub-email-note">
               📧 Your login email will be:{" "}
-              <strong style={{ color: "white" }}>
+              <strong style={{ color: "var(--text)" }}>
                 {newMember.email || "—"}
               </strong>
             </div>
@@ -565,7 +565,7 @@ Please log in and complete your profile.`;
           >
             <div
               style={{
-                background: "#1e293b",
+                background: "var(--bg-surface)",
                 borderRadius: "14px",
                 padding: "28px",
                 maxWidth: "460px",
@@ -573,7 +573,7 @@ Please log in and complete your profile.`;
                 maxHeight: "90vh",
                 overflowY: "auto",
                 border: "1px solid rgba(255,255,255,0.1)",
-                color: "white",
+                color: "var(--text)",
               }}
             >
               <h3
@@ -628,7 +628,7 @@ Please log in and complete your profile.`;
                     <div
                       style={{
                         fontSize: "11px",
-                        color: "#94a3b8",
+                        color: "var(--text-muted)",
                         textTransform: "uppercase",
                         letterSpacing: "0.5px",
                         marginBottom: "2px",
@@ -639,7 +639,7 @@ Please log in and complete your profile.`;
                     <div
                       style={{
                         fontSize: "14px",
-                        color: "white",
+                        color: "var(--text)",
                         fontWeight: "600",
                         fontFamily: "monospace",
                         wordBreak: "break-all",
@@ -652,7 +652,7 @@ Please log in and complete your profile.`;
                     onClick={() => copyToClipboard(row.value, row.label)}
                     style={{
                       background: "rgba(59, 130, 246, 0.15)",
-                      color: "#60a5fa",
+                      color: "var(--info)",
                       border: "1px solid rgba(59, 130, 246, 0.25)",
                       padding: "6px 12px",
                       borderRadius: "6px",
@@ -681,8 +681,8 @@ Please log in and complete your profile.`;
                     padding: "10px 20px",
                     borderRadius: "8px",
                     border: "none",
-                    background: "linear-gradient(to right, #7c3aed, #6d28d9)",
-                    color: "white",
+                    background: "linear-gradient(to right, var(--purple), #6d28d9)",
+                    color: "var(--text)",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: "500",
@@ -702,7 +702,7 @@ Please log in and complete your profile.`;
                     borderRadius: "8px",
                     border: "1px solid rgba(255,255,255,0.1)",
                     background: "transparent",
-                    color: "white",
+                    color: "var(--text)",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: "500",
@@ -726,7 +726,7 @@ Please log in and complete your profile.`;
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -734,7 +734,7 @@ Please log in and complete your profile.`;
           justifyContent: "center",
         }}
       >
-        <div style={{ color: "white" }}>Loading...</div>
+        <div style={{ color: "var(--text)" }}>Loading...</div>
       </div>
     );
   }
@@ -743,7 +743,7 @@ Please log in and complete your profile.`;
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -757,7 +757,7 @@ Please log in and complete your profile.`;
           z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background: #1e293b; border-radius: 12px;
+          background: var(--bg-surface); border-radius: 12px;
           padding: 28px; max-width: 480px; width: 100%;
           max-height: 90vh; overflow-y: auto;
           border: 1px solid rgba(255,255,255,0.1);
@@ -768,13 +768,13 @@ Please log in and complete your profile.`;
         }
         .modal-title { font-size: 18px; font-weight: bold; margin: 0; }
         .modal-close {
-          background: none; border: none; color: #9ca3af;
+          background: none; border: none; color: var(--text-muted);
           font-size: 26px; cursor: pointer; padding: 0 6px;
         }
         .form-group { margin-bottom: 14px; }
         .form-label {
           display: block; font-size: 13px; font-weight: 500;
-          color: #d1d5db; margin-bottom: 4px;
+          color: var(--text); margin-bottom: 4px;
         }
         .form-input {
           width: 100%; padding: 10px 14px; border-radius: 8px;
@@ -783,19 +783,19 @@ Please log in and complete your profile.`;
           color: white; font-size: 14px; outline: none;
           box-sizing: border-box;
         }
-        .form-input:focus { border-color: #10b981; }
+        .form-input:focus { border-color: var(--accent); }
         .form-input:disabled { opacity: 0.6; }
-        .form-input::placeholder { color: #6b7280; }
+        .form-input::placeholder { color: var(--text-dim); }
         .form-select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background: rgba(255,255,255,0.08);
           color: white; font-size: 14px; outline: none;
         }
-        .form-select option { background: #1e293b; }
+        .form-select option { background: var(--bg-surface); }
         .btn-primary {
           padding: 10px 24px; border-radius: 8px; border: none;
-          background: #10b981; color: white; cursor: pointer;
+          background: var(--accent); color: white; cursor: pointer;
           font-size: 14px; font-weight: 500;
         }
         .btn-primary:hover { background: #059669; }
@@ -807,13 +807,13 @@ Please log in and complete your profile.`;
         }
         .btn-add {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(16, 185, 129, 0.15); color: #34d399;
+          background: rgba(16, 185, 129, 0.15); color: var(--credit);
           cursor: pointer; font-size: 14px; font-weight: 500;
         }
         .btn-add:hover { background: rgba(16, 185, 129, 0.25); }
         .btn-role {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(139, 92, 246, 0.15); color: #a78bfa;
+          background: rgba(139, 92, 246, 0.15); color: var(--purple);
           cursor: pointer; font-size: 14px;
         }
         .credential-row {
@@ -824,7 +824,7 @@ Please log in and complete your profile.`;
           margin-bottom: 8px;
         }
         .credential-label {
-          font-size: 11px; color: #94a3b8; text-transform: uppercase;
+          font-size: 11px; color: var(--text-muted); text-transform: uppercase;
           letter-spacing: 0.5px; margin-bottom: 2px;
         }
         .credential-value {
@@ -833,7 +833,7 @@ Please log in and complete your profile.`;
         }
         .cred-copy-btn {
           background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.25);
+          color: var(--info); border: 1px solid rgba(59, 130, 246, 0.25);
           padding: 6px 12px; border-radius: 6px; cursor: pointer;
           font-size: 12px; font-weight: 500; white-space: nowrap;
         }
@@ -855,7 +855,7 @@ Please log in and complete your profile.`;
             👥 Members Management
           </h2>
           <p
-            style={{ color: "#9ca3af", margin: "4px 0 0 0", fontSize: "14px" }}
+            style={{ color: "var(--text-muted)", margin: "4px 0 0 0", fontSize: "14px" }}
           >
             Manage members, assign roles, view balances
           </p>
@@ -887,7 +887,7 @@ Please log in and complete your profile.`;
           style={{
             width: "100%",
             backgroundColor: "rgba(255,255,255,0.08)",
-            color: "white",
+            color: "var(--text)",
             padding: "10px 16px",
             borderRadius: "8px",
             border: "1px solid rgba(255,255,255,0.1)",
@@ -926,7 +926,7 @@ Please log in and complete your profile.`;
                       padding: "12px 16px",
                       textAlign: "left",
                       fontSize: "12px",
-                      color: "#9ca3af",
+                      color: "var(--text-muted)",
                       textTransform: "uppercase",
                     }}
                   >
@@ -946,7 +946,7 @@ Please log in and complete your profile.`;
                       style={{
                         fontSize: "14px",
                         fontWeight: "600",
-                        color: "#60a5fa",
+                        color: "var(--info)",
                         fontFamily: "monospace",
                       }}
                     >
@@ -970,7 +970,7 @@ Please log in and complete your profile.`;
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "#34d399",
+                          color: "var(--credit)",
                           fontWeight: "bold",
                           overflow: "hidden",
                         }}
@@ -991,7 +991,7 @@ Please log in and complete your profile.`;
                       </div>
                       <div
                         style={{
-                          color: "white",
+                          color: "var(--text)",
                           fontSize: "14px",
                           fontWeight: "500",
                         }}
@@ -1001,10 +1001,10 @@ Please log in and complete your profile.`;
                     </div>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontSize: "13px", color: "#d1d5db" }}>
+                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {member.email}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9ca3af" }}>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                       {member.phone || "—"}
                     </div>
                   </td>
@@ -1036,11 +1036,11 @@ Please log in and complete your profile.`;
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {member.profile_completed ? (
-                      <span style={{ color: "#34d399", fontSize: "12px" }}>
+                      <span style={{ color: "var(--credit)", fontSize: "12px" }}>
                         ✅ Complete
                       </span>
                     ) : (
-                      <span style={{ color: "#fbbf24", fontSize: "12px" }}>
+                      <span style={{ color: "var(--warning)", fontSize: "12px" }}>
                         ⏳ Pending
                       </span>
                     )}
@@ -1050,7 +1050,7 @@ Please log in and complete your profile.`;
                       padding: "12px 16px",
                       fontSize: "14px",
                       fontWeight: "600",
-                      color: "#34d399",
+                      color: "var(--credit)",
                     }}
                   >
                     ₦{parseFloat(member.balance || 0).toLocaleString()}
@@ -1060,7 +1060,7 @@ Please log in and complete your profile.`;
                       <button
                         onClick={() => handleEditMember(member)}
                         style={{
-                          color: "#34d399",
+                          color: "var(--credit)",
                           background: "none",
                           border: "none",
                           cursor: "pointer",
@@ -1072,7 +1072,7 @@ Please log in and complete your profile.`;
                       <button
                         onClick={() => handleDeleteMember(member.id)}
                         style={{
-                          color: "#f87171",
+                          color: "var(--debit)",
                           background: "none",
                           border: "none",
                           cursor: "pointer",
@@ -1090,7 +1090,7 @@ Please log in and complete your profile.`;
         </div>
         {filteredMembers.length === 0 && (
           <div
-            style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}
+            style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
             <p>No members found</p>
@@ -1195,9 +1195,9 @@ Please log in and complete your profile.`;
                   marginBottom: "12px",
                 }}
               >
-                <p style={{ margin: 0, fontSize: "12px", color: "#34d399" }}>
+                <p style={{ margin: 0, fontSize: "12px", color: "var(--credit)" }}>
                   📧 Auto email:{" "}
-                  <strong style={{ color: "white" }}>
+                  <strong style={{ color: "var(--text)" }}>
                     {newMember.email || "—"}
                   </strong>
                 </p>
@@ -1332,7 +1332,7 @@ Please log in and complete your profile.`;
                 className="btn-primary"
                 style={{
                   flex: 1,
-                  background: "linear-gradient(to right, #7c3aed, #6d28d9)",
+                  background: "linear-gradient(to right, var(--purple), #6d28d9)",
                 }}
                 onClick={copyAllCredentials}
               >

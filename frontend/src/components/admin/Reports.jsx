@@ -417,7 +417,7 @@ const AdminReports = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -451,7 +451,7 @@ const AdminReports = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -478,7 +478,7 @@ const AdminReports = () => {
         }
         .stat-label {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .stat-value {
           font-size: 20px;
@@ -499,7 +499,7 @@ const AdminReports = () => {
           border-radius: 8px;
           border: none;
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -552,12 +552,12 @@ const AdminReports = () => {
         }
         .chart-bar-label {
           font-size: 11px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-top: 6px;
         }
         .chart-bar-value {
           font-size: 10px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-bottom: 4px;
         }
         .reports-table {
@@ -569,7 +569,7 @@ const AdminReports = () => {
           padding: 10px 12px;
           font-size: 11px;
           font-weight: 600;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
           border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -611,7 +611,7 @@ const AdminReports = () => {
           border-color: #00aa69;
         }
         .filter-select option {
-          background: #1e293b;
+          background: var(--bg-surface);
           color: white;
         }
         .date-input {
@@ -662,12 +662,12 @@ const AdminReports = () => {
         }
         .filter-label {
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-right: 4px;
         }
         .filter-indicator {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           padding: 4px 12px;
           background: rgba(255,255,255,0.05);
           border-radius: 6px;
@@ -710,7 +710,7 @@ const AdminReports = () => {
             border-color: #e2e8f0 !important;
           }
           .stat-label {
-            color: #64748b !important;
+            color: var(--text-dim) !important;
           }
           .stat-value {
             color: #0f172a !important;
@@ -723,7 +723,7 @@ const AdminReports = () => {
             color: #0f172a !important;
           }
           .reports-table th {
-            color: #64748b !important;
+            color: var(--text-dim) !important;
           }
           .reports-table td {
             color: #0f172a !important;
@@ -750,7 +750,7 @@ const AdminReports = () => {
             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
               📈 Reports & Analytics
             </h2>
-            <p style={{ fontSize: "14px", color: "#94a3b8", marginTop: "4px" }}>
+            <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
               View analytics and reports for your organization
             </p>
           </div>
@@ -790,7 +790,7 @@ const AdminReports = () => {
                 value={startDate}
                 onChange={(e) => setStartDate(e.target.value)}
               />
-              <span style={{ color: "#94a3b8" }}>to</span>
+              <span style={{ color: "var(--text-muted)" }}>to</span>
               <input
                 type="date"
                 className="date-input"
@@ -834,49 +834,49 @@ const AdminReports = () => {
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-label">Total Sales</div>
-            <div className="stat-value" style={{ color: "#34d399" }}>
+            <div className="stat-value" style={{ color: "var(--credit)" }}>
               {formatNaira(reportData.overview.total_sales)}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Deposits</div>
-            <div className="stat-value" style={{ color: "#60a5fa" }}>
+            <div className="stat-value" style={{ color: "var(--info)" }}>
               {formatNaira(reportData.overview.total_deposits)}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Withdrawals</div>
-            <div className="stat-value" style={{ color: "#f87171" }}>
+            <div className="stat-value" style={{ color: "var(--debit)" }}>
               {formatNaira(reportData.overview.total_withdrawals)}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Transfers</div>
-            <div className="stat-value" style={{ color: "#a78bfa" }}>
+            <div className="stat-value" style={{ color: "var(--purple)" }}>
               {formatNaira(reportData.overview.total_transfers)}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Total Members</div>
-            <div className="stat-value" style={{ color: "white" }}>
+            <div className="stat-value" style={{ color: "var(--text)" }}>
               {reportData.overview.total_members}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Active Members</div>
-            <div className="stat-value" style={{ color: "#34d399" }}>
+            <div className="stat-value" style={{ color: "var(--credit)" }}>
               {reportData.overview.active_members}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Pending Approvals</div>
-            <div className="stat-value" style={{ color: "#fbbf24" }}>
+            <div className="stat-value" style={{ color: "var(--warning)" }}>
               {reportData.overview.pending_approvals}
             </div>
           </div>
           <div className="stat-card">
             <div className="stat-label">Avg Daily</div>
-            <div className="stat-value" style={{ color: "#60a5fa" }}>
+            <div className="stat-value" style={{ color: "var(--info)" }}>
               {formatNaira(reportData.overview.average_daily)}
             </div>
           </div>
@@ -923,42 +923,42 @@ const AdminReports = () => {
                 }}
               >
                 <div>
-                  <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                     Total Revenue
                   </div>
                   <div
                     style={{
                       fontSize: "28px",
                       fontWeight: "bold",
-                      color: "#34d399",
+                      color: "var(--credit)",
                     }}
                   >
                     {formatNaira(reportData.overview.total_sales)}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                     Total Fees
                   </div>
                   <div
                     style={{
                       fontSize: "28px",
                       fontWeight: "bold",
-                      color: "#fbbf24",
+                      color: "var(--warning)",
                     }}
                   >
                     {formatNaira(reportData.overview.total_fees)}
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                     Net Revenue
                   </div>
                   <div
                     style={{
                       fontSize: "28px",
                       fontWeight: "bold",
-                      color: "#60a5fa",
+                      color: "var(--info)",
                     }}
                   >
                     {formatNaira(
@@ -968,14 +968,14 @@ const AdminReports = () => {
                   </div>
                 </div>
                 <div>
-                  <div style={{ fontSize: "13px", color: "#94a3b8" }}>
+                  <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                     Member Growth
                   </div>
                   <div
                     style={{
                       fontSize: "28px",
                       fontWeight: "bold",
-                      color: "#a78bfa",
+                      color: "var(--purple)",
                     }}
                   >
                     {reportData.overview.active_members > 0
@@ -1008,7 +1008,7 @@ const AdminReports = () => {
                         className="chart-bar"
                         style={{
                           height: `${Math.max(height, 8)}%`,
-                          background: `linear-gradient(to top, #34d399, #34d399dd)`,
+                          background: `linear-gradient(to top, var(--credit), var(--credit)dd)`,
                         }}
                       />
                       <div className="chart-bar-label">{month.month}</div>
@@ -1031,7 +1031,7 @@ const AdminReports = () => {
                     alignItems: "center",
                     gap: "6px",
                     fontSize: "12px",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                   }}
                 >
                   <span
@@ -1040,7 +1040,7 @@ const AdminReports = () => {
                       width: "12px",
                       height: "12px",
                       borderRadius: "2px",
-                      background: "#34d399",
+                      background: "var(--credit)",
                     }}
                   ></span>
                   Sales
@@ -1050,7 +1050,7 @@ const AdminReports = () => {
                 style={{
                   marginTop: "12px",
                   fontSize: "13px",
-                  color: "#94a3b8",
+                  color: "var(--text-muted)",
                   textAlign: "center",
                 }}
               >
@@ -1085,15 +1085,15 @@ const AdminReports = () => {
                         <tr key={member.id}>
                           <td>{index + 1}</td>
                           <td style={{ fontWeight: "500" }}>{member.name}</td>
-                          <td style={{ color: "#94a3b8" }}>{member.email}</td>
-                          <td style={{ color: "#94a3b8" }}>
+                          <td style={{ color: "var(--text-muted)" }}>{member.email}</td>
+                          <td style={{ color: "var(--text-muted)" }}>
                             {formatDate(member.joined)}
                           </td>
                           <td>{member.contributions}</td>
                           <td
                             style={{
                               textAlign: "right",
-                              color: "#34d399",
+                              color: "var(--credit)",
                               fontWeight: "600",
                             }}
                           >
@@ -1105,7 +1105,7 @@ const AdminReports = () => {
                       <tr>
                         <td
                           colSpan="6"
-                          style={{ textAlign: "center", color: "#94a3b8" }}
+                          style={{ textAlign: "center", color: "var(--text-muted)" }}
                         >
                           No members found for the selected filters
                         </td>
@@ -1148,10 +1148,10 @@ const AdminReports = () => {
                           <td style={{ fontWeight: "500" }}>
                             {transaction.customer}
                           </td>
-                          <td style={{ color: "#34d399", fontWeight: "600" }}>
+                          <td style={{ color: "var(--credit)", fontWeight: "600" }}>
                             {formatNaira(transaction.amount)}
                           </td>
-                          <td style={{ color: "#94a3b8" }}>
+                          <td style={{ color: "var(--text-muted)" }}>
                             {formatDate(transaction.date)}
                           </td>
                           <td>
@@ -1167,7 +1167,7 @@ const AdminReports = () => {
                       <tr>
                         <td
                           colSpan="5"
-                          style={{ textAlign: "center", color: "#94a3b8" }}
+                          style={{ textAlign: "center", color: "var(--text-muted)" }}
                         >
                           No transactions found for the selected filters
                         </td>

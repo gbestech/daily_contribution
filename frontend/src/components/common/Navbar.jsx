@@ -540,7 +540,7 @@ const Navbar = ({
       case "light":
         return "linear-gradient(135deg, #ffffff 50%, #e2e8f0 50%)";
       case "dark":
-        return "linear-gradient(135deg, #1e293b 50%, #0f172a 50%)";
+        return "linear-gradient(135deg, var(--bg-surface) 50%, #0f172a 50%)";
       case "forest":
         return "linear-gradient(135deg, #22c55e 50%, #0d1a12 50%)";
       case "midnight":
@@ -548,7 +548,7 @@ const Navbar = ({
       case "grey":
         return "linear-gradient(135deg, #8e8e93 50%, #1c1c1e 50%)";
       default:
-        return "#475569";
+        return "var(--text-dim)";
     }
   };
 

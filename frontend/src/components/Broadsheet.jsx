@@ -29,13 +29,11 @@ const Broadsheet = () => {
   const [loading, setLoading] = useState(true);
   const [user, setUser] = useState(null);
 
-  // Filter states
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
   const [filterMember, setFilterMember] = useState("all");
 
-  // Date granularity filters
   const [filterDay, setFilterDay] = useState("");
   const [filterMonth, setFilterMonth] = useState("");
   const [filterYear, setFilterYear] = useState("");
@@ -43,15 +41,12 @@ const Broadsheet = () => {
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
 
-  // Pagination
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 15;
 
-  // Speech + modal state
   const [selectedMember, setSelectedMember] = useState(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
 
-  // ---------- HELPERS ----------
   const formatCurrency = (amt) => {
     const num = parseFloat(amt) || 0;
     return new Intl.NumberFormat("en-NG", {
@@ -89,7 +84,7 @@ const Broadsheet = () => {
       const m = members.find((x) => Number(x.id) === Number(memberId));
       return m ? m.name : "Unknown";
     },
-    [members]
+    [members],
   );
 
   const cleanDescription = (text) => {
@@ -100,7 +95,6 @@ const Broadsheet = () => {
       .trim();
   };
 
-  // ---------- DATA NORMALIZATION ----------
   const calculateAndNormalize = (rawTxns) => {
     return rawTxns.map((t) => {
       const type = (t.type || "").toLowerCase();
@@ -133,7 +127,6 @@ const Broadsheet = () => {
     });
   };
 
-  // ---------- DATA FETCH ----------
   const fetchData = async () => {
     setLoading(true);
     try {
@@ -162,7 +155,7 @@ const Broadsheet = () => {
       }
 
       all.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
 
       setTransactions(calculateAndNormalize(all));
@@ -181,23 +174,20 @@ const Broadsheet = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Voice result handler
   const handleVoiceResult = useCallback(
     (spokenText) => {
       if (!spokenText) return;
       const cleaned = spokenText.toLowerCase().trim();
       setSearchTerm(cleaned);
 
-      // 1) Exact-ish match (contains)
       let matches = members.filter((m) =>
-        m.name?.toLowerCase().includes(cleaned)
+        m.name?.toLowerCase().includes(cleaned),
       );
 
-      // 2) Fallback: match by any word in the name
       if (matches.length === 0) {
         const words = cleaned.split(/\s+/).filter(Boolean);
         matches = members.filter((m) =>
-          words.some((w) => m.name?.toLowerCase().includes(w))
+          words.some((w) => m.name?.toLowerCase().includes(w)),
         );
       }
 
@@ -207,16 +197,15 @@ const Broadsheet = () => {
         toast.success(
           matches.length === 1
             ? `👤 Found: ${matches[0].name}`
-            : `Found ${matches.length} matches — showing ${matches[0].name}`
+            : `Found ${matches.length} matches — showing ${matches[0].name}`,
         );
       } else {
         toast.error(`No member found matching "${spokenText}"`);
       }
     },
-    [members]
+    [members],
   );
 
-  // Speech recognition hook
   const {
     isListening,
     transcript,
@@ -231,18 +220,16 @@ const Broadsheet = () => {
     },
   });
 
-  // Debug logs — remove later if you want
   useEffect(() => {
     console.log("🎙️ Voice supported:", voiceSupported);
     console.log(
       "SpeechRecognition available:",
-      !!(window.SpeechRecognition || window.webkitSpeechRecognition)
+      !!(window.SpeechRecognition || window.webkitSpeechRecognition),
     );
     console.log("Protocol:", window.location.protocol);
     console.log("Host:", window.location.host);
   }, [voiceSupported]);
 
-  // ---------- FILTERING + SORTING ----------
   const filtered = useMemo(() => {
     let list = [...transactions];
 
@@ -257,9 +244,13 @@ const Broadsheet = () => {
         return (
           name.includes(term) ||
           String(t.accountNumber || "").includes(term) ||
-          String(t.description || "").toLowerCase().includes(term) ||
+          String(t.description || "")
+            .toLowerCase()
+            .includes(term) ||
           String(t.id || "").includes(term) ||
-          String(t.type || "").toLowerCase().includes(term)
+          String(t.type || "")
+            .toLowerCase()
+            .includes(term)
         );
       });
     }
@@ -337,7 +328,6 @@ const Broadsheet = () => {
     setCurrentPage(1);
   }, [filtered.length]);
 
-  // ---------- STATS ----------
   const stats = useMemo(() => {
     const depositTypes = ["deposit", "contribution"];
     const debitTypes = ["withdrawal"];
@@ -356,7 +346,7 @@ const Broadsheet = () => {
 
     const totalCharges = filtered.reduce(
       (s, t) => s + (parseFloat(t.charge) || 0),
-      0
+      0,
     );
 
     return {
@@ -369,30 +359,44 @@ const Broadsheet = () => {
     };
   }, [filtered]);
 
-  // ---------- PAGINATION ----------
   const totalPages = Math.ceil(filtered.length / itemsPerPage) || 1;
   const paginated = filtered.slice(
     (currentPage - 1) * itemsPerPage,
-    currentPage * itemsPerPage
+    currentPage * itemsPerPage,
   );
 
-  // ---------- BADGES ----------
   const typeBadge = (type) => {
     const map = {
-      deposit: { bg: "rgba(16,185,129,0.2)", color: "#34d399", icon: "💰" },
+      deposit: {
+        bg: "rgba(16,185,129,0.2)",
+        color: "var(--credit)",
+        icon: "💰",
+      },
       contribution: {
         bg: "rgba(59,130,246,0.2)",
-        color: "#60a5fa",
+        color: "var(--info)",
         icon: "🤝",
       },
-      withdrawal: { bg: "rgba(239,68,68,0.2)", color: "#f87171", icon: "💸" },
-      transfer: { bg: "rgba(139,92,246,0.2)", color: "#a78bfa", icon: "🔄" },
-      charge: { bg: "rgba(234,179,8,0.2)", color: "#fbbf24", icon: "⚡" },
-      fee: { bg: "rgba(234,179,8,0.2)", color: "#fbbf24", icon: "⚡" },
+      withdrawal: {
+        bg: "rgba(239,68,68,0.2)",
+        color: "var(--debit)",
+        icon: "💸",
+      },
+      transfer: {
+        bg: "rgba(139,92,246,0.2)",
+        color: "var(--purple)",
+        icon: "🔄",
+      },
+      charge: {
+        bg: "rgba(234,179,8,0.2)",
+        color: "var(--warning)",
+        icon: "⚡",
+      },
+      fee: { bg: "rgba(234,179,8,0.2)", color: "var(--warning)", icon: "⚡" },
     };
     const s = map[type] || {
       bg: "rgba(148,163,184,0.2)",
-      color: "#cbd5e1",
+      color: "var(--text)",
       icon: "📄",
     };
     return (
@@ -415,13 +419,13 @@ const Broadsheet = () => {
 
   const statusBadge = (status) => {
     const map = {
-      pending: { bg: "rgba(234,179,8,0.2)", color: "#fbbf24" },
-      approved: { bg: "rgba(16,185,129,0.2)", color: "#34d399" },
-      rejected: { bg: "rgba(239,68,68,0.2)", color: "#f87171" },
+      pending: { bg: "rgba(234,179,8,0.2)", color: "var(--warning)" },
+      approved: { bg: "rgba(16,185,129,0.2)", color: "var(--credit)" },
+      rejected: { bg: "rgba(239,68,68,0.2)", color: "var(--debit)" },
     };
     const s = map[status] || {
       bg: "rgba(148,163,184,0.2)",
-      color: "#cbd5e1",
+      color: "var(--text)",
     };
     return (
       <span
@@ -441,7 +445,6 @@ const Broadsheet = () => {
     );
   };
 
-  // ---------- ACTIONS ----------
   const resetFilters = () => {
     setSearchTerm("");
     setFilterType("all");
@@ -504,7 +507,7 @@ const Broadsheet = () => {
         style={{
           padding: "40px",
           textAlign: "center",
-          color: "white",
+          color: "var(--text)",
           fontSize: "20px",
         }}
       >
@@ -520,7 +523,7 @@ const Broadsheet = () => {
     <div
       style={{
         padding: "24px",
-        color: "#fff",
+        color: "var(--text)",
         maxWidth: "1400px",
         margin: "0 auto",
         fontFamily: "system-ui, -apple-system, sans-serif",
@@ -536,8 +539,8 @@ const Broadsheet = () => {
           gap: 16px;
           margin-bottom: 24px;
         }
-        .bs-header h2 { margin: 0; font-size: 24px; font-weight: 700; }
-        .bs-header p { margin: 4px 0 0; color: #9ca3af; font-size: 14px; }
+        .bs-header h2 { margin: 0; font-size: 24px; font-weight: 700; color: var(--text); }
+        .bs-header p { margin: 4px 0 0; color: var(--text-muted); font-size: 14px; }
         .bs-actions { display: flex; gap: 8px; flex-wrap: wrap; }
 
         .bs-btn {
@@ -545,13 +548,13 @@ const Broadsheet = () => {
           border: 1px solid transparent; font-size: 13px;
           font-weight: 500; cursor: pointer; transition: all 0.2s;
         }
-        .bs-btn-blue { background: rgba(59,130,246,0.15); color: #60a5fa; border-color: rgba(59,130,246,0.25); }
+        .bs-btn-blue { background: rgba(59,130,246,0.15); color: var(--info); border-color: rgba(59,130,246,0.25); }
         .bs-btn-blue:hover { background: rgba(59,130,246,0.25); }
-        .bs-btn-red { background: rgba(239,68,68,0.15); color: #f87171; border-color: rgba(239,68,68,0.25); }
+        .bs-btn-red { background: rgba(239,68,68,0.15); color: var(--debit); border-color: rgba(239,68,68,0.25); }
         .bs-btn-red:hover { background: rgba(239,68,68,0.25); }
-        .bs-btn-green { background: rgba(16,185,129,0.15); color: #34d399; border-color: rgba(16,185,129,0.25); }
+        .bs-btn-green { background: rgba(16,185,129,0.15); color: var(--credit); border-color: rgba(16,185,129,0.25); }
         .bs-btn-green:hover { background: rgba(16,185,129,0.25); }
-        .bs-btn-purple { background: rgba(139,92,246,0.15); color: #a78bfa; border-color: rgba(139,92,246,0.25); }
+        .bs-btn-purple { background: rgba(139,92,246,0.15); color: var(--purple); border-color: rgba(139,92,246,0.25); }
         .bs-btn-purple:hover { background: rgba(139,92,246,0.25); }
 
         .bs-stats {
@@ -560,24 +563,24 @@ const Broadsheet = () => {
           gap: 14px; margin-bottom: 20px;
         }
         .bs-stat-card {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 12px; padding: 16px;
           display: flex; flex-direction: column; gap: 6px;
           transition: all 0.2s;
         }
-        .bs-stat-card:hover { transform: translateY(-2px); border-color: rgba(255,255,255,0.2); }
-        .bs-stat-label { color: #9ca3af; font-size: 12px; font-weight: 500; }
+        .bs-stat-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
+        .bs-stat-label { color: var(--text-muted); font-size: 12px; font-weight: 500; }
         .bs-stat-value { font-size: 20px; font-weight: 700; }
-        .bs-green { color: #34d399; }
-        .bs-red { color: #f87171; }
-        .bs-purple { color: #a78bfa; }
-        .bs-yellow { color: #fbbf24; }
-        .bs-blue { color: #60a5fa; }
+        .bs-green { color: var(--credit); }
+        .bs-red { color: var(--debit); }
+        .bs-purple { color: var(--purple); }
+        .bs-yellow { color: var(--warning); }
+        .bs-blue { color: var(--info); }
 
         .bs-filter-bar {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 12px; padding: 16px; margin-bottom: 20px;
         }
         .bs-filter-grid {
@@ -586,18 +589,17 @@ const Broadsheet = () => {
           gap: 10px;
         }
         .bs-input, .bs-select {
-          background: rgba(255,255,255,0.08); color: white;
+          background: var(--bg-surface); color: var(--text);
           padding: 9px 12px; border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.12);
+          border: 1px solid var(--border);
           outline: none; font-size: 13px; width: 100%;
           box-sizing: border-box; transition: border-color 0.2s;
         }
-        .bs-input:focus, .bs-select:focus { border-color: #10b981; }
-        .bs-input::placeholder { color: #94a3b8; }
-        .bs-select option { background: #1e293b; color: white; }
-        .bs-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
-        .bs-filter-summary { margin-top: 12px; color: #9ca3af; font-size: 13px; }
-        .bs-filter-summary strong { color: white; }
+        .bs-input:focus, .bs-select:focus { border-color: var(--accent); }
+        .bs-input::placeholder { color: var(--text-dim); }
+        .bs-select option { background: var(--bg-surface); color: var(--text); }
+        .bs-filter-summary { margin-top: 12px; color: var(--text-muted); font-size: 13px; }
+        .bs-filter-summary strong { color: var(--text); }
 
         .bs-search-wrap {
           display: flex;
@@ -615,13 +617,13 @@ const Broadsheet = () => {
           transition: all 0.2s;
           border: 1px solid rgba(16,185,129,0.3);
           background: rgba(16,185,129,0.15);
-          color: #34d399;
+          color: var(--credit);
         }
         .bs-mic-btn:hover { background: rgba(16,185,129,0.25); }
         .bs-mic-btn.listening {
-          border-color: #ef4444;
+          border-color: var(--debit);
           background: rgba(239,68,68,0.25);
-          color: #fca5a5;
+          color: var(--debit);
           animation: bs-pulse 1.2s infinite;
         }
         @keyframes bs-pulse {
@@ -631,70 +633,71 @@ const Broadsheet = () => {
         .bs-mic-btn.unsupported {
           opacity: 0.5;
           cursor: not-allowed;
-          border-color: rgba(148,163,184,0.3);
-          background: rgba(148,163,184,0.15);
-          color: #94a3b8;
+          border-color: var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text-muted);
         }
         .bs-mic-btn.unsupported:hover {
-          background: rgba(148,163,184,0.15);
+          background: var(--bg-surface-2);
         }
 
         .bs-table-wrap {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 12px; overflow: auto; max-height: 600px;
         }
         .bs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
         .bs-table thead th {
           position: sticky; top: 0; z-index: 2;
-          background: #1e293b; color: #cbd5e1;
+          background: var(--bg-surface); color: var(--text);
           font-size: 11px; font-weight: 600;
           text-transform: uppercase; letter-spacing: 0.5px;
           padding: 12px 14px; text-align: left;
           white-space: nowrap;
-          border-bottom: 1px solid rgba(255,255,255,0.1);
+          border-bottom: 1px solid var(--border);
         }
         .bs-table tbody td {
           padding: 11px 14px;
-          border-top: 1px solid rgba(255,255,255,0.05);
-          color: #e5e7eb; vertical-align: middle;
+          border-top: 1px solid var(--border);
+          color: var(--text); vertical-align: middle;
         }
-        .bs-table tbody tr:hover { background: rgba(255,255,255,0.03); }
-        .bs-mono { font-family: "SF Mono","Monaco",monospace; font-size: 12px; color: #94a3b8; }
-        .bs-muted { color: #9ca3af; font-size: 12px; }
+        .bs-table tbody tr:hover { background: var(--bg-hover); }
+        .bs-mono { font-family: "SF Mono","Monaco",monospace; font-size: 12px; color: var(--text-muted); }
+        .bs-muted { color: var(--text-muted); font-size: 12px; }
         .bs-right { text-align: right; }
         .bs-amount { font-weight: 600; font-size: 14px; white-space: nowrap; }
-        .bs-amount-credit { color: #34d399; }
-        .bs-amount-debit { color: #f87171; }
-        .bs-charge { color: #fbbf24; font-weight: 600; white-space: nowrap; }
-        .bs-net { color: #34d399; font-weight: 600; white-space: nowrap; }
-        .bs-desc { color: #cbd5e1; font-size: 12px; max-width: 260px; }
+        .bs-amount-credit { color: var(--credit); }
+        .bs-amount-debit { color: var(--debit); }
+        .bs-charge { color: var(--warning); font-weight: 600; white-space: nowrap; }
+        .bs-net { color: var(--credit); font-weight: 600; white-space: nowrap; }
+        .bs-desc { color: var(--text); font-size: 12px; max-width: 260px; }
         .bs-table tfoot td {
-          background: rgba(255,255,255,0.06);
+          background: var(--bg-surface-2);
           padding: 12px 14px; font-size: 13px;
-          border-top: 2px solid rgba(255,255,255,0.15);
+          border-top: 2px solid var(--border-strong);
+          color: var(--text);
         }
 
-        .bs-empty { text-align: center; padding: 50px 20px !important; color: #94a3b8; }
+        .bs-empty { text-align: center; padding: 50px 20px !important; color: var(--text-muted); }
         .bs-empty-icon { font-size: 48px; margin-bottom: 8px; }
-        .bs-empty-hint { font-size: 12px; color: #64748b; margin-top: 4px; }
+        .bs-empty-hint { font-size: 12px; color: var(--text-dim); margin-top: 4px; }
 
         .bs-pagination {
           display: flex; justify-content: space-between; align-items: center;
           margin-top: 16px; flex-wrap: wrap; gap: 12px;
         }
-        .bs-page-info { color: #9ca3af; font-size: 13px; }
+        .bs-page-info { color: var(--text-muted); font-size: 13px; }
         .bs-page-controls { display: flex; gap: 6px; flex-wrap: wrap; }
         .bs-page-btn {
           padding: 6px 12px; border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent; color: white;
+          border: 1px solid var(--border);
+          background: transparent; color: var(--text);
           cursor: pointer; font-size: 13px; transition: all 0.2s;
         }
-        .bs-page-btn:hover:not(:disabled) { background: rgba(255,255,255,0.05); }
+        .bs-page-btn:hover:not(:disabled) { background: var(--bg-hover); }
         .bs-page-btn.active {
           background: rgba(16,185,129,0.2);
-          border-color: #10b981; color: #34d399;
+          border-color: var(--accent); color: var(--credit);
         }
         .bs-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
       `}</style>
@@ -770,7 +773,6 @@ const Broadsheet = () => {
       {/* Filters */}
       <div className="bs-filter-bar">
         <div className="bs-filter-grid">
-          {/* Search + Voice button */}
           <div className="bs-search-wrap">
             <input
               className="bs-input"
@@ -788,7 +790,7 @@ const Broadsheet = () => {
               onClick={() => {
                 if (!voiceSupported) {
                   toast.error(
-                    "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS."
+                    "🎙️ Voice not supported. Use Chrome/Edge/Safari on localhost or HTTPS.",
                   );
                   return;
                 }
@@ -801,15 +803,11 @@ const Broadsheet = () => {
                 !voiceSupported
                   ? "Voice not supported in this browser/context"
                   : isListening
-                  ? "Stop listening"
-                  : "Speak a name to search & show details"
+                    ? "Stop listening"
+                    : "Speak a name to search & show details"
               }
             >
-              {isListening
-                ? "🔴 Stop"
-                : voiceSupported
-                ? "🎙️ Voice"
-                : "🎙️ N/A"}
+              {isListening ? "🔴 Stop" : voiceSupported ? "🎙️ Voice" : "🎙️ N/A"}
             </button>
           </div>
 
@@ -955,14 +953,14 @@ const Broadsheet = () => {
                     <td>{formatDate(t.date)}</td>
                     <td className="bs-muted">{formatTime(t.date) || "—"}</td>
                     <td>
-                      <div style={{ fontWeight: 500, color: "white" }}>
+                      <div style={{ fontWeight: 500, color: "var(--text)" }}>
                         {t.memberName || getMemberName(t.memberId)}
                       </div>
                       {t.accountNumber && (
                         <div
                           style={{
                             fontSize: "11px",
-                            color: "#64748b",
+                            color: "var(--text-dim)",
                             marginTop: "2px",
                           }}
                         >
@@ -1005,17 +1003,17 @@ const Broadsheet = () => {
                       const isDebit =
                         t.category === "debit" || t.type === "withdrawal";
                       return s + (isDebit ? -t.amount : t.amount);
-                    }, 0)
+                    }, 0),
                   )}
                 </td>
                 <td className="bs-right bs-charge">
                   {formatCurrency(
-                    paginated.reduce((s, t) => s + (t.charge || 0), 0)
+                    paginated.reduce((s, t) => s + (t.charge || 0), 0),
                   )}
                 </td>
                 <td className="bs-right bs-net">
                   {formatCurrency(
-                    paginated.reduce((s, t) => s + (t.net || 0), 0)
+                    paginated.reduce((s, t) => s + (t.net || 0), 0),
                   )}
                 </td>
                 <td colSpan="2"></td>

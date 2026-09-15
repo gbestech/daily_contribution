@@ -63,9 +63,9 @@ const OPERATIONS = [
 ];
 
 const ROLES = [
-  { value: "admin", label: "Admin", icon: "👑", color: "#f87171" },
-  { value: "manager", label: "Manager", icon: "📊", color: "#60a5fa" },
-  { value: "member", label: "Member", icon: "👤", color: "#34d399" },
+  { value: "admin", label: "Admin", icon: "👑", color: "var(--debit)" },
+  { value: "manager", label: "Manager", icon: "📊", color: "var(--info)" },
+  { value: "member", label: "Member", icon: "👤", color: "var(--credit)" },
 ];
 
 const ALL_KEYS = OPERATIONS.flatMap((g) => g.items.map((i) => i.key));
@@ -221,7 +221,7 @@ const Permissions = () => {
         style={{
           padding: "40px",
           textAlign: "center",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -240,7 +240,7 @@ const Permissions = () => {
         padding: "24px",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
-        color: "white",
+        color: "var(--text)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
@@ -251,7 +251,7 @@ const Permissions = () => {
           gap: 16px; margin-bottom: 24px;
         }
         .perm-header h2 { font-size: 24px; font-weight: 700; margin: 0; }
-        .perm-header p { color: #9ca3af; margin: 4px 0 0 0; font-size: 14px; }
+        .perm-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
         .role-tabs {
           display: flex; gap: 6px;
           background: rgba(255,255,255,0.05);
@@ -262,7 +262,7 @@ const Permissions = () => {
         .role-tab {
           flex: 1; min-width: 130px; padding: 12px;
           border: none; border-radius: 8px;
-          background: transparent; color: #94a3b8;
+          background: transparent; color: var(--text-muted);
           cursor: pointer; font-size: 14px; font-weight: 600;
           display: flex; align-items: center; justify-content: center; gap: 8px;
           transition: all 0.2s;
@@ -277,7 +277,7 @@ const Permissions = () => {
         }
         .role-tab.dirty::after {
           content: ""; width: 8px; height: 8px;
-          background: #fbbf24; border-radius: 50%; margin-left: 6px;
+          background: var(--warning); border-radius: 50%; margin-left: 6px;
         }
         .perm-card {
           background: rgba(255,255,255,0.05);
@@ -292,14 +292,14 @@ const Permissions = () => {
         .perm-group-title {
           font-size: 12px; font-weight: 700;
           text-transform: uppercase; letter-spacing: 0.6px;
-          color: #34d399;
+          color: var(--credit);
         }
         .perm-bulk-btns { display: flex; gap: 6px; }
         .perm-bulk {
           padding: 4px 12px; border-radius: 6px;
           font-size: 11px; font-weight: 600;
           border: 1px solid rgba(255,255,255,0.12);
-          background: transparent; color: #94a3b8;
+          background: transparent; color: var(--text-muted);
           cursor: pointer; transition: all 0.2s;
         }
         .perm-bulk:hover {
@@ -326,11 +326,11 @@ const Permissions = () => {
           border-color: rgba(16, 185, 129, 0.35);
         }
         .perm-item input {
-          accent-color: #10b981; width: 16px; height: 16px;
+          accent-color: var(--accent); width: 16px; height: 16px;
           cursor: pointer; flex-shrink: 0;
         }
         .perm-item-label {
-          font-size: 13px; color: #cbd5e1;
+          font-size: 13px; color: var(--text);
           display: flex; align-items: center; gap: 8px;
           flex: 1; min-width: 0;
         }
@@ -338,7 +338,7 @@ const Permissions = () => {
         .perm-icon { font-size: 15px; }
         .save-bar {
           position: sticky; bottom: 0;
-          background: #1e293b;
+          background: var(--bg-surface);
           border: 1px solid rgba(255,255,255,0.1);
           border-radius: 14px; padding: 16px 20px;
           display: flex; justify-content: space-between;
@@ -346,7 +346,7 @@ const Permissions = () => {
           margin-top: 20px;
           box-shadow: 0 -8px 24px rgba(0,0,0,0.3);
         }
-        .save-bar-text { font-size: 13px; color: #94a3b8; }
+        .save-bar-text { font-size: 13px; color: var(--text-muted); }
         .save-bar-text strong { color: white; }
         .save-btns { display: flex; gap: 10px; }
         .btn {
@@ -364,11 +364,11 @@ const Permissions = () => {
         }
         .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
         .btn-secondary {
-          background: transparent; color: #cbd5e1;
+          background: transparent; color: var(--text);
           border: 1px solid rgba(255,255,255,0.12);
         }
         .btn-secondary:hover { background: rgba(255,255,255,0.06); }
-        .empty { text-align: center; padding: 40px 20px; color: #94a3b8; }
+        .empty { text-align: center; padding: 40px 20px; color: var(--text-muted); }
       `}</style>
 
       <div className="perm-header">

@@ -472,23 +472,23 @@ const Dashboard = () => {
       case "completed":
         return {
           backgroundColor: "rgba(16, 185, 129, 0.2)",
-          color: "#34d399",
+          color: "var(--credit)",
         };
       case "pending":
         return {
           backgroundColor: "rgba(234, 179, 8, 0.2)",
-          color: "#fbbf24",
+          color: "var(--warning)",
         };
       case "rejected":
       case "failed":
         return {
           backgroundColor: "rgba(239, 68, 68, 0.2)",
-          color: "#f87171",
+          color: "var(--debit)",
         };
       default:
         return {
           backgroundColor: "rgba(156, 163, 175, 0.2)",
-          color: "#9ca3af",
+          color: "var(--text-muted)",
         };
     }
   };
@@ -527,7 +527,7 @@ const Dashboard = () => {
           padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           border-radius: 16px;
           padding: 32px;
           max-width: 500px;
@@ -550,7 +550,7 @@ const Dashboard = () => {
         .modal-close {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           padding: 4px;
           font-size: 24px;
@@ -565,7 +565,7 @@ const Dashboard = () => {
           display: block;
           font-size: 14px;
           font-weight: 500;
-          color: #d1d5db;
+          color: var(--text);
           margin-bottom: 6px;
         }
         .form-input {
@@ -581,7 +581,7 @@ const Dashboard = () => {
           box-sizing: border-box;
         }
         .form-input:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .form-select {
           width: 100%;
@@ -595,10 +595,10 @@ const Dashboard = () => {
           transition: border-color 0.2s;
         }
         .form-select:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .form-select option {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
         }
         .btn-submit {
           width: 100%;
@@ -660,10 +660,10 @@ const Dashboard = () => {
         }}
       >
         <div>
-          <h1 style={{ color: "white", fontSize: "24px", margin: 0 }}>
+          <h1 style={{ color: "var(--text)", fontSize: "24px", margin: 0 }}>
             Welcome back, {displayName}! 👋
           </h1>
-          <p style={{ color: "#9ca3af", margin: "4px 0 0 0" }}>
+          <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
             {isAdmin ? "👑 Admin Dashboard" : "👤 Member Dashboard"}
           </p>
         </div>
@@ -673,7 +673,7 @@ const Dashboard = () => {
             disabled={refreshing}
             style={{
               backgroundColor: "rgba(59, 130, 246, 0.15)",
-              color: "#60a5fa",
+              color: "var(--info)",
               padding: "10px 20px",
               border: "1px solid rgba(59, 130, 246, 0.2)",
               borderRadius: "8px",
@@ -699,7 +699,7 @@ const Dashboard = () => {
             onClick={handleLogout}
             style={{
               backgroundColor: "rgba(239, 68, 68, 0.15)",
-              color: "#f87171",
+              color: "var(--debit)",
               padding: "10px 20px",
               border: "1px solid rgba(239, 68, 68, 0.2)",
               borderRadius: "8px",
@@ -744,7 +744,7 @@ const Dashboard = () => {
             <div>
               <p
                 style={{
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   margin: "0 0 4px 0",
                 }}
@@ -755,7 +755,7 @@ const Dashboard = () => {
                 style={{
                   fontSize: "22px",
                   fontWeight: "bold",
-                  color: "#34d399",
+                  color: "var(--credit)",
                   margin: 0,
                 }}
               >
@@ -786,7 +786,7 @@ const Dashboard = () => {
             <div>
               <p
                 style={{
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   margin: "0 0 4px 0",
                 }}
@@ -797,7 +797,7 @@ const Dashboard = () => {
                 style={{
                   fontSize: "22px",
                   fontWeight: "bold",
-                  color: "white",
+                  color: "var(--text)",
                   margin: 0,
                 }}
               >
@@ -828,7 +828,7 @@ const Dashboard = () => {
             <div>
               <p
                 style={{
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   margin: "0 0 4px 0",
                 }}
@@ -839,7 +839,7 @@ const Dashboard = () => {
                 style={{
                   fontSize: "22px",
                   fontWeight: "bold",
-                  color: "#fbbf24",
+                  color: "var(--warning)",
                   margin: 0,
                 }}
               >
@@ -870,7 +870,7 @@ const Dashboard = () => {
             <div>
               <p
                 style={{
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   margin: "0 0 4px 0",
                 }}
@@ -881,7 +881,7 @@ const Dashboard = () => {
                 style={{
                   fontSize: "22px",
                   fontWeight: "bold",
-                  color: "white",
+                  color: "var(--text)",
                   margin: 0,
                 }}
               >
@@ -906,7 +906,7 @@ const Dashboard = () => {
             onClick={() => setShowDepositModal(true)}
             style={{
               backgroundColor: "rgba(16, 185, 129, 0.15)",
-              color: "#34d399",
+              color: "var(--credit)",
               padding: "16px",
               border: "1px solid rgba(16, 185, 129, 0.2)",
               borderRadius: "10px",
@@ -931,7 +931,7 @@ const Dashboard = () => {
             onClick={() => setShowWithdrawModal(true)}
             style={{
               backgroundColor: "rgba(239, 68, 68, 0.15)",
-              color: "#f87171",
+              color: "var(--debit)",
               padding: "16px",
               border: "1px solid rgba(239, 68, 68, 0.2)",
               borderRadius: "10px",
@@ -962,7 +962,7 @@ const Dashboard = () => {
             }}
             style={{
               backgroundColor: "rgba(139, 92, 246, 0.15)",
-              color: "#a78bfa",
+              color: "var(--purple)",
               padding: "16px",
               border: "1px solid rgba(139, 92, 246, 0.2)",
               borderRadius: "10px",
@@ -987,7 +987,7 @@ const Dashboard = () => {
             onClick={() => navigate("/member/borrowing")}
             style={{
               backgroundColor: "rgba(251, 191, 36, 0.15)",
-              color: "#fbbf24",
+              color: "var(--warning)",
               padding: "16px",
               border: "1px solid rgba(251, 191, 36, 0.2)",
               borderRadius: "10px",
@@ -1024,7 +1024,7 @@ const Dashboard = () => {
             onClick={() => navigate("/admin/members")}
             style={{
               backgroundColor: "rgba(16, 185, 129, 0.15)",
-              color: "#34d399",
+              color: "var(--credit)",
               padding: "16px",
               border: "1px solid rgba(16, 185, 129, 0.2)",
               borderRadius: "10px",
@@ -1041,7 +1041,7 @@ const Dashboard = () => {
             onClick={() => navigate("/admin/pending")}
             style={{
               backgroundColor: "rgba(59, 130, 246, 0.15)",
-              color: "#60a5fa",
+              color: "var(--info)",
               padding: "16px",
               border: "1px solid rgba(59, 130, 246, 0.2)",
               borderRadius: "10px",
@@ -1056,8 +1056,8 @@ const Dashboard = () => {
               <span
                 style={{
                   marginLeft: "8px",
-                  backgroundColor: "#ef4444",
-                  color: "white",
+                  backgroundColor: "var(--debit)",
+                  color: "var(--text)",
                   fontSize: "11px",
                   padding: "2px 8px",
                   borderRadius: "50%",
@@ -1072,7 +1072,7 @@ const Dashboard = () => {
             onClick={() => navigate("/admin/reports")}
             style={{
               backgroundColor: "rgba(139, 92, 246, 0.15)",
-              color: "#a78bfa",
+              color: "var(--purple)",
               padding: "16px",
               border: "1px solid rgba(139, 92, 246, 0.2)",
               borderRadius: "10px",
@@ -1089,7 +1089,7 @@ const Dashboard = () => {
             onClick={() => navigate("/admin/loans")}
             style={{
               backgroundColor: "rgba(251, 191, 36, 0.15)",
-              color: "#fbbf24",
+              color: "var(--warning)",
               padding: "16px",
               border: "1px solid rgba(251, 191, 36, 0.2)",
               borderRadius: "10px",
@@ -1121,14 +1121,14 @@ const Dashboard = () => {
             marginBottom: "16px",
           }}
         >
-          <h3 style={{ color: "white", margin: 0 }}>📊 Recent Transactions</h3>
+          <h3 style={{ color: "var(--text)", margin: 0 }}>📊 Recent Transactions</h3>
           <button
             onClick={refreshData}
             disabled={refreshing}
             style={{
               background: "none",
               border: "none",
-              color: "#60a5fa",
+              color: "var(--info)",
               cursor: refreshing ? "not-allowed" : "pointer",
               fontSize: "14px",
               opacity: refreshing ? 0.5 : 1,
@@ -1159,12 +1159,12 @@ const Dashboard = () => {
                   }}
                 >
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ color: "white", fontSize: "14px" }}>
+                    <div style={{ color: "var(--text)", fontSize: "14px" }}>
                       {t.type.charAt(0).toUpperCase() + t.type.slice(1)}
                       {t.type === "transfer" &&
                         ` to ${t.toMemberName || "Recipient"}`}
                     </div>
-                    <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+                    <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                       {t.description || "No description"}
                     </div>
 
@@ -1182,7 +1182,7 @@ const Dashboard = () => {
                           lineHeight: 1.4,
                         }}
                       >
-                        <div style={{ fontWeight: "600", color: "#f87171" }}>
+                        <div style={{ fontWeight: "600", color: "var(--debit)" }}>
                           ❌ Rejection reason
                         </div>
                         <div style={{ marginTop: "2px" }}>
@@ -1191,7 +1191,7 @@ const Dashboard = () => {
                         {(rejectedBy || rejectedAt) && (
                           <div
                             style={{
-                              color: "#9ca3af",
+                              color: "var(--text-muted)",
                               fontSize: "11px",
                               marginTop: "4px",
                             }}
@@ -1204,7 +1204,7 @@ const Dashboard = () => {
                       </div>
                     )}
 
-                    <div style={{ color: "#6b7280", fontSize: "11px" }}>
+                    <div style={{ color: "var(--text-dim)", fontSize: "11px" }}>
                       {formatDate(t.date)}
                     </div>
                   </div>
@@ -1213,8 +1213,8 @@ const Dashboard = () => {
                       style={{
                         color:
                           t.type === "deposit" || t.type === "transfer_in"
-                            ? "#34d399"
-                            : "#f87171",
+                            ? "var(--credit)"
+                            : "var(--debit)",
                         fontWeight: "600",
                       }}
                     >
@@ -1241,7 +1241,7 @@ const Dashboard = () => {
           </div>
         ) : (
           <div
-            style={{ textAlign: "center", color: "#9ca3af", padding: "20px" }}
+            style={{ textAlign: "center", color: "var(--text-muted)", padding: "20px" }}
           >
             <div style={{ fontSize: "48px", marginBottom: "8px" }}>📭</div>
             <p>No recent transactions</p>
@@ -1282,7 +1282,7 @@ const Dashboard = () => {
                 />
                 <div
                   style={{
-                    color: "#9ca3af",
+                    color: "var(--text-muted)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -1352,7 +1352,7 @@ const Dashboard = () => {
                 />
                 <div
                   style={{
-                    color: "#9ca3af",
+                    color: "var(--text-muted)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -1361,7 +1361,7 @@ const Dashboard = () => {
                 </div>
                 <div
                   style={{
-                    color: "#fbbf24",
+                    color: "var(--warning)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -1453,7 +1453,7 @@ const Dashboard = () => {
                 />
                 <div
                   style={{
-                    color: "#9ca3af",
+                    color: "var(--text-muted)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -1462,7 +1462,7 @@ const Dashboard = () => {
                 </div>
                 <div
                   style={{
-                    color: "#fbbf24",
+                    color: "var(--warning)",
                     fontSize: "12px",
                     marginTop: "4px",
                   }}

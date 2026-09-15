@@ -449,7 +449,7 @@ const VoiceAssistant = () => {
         }
         .va-btn:hover { transform: scale(1.08); }
         .va-btn.listening {
-          background: linear-gradient(135deg, #ef4444, #dc2626);
+          background: linear-gradient(135deg, var(--debit), #dc2626);
           animation: va-pulse 1.5s infinite;
         }
         .va-toast {
@@ -457,7 +457,7 @@ const VoiceAssistant = () => {
           bottom: 108px;
           right: 28px;
           max-width: 340px;
-          background: var(--bg-surface, #1e293b);
+          background: var(--bg-surface, var(--bg-surface));
           color: var(--text, #fff);
           border: 1px solid var(--border, rgba(255,255,255,0.15));
           border-radius: 12px;
@@ -470,7 +470,7 @@ const VoiceAssistant = () => {
         }
         .va-transcript {
           font-size: 12px;
-          color: var(--text-muted, #94a3b8);
+          color: var(--text-muted, var(--text-muted));
           margin-top: 6px;
           font-style: italic;
           border-top: 1px solid var(--border, rgba(255,255,255,0.08));
@@ -487,7 +487,7 @@ const VoiceAssistant = () => {
           display: inline-block;
           width: 3px;
           height: 100%;
-          background-color: #ef4444;
+          background-color: var(--debit);
           border-radius: 2px;
           animation: va-wave 0.8s ease-in-out infinite;
         }

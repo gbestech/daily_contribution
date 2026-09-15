@@ -46,7 +46,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
           alignItems: "center",
           justifyContent: "center",
           background: "#0f172a",
-          color: "white",
+          color: "var(--text)",
         }}
       >
         Loading...

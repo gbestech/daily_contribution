@@ -443,32 +443,32 @@ const Borrowing = () => {
     const statusMap = {
       pending: {
         bg: "rgba(234, 179, 8, 0.2)",
-        color: "#fbbf24",
+        color: "var(--warning)",
         label: "Pending",
       },
       approved: {
         bg: "rgba(16, 185, 129, 0.2)",
-        color: "#34d399",
+        color: "var(--credit)",
         label: "Approved",
       },
       rejected: {
         bg: "rgba(239, 68, 68, 0.2)",
-        color: "#f87171",
+        color: "var(--debit)",
         label: "Rejected",
       },
       active: {
         bg: "rgba(59, 130, 246, 0.2)",
-        color: "#60a5fa",
+        color: "var(--info)",
         label: "Active",
       },
       completed: {
         bg: "rgba(16, 185, 129, 0.2)",
-        color: "#34d399",
+        color: "var(--credit)",
         label: "Completed",
       },
       defaulted: {
         bg: "rgba(239, 68, 68, 0.2)",
-        color: "#f87171",
+        color: "var(--debit)",
         label: "Defaulted",
       },
     };
@@ -523,7 +523,7 @@ const Borrowing = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -554,7 +554,7 @@ const Borrowing = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -575,7 +575,7 @@ const Borrowing = () => {
           padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           border-radius: 16px;
           padding: 32px;
           max-width: 500px;
@@ -598,7 +598,7 @@ const Borrowing = () => {
         .modal-close {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           padding: 4px;
           font-size: 24px;
@@ -613,7 +613,7 @@ const Borrowing = () => {
           display: block;
           font-size: 14px;
           font-weight: 500;
-          color: #d1d5db;
+          color: var(--text);
           margin-bottom: 6px;
         }
         .form-input {
@@ -629,7 +629,7 @@ const Borrowing = () => {
           box-sizing: border-box;
         }
         .form-input:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .form-input:disabled {
           opacity: 0.6;
@@ -672,7 +672,7 @@ const Borrowing = () => {
           border-radius: 6px;
           border: none;
           background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
+          color: var(--credit);
           cursor: pointer;
           font-size: 12px;
           font-weight: 500;
@@ -687,7 +687,7 @@ const Borrowing = () => {
           border-radius: 8px;
           border: none;
           background: rgba(16, 185, 129, 0.15);
-          color: #34d399;
+          color: var(--credit);
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -704,7 +704,7 @@ const Borrowing = () => {
           border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -729,7 +729,7 @@ const Borrowing = () => {
           border-radius: 6px;
           border: 1px solid rgba(255,255,255,0.1);
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 13px;
           transition: all 0.2s;
@@ -755,7 +755,7 @@ const Borrowing = () => {
         }
         .summary-label {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -774,12 +774,12 @@ const Borrowing = () => {
         }
         .eligible {
           background: rgba(16, 185, 129, 0.2);
-          color: #34d399;
+          color: var(--credit);
           border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .not-eligible {
           background: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          color: var(--debit);
           border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .loan-detail-row {
@@ -789,7 +789,7 @@ const Borrowing = () => {
           border-bottom: 1px solid rgba(255,255,255,0.05);
         }
         .loan-detail-label {
-          color: #94a3b8;
+          color: var(--text-muted);
           font-size: 14px;
         }
         .loan-detail-value {
@@ -806,12 +806,12 @@ const Borrowing = () => {
         }
         .total-payable-highlight .loan-detail-label {
           font-weight: 600;
-          color: #34d399;
+          color: var(--credit);
         }
         .total-payable-highlight .loan-detail-value {
           font-weight: 700;
           font-size: 16px;
-          color: #34d399;
+          color: var(--credit);
         }
         .max-borrow-info {
           background: rgba(16, 185, 129, 0.1);
@@ -823,13 +823,13 @@ const Borrowing = () => {
         .max-borrow-info p {
           margin: 0;
           font-size: 13px;
-          color: #34d399;
+          color: var(--credit);
         }
         .max-borrow-info strong {
           color: white;
         }
         .remaining-balance {
-          color: #34d399;
+          color: var(--credit);
           font-weight: 600;
         }
         .payment-info {
@@ -842,7 +842,7 @@ const Borrowing = () => {
         .payment-info p {
           margin: 4px 0;
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .payment-info strong {
           color: white;
@@ -853,21 +853,21 @@ const Borrowing = () => {
         /* ✅ COMPLETED ROW STYLING */
         .loan-row-completed {
           background-color: rgba(16, 185, 129, 0.08) !important;
-          border-left: 3px solid #34d399 !important;
+          border-left: 3px solid var(--credit) !important;
           transition: background-color 0.3s ease;
         }
         .loan-row-completed:hover {
           background-color: rgba(16, 185, 129, 0.15) !important;
         }
         .loan-row-completed td:first-child {
-          border-left: 3px solid #34d399;
+          border-left: 3px solid var(--credit);
         }
         .loan-row-completed .remaining-balance {
-          color: #34d399 !important;
+          color: var(--credit) !important;
         }
         .loan-row-completed .badge {
           background-color: rgba(16, 185, 129, 0.2) !important;
-          color: #34d399 !important;
+          color: var(--credit) !important;
           border-color: rgba(16, 185, 129, 0.3) !important;
         }
         .loan-row-completed .btn-pay {
@@ -890,7 +890,7 @@ const Borrowing = () => {
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
             💰 Loan Management
           </h2>
-          <p style={{ color: "#9ca3af", margin: "4px 0 0 0" }}>
+          <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
             Request and manage your loans
           </p>
         </div>
@@ -930,7 +930,7 @@ const Borrowing = () => {
         </div>
         <div className="summary-card">
           <div className="summary-label">Maximum Borrow (50%)</div>
-          <div className="summary-value" style={{ color: "#34d399" }}>
+          <div className="summary-value" style={{ color: "var(--credit)" }}>
             {formatCurrency(loanDetails.savings * 0.5)}
           </div>
         </div>
@@ -938,7 +938,7 @@ const Borrowing = () => {
           <div className="summary-label">Interest Rate</div>
           <div
             className="summary-value"
-            style={{ color: "#fbbf24", fontSize: "18px" }}
+            style={{ color: "var(--warning)", fontSize: "18px" }}
           >
             {loanSettings.interest_rate || 0}%
           </div>
@@ -953,7 +953,7 @@ const Borrowing = () => {
             </span>
             {!loanDetails.isEligible && (
               <div
-                style={{ fontSize: "11px", color: "#f87171", marginTop: "4px" }}
+                style={{ fontSize: "11px", color: "var(--debit)", marginTop: "4px" }}
               >
                 Need {loanSettings.min_membership_days || 180} days
               </div>
@@ -980,10 +980,10 @@ const Borrowing = () => {
             alignItems: "center",
           }}
         >
-          <h3 style={{ margin: 0, fontSize: "16px", color: "white" }}>
+          <h3 style={{ margin: 0, fontSize: "16px", color: "var(--text)" }}>
             📋 Loan History
           </h3>
-          <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+          <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
             {loans.length} loan{loans.length !== 1 ? "s" : ""}
           </span>
         </div>
@@ -997,7 +997,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1010,7 +1010,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1023,7 +1023,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1036,7 +1036,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1049,7 +1049,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1062,7 +1062,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1075,7 +1075,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1088,7 +1088,7 @@ const Borrowing = () => {
                     textAlign: "left",
                     fontSize: "12px",
                     fontWeight: "600",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     textTransform: "uppercase",
                     letterSpacing: "0.05em",
                   }}
@@ -1128,10 +1128,10 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "#60a5fa",
+                        color: "var(--info)",
                         fontFamily: "monospace",
                         fontSize: "14px",
-                        ...(isCompleted ? { color: "#34d399" } : {}),
+                        ...(isCompleted ? { color: "var(--credit)" } : {}),
                       }}
                     >
                       {loan.id}
@@ -1139,7 +1139,7 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "#34d399",
+                        color: "var(--credit)",
                         fontWeight: "500",
                       }}
                     >
@@ -1148,14 +1148,14 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "white",
+                        color: "var(--text)",
                         fontWeight: "500",
-                        ...(isCompleted ? { color: "#94a3b8" } : {}),
+                        ...(isCompleted ? { color: "var(--text-muted)" } : {}),
                       }}
                     >
                       {formatCurrency(totalPayable)}
                     </td>
-                    <td style={{ padding: "12px 16px", color: "#60a5fa" }}>
+                    <td style={{ padding: "12px 16px", color: "var(--info)" }}>
                       {formatCurrency(totalPaid)}
                     </td>
                     <td style={{ padding: "12px 16px" }}>
@@ -1167,7 +1167,7 @@ const Borrowing = () => {
                           style={{
                             marginLeft: "8px",
                             fontSize: "11px",
-                            color: "#34d399",
+                            color: "var(--credit)",
                           }}
                         >
                           ✅ Paid
@@ -1180,7 +1180,7 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "#94a3b8",
+                        color: "var(--text-muted)",
                         fontSize: "13px",
                       }}
                     >
@@ -1196,19 +1196,19 @@ const Borrowing = () => {
                         </button>
                       )}
                       {isFullyPaid && (
-                        <span style={{ fontSize: "12px", color: "#34d399" }}>
+                        <span style={{ fontSize: "12px", color: "var(--credit)" }}>
                           ✅ Completed
                         </span>
                       )}
                       {!canPay && !isFullyPaid && loan.status === "pending" && (
-                        <span style={{ fontSize: "12px", color: "#fbbf24" }}>
+                        <span style={{ fontSize: "12px", color: "var(--warning)" }}>
                           ⏳ Pending
                         </span>
                       )}
                       {!canPay &&
                         !isFullyPaid &&
                         loan.status === "rejected" && (
-                          <span style={{ fontSize: "12px", color: "#f87171" }}>
+                          <span style={{ fontSize: "12px", color: "var(--debit)" }}>
                             ❌ Rejected
                           </span>
                         )}
@@ -1233,10 +1233,10 @@ const Borrowing = () => {
               gap: "8px",
             }}
           >
-            <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+            <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
               Showing {indexOfFirstItem + 1} to{" "}
               {Math.min(indexOfLastItem, loans.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "white" }}>
+              <span style={{ fontWeight: "600", color: "var(--text)" }}>
                 {loans.length}
               </span>{" "}
               loans
@@ -1323,7 +1323,7 @@ const Borrowing = () => {
                   <div>
                     <div
                       style={{
-                        color: "white",
+                        color: "var(--text)",
                         fontWeight: "500",
                         fontSize: "14px",
                       }}
@@ -1332,7 +1332,7 @@ const Borrowing = () => {
                         ? "You are eligible to borrow!"
                         : "You are not eligible to borrow yet"}
                     </div>
-                    <div style={{ color: "#94a3b8", fontSize: "12px" }}>
+                    <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                       {loanDetails.isEligible
                         ? `You have been active for ${Math.floor(loanDetails.membershipDays / 30)} months`
                         : `Need to be active for ${Math.ceil((loanSettings.min_membership_days || 180) / 30)} months (${Math.floor(loanDetails.membershipDays / 30)}/${Math.ceil((loanSettings.min_membership_days || 180) / 30)} months)`}
@@ -1347,7 +1347,7 @@ const Borrowing = () => {
                   💰 You can borrow up to <strong>50%</strong> of your savings
                   balance
                 </p>
-                <p style={{ marginTop: "4px", color: "#34d399" }}>
+                <p style={{ marginTop: "4px", color: "var(--credit)" }}>
                   Maximum:{" "}
                   <strong>{formatCurrency(loanDetails.savings * 0.5)}</strong>
                 </p>
@@ -1368,7 +1368,7 @@ const Borrowing = () => {
                   Amount to Borrow *
                   <span
                     style={{
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       fontSize: "12px",
                       marginLeft: "8px",
                     }}
@@ -1391,7 +1391,7 @@ const Borrowing = () => {
                   <div
                     style={{
                       fontSize: "12px",
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                       marginTop: "4px",
                     }}
                   >
@@ -1413,7 +1413,7 @@ const Borrowing = () => {
                 >
                   <div
                     style={{
-                      color: "white",
+                      color: "var(--text)",
                       fontWeight: "500",
                       marginBottom: "12px",
                     }}
@@ -1432,7 +1432,7 @@ const Borrowing = () => {
                     </span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "#fbbf24" }}
+                      style={{ color: "var(--warning)" }}
                     >
                       {formatCurrency(loanDetails.interest)}
                     </span>
@@ -1441,7 +1441,7 @@ const Borrowing = () => {
                     <span className="loan-detail-label">Total Payable</span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "#34d399" }}
+                      style={{ color: "var(--credit)" }}
                     >
                       {formatCurrency(loanDetails.totalPayable)}
                     </span>
@@ -1456,7 +1456,7 @@ const Borrowing = () => {
                     </span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "#60a5fa" }}
+                      style={{ color: "var(--info)" }}
                     >
                       {formatCurrency(loanDetails.monthlyPayment)}
                     </span>
@@ -1481,7 +1481,7 @@ const Borrowing = () => {
                     <div
                       style={{
                         fontSize: "11px",
-                        color: "#94a3b8",
+                        color: "var(--text-muted)",
                         marginTop: "4px",
                       }}
                     >
@@ -1551,13 +1551,13 @@ const Borrowing = () => {
                 </p>
                 <p>
                   Total Paid:{" "}
-                  <strong style={{ color: "#60a5fa" }}>
+                  <strong style={{ color: "var(--info)" }}>
                     {formatCurrency(selectedLoan.total_paid || 0)}
                   </strong>
                 </p>
                 <p>
                   Remaining Balance:{" "}
-                  <strong style={{ color: "#34d399" }}>
+                  <strong style={{ color: "var(--credit)" }}>
                     {formatCurrency(
                       parseFloat(selectedLoan.total_payable) -
                         parseFloat(selectedLoan.total_paid || 0),
@@ -1585,7 +1585,7 @@ const Borrowing = () => {
                 <div
                   style={{
                     fontSize: "12px",
-                    color: "#94a3b8",
+                    color: "var(--text-muted)",
                     marginTop: "4px",
                   }}
                 >

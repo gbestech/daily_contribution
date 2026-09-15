@@ -293,7 +293,7 @@ const MemberProfile = () => {
         padding: "24px",
         maxWidth: "900px",
         margin: "0 auto",
-        color: "white",
+        color: "var(--text)",
       }}
     >
       <style>{`
@@ -310,16 +310,16 @@ const MemberProfile = () => {
           font-family: inherit;
         }
         .form-input:focus, .form-select:focus, .form-textarea:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .form-textarea { min-height: 80px; resize: vertical; }
-        .form-input::placeholder, .form-textarea::placeholder { color: #6b7280; }
-        .form-select option { background: #1e293b; }
+        .form-input::placeholder, .form-textarea::placeholder { color: var(--text-dim); }
+        .form-select option { background: var(--bg-surface); }
         .form-label {
           display: block;
           font-size: 13px;
           font-weight: 500;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-bottom: 4px;
         }
         .info-grid {
@@ -346,7 +346,7 @@ const MemberProfile = () => {
           border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background: transparent;
-          color: #9ca3af;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 14px;
         }
@@ -369,7 +369,7 @@ const MemberProfile = () => {
             </h2>
             <p style={{ margin: 0, color: "#93c5fd", fontSize: "14px" }}>
               Your account number is{" "}
-              <strong style={{ color: "white", fontFamily: "monospace" }}>
+              <strong style={{ color: "var(--text)", fontFamily: "monospace" }}>
                 {formData.accountNumber}
               </strong>
               . Please fill in the details below to activate your account.
@@ -412,7 +412,7 @@ const MemberProfile = () => {
                       alignItems: "center",
                       justifyContent: "center",
                       fontSize: "40px",
-                      color: "white",
+                      color: "var(--text)",
                     }}
                   >
                     📷
@@ -428,7 +428,7 @@ const MemberProfile = () => {
               />
               <p
                 style={{
-                  color: "#94a3b8",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   marginTop: "8px",
                 }}
@@ -531,7 +531,7 @@ const MemberProfile = () => {
                 style={{
                   margin: "0 0 10px 0",
                   fontSize: "14px",
-                  color: "#a78bfa",
+                  color: "var(--purple)",
                 }}
               >
                 👥 Next of Kin
@@ -602,7 +602,7 @@ const MemberProfile = () => {
                 style={{
                   margin: "0 0 10px 0",
                   fontSize: "14px",
-                  color: "#60a5fa",
+                  color: "var(--info)",
                 }}
               >
                 🏦 Bank Details (Optional)
@@ -668,7 +668,7 @@ const MemberProfile = () => {
               </h2>
               <p
                 style={{
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   margin: "2px 0 0 0",
                   fontSize: "13px",
                 }}
@@ -685,7 +685,7 @@ const MemberProfile = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(59, 130, 246, 0.2)",
                   background: "rgba(59, 130, 246, 0.15)",
-                  color: "#60a5fa",
+                  color: "var(--info)",
                   cursor: syncing ? "not-allowed" : "pointer",
                   fontSize: "13px",
                 }}
@@ -701,7 +701,7 @@ const MemberProfile = () => {
                   background: editMode
                     ? "rgba(239, 68, 68, 0.15)"
                     : "rgba(16, 185, 129, 0.15)",
-                  color: editMode ? "#f87171" : "#34d399",
+                  color: editMode ? "var(--debit)" : "var(--credit)",
                   cursor: "pointer",
                   fontSize: "13px",
                 }}
@@ -755,7 +755,7 @@ const MemberProfile = () => {
             <div style={{ flex: 1, minWidth: "180px" }}>
               <h3 style={{ margin: 0, fontSize: "18px" }}>{formData.name}</h3>
               <div
-                style={{ fontSize: "13px", color: "#94a3b8", marginTop: "2px" }}
+                style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}
               >
                 {formData.savings_plan} Saver • {formData.membershipType} Member
               </div>
@@ -764,7 +764,7 @@ const MemberProfile = () => {
               <div
                 style={{
                   fontSize: "11px",
-                  color: "#94a3b8",
+                  color: "var(--text-muted)",
                   textTransform: "uppercase",
                 }}
               >
@@ -774,7 +774,7 @@ const MemberProfile = () => {
                 style={{
                   fontSize: "24px",
                   fontWeight: "bold",
-                  color: "#34d399",
+                  color: "var(--credit)",
                 }}
               >
                 {formatCurrency(formData.balance)}

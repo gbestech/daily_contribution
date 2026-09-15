@@ -152,7 +152,7 @@ Please log in and complete your profile.`;
         display: "flex",
         alignItems: "center",
         justifyContent: "center",
-        background: "radial-gradient(circle at top, #1e293b 0%, #0f172a 60%)",
+        background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
         padding: "20px",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
@@ -176,7 +176,7 @@ Please log in and complete your profile.`;
           position: absolute;
           top: 0; left: 0; right: 0;
           height: 3px;
-          background: linear-gradient(90deg, #059669, #0d9488, #10b981);
+          background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
         }
         .pub-logo {
           width: 64px; height: 64px;
@@ -193,7 +193,7 @@ Please log in and complete your profile.`;
           margin: 0 0 4px 0; letter-spacing: -0.3px;
         }
         .pub-subtitle {
-          font-size: 13px; color: #94a3b8;
+          font-size: 13px; color: var(--text-muted);
           text-align: center; margin: 0 0 22px 0;
         }
         .pub-info {
@@ -209,7 +209,7 @@ Please log in and complete your profile.`;
         .pub-group { margin-bottom: 14px; }
         .pub-label {
           display: block; font-size: 12px;
-          font-weight: 600; color: #cbd5e1;
+          font-weight: 600; color: var(--text);
           margin-bottom: 6px;
           letter-spacing: 0.3px; text-transform: uppercase;
         }
@@ -224,9 +224,9 @@ Please log in and complete your profile.`;
           box-sizing: border-box;
           transition: all 0.2s;
         }
-        .pub-input::placeholder { color: #64748b; }
+        .pub-input::placeholder { color: var(--text-dim); }
         .pub-input:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
           background: rgba(16, 185, 129, 0.06);
           box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
         }
@@ -237,7 +237,7 @@ Please log in and complete your profile.`;
           padding: 10px 14px;
           margin-bottom: 14px;
           font-size: 12px;
-          color: #34d399;
+          color: var(--credit);
           word-break: break-all;
         }
         .pub-submit {
@@ -261,10 +261,10 @@ Please log in and complete your profile.`;
           text-align: center;
           margin-top: 20px;
           font-size: 13px;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .pub-footer a {
-          color: #34d399;
+          color: var(--credit);
           text-decoration: none;
           font-weight: 600;
         }
@@ -272,7 +272,7 @@ Please log in and complete your profile.`;
         .pub-note {
           text-align: center;
           font-size: 10px;
-          color: #475569;
+          color: var(--text-dim);
           margin-top: 18px;
         }
         .cred-row {
@@ -284,7 +284,7 @@ Please log in and complete your profile.`;
           margin-bottom: 8px;
         }
         .cred-label {
-          font-size: 11px; color: #94a3b8;
+          font-size: 11px; color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.5px; margin-bottom: 2px;
         }
@@ -296,7 +296,7 @@ Please log in and complete your profile.`;
         }
         .cred-copy {
           background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
+          color: var(--info);
           border: 1px solid rgba(59, 130, 246, 0.25);
           padding: 6px 12px; border-radius: 6px;
           cursor: pointer; font-size: 12px;
@@ -370,7 +370,7 @@ Please log in and complete your profile.`;
 
           <div className="pub-email-note">
             📧 Your login email will be:{" "}
-            <strong style={{ color: "white" }}>{newMember.email || "—"}</strong>
+            <strong style={{ color: "var(--text)" }}>{newMember.email || "—"}</strong>
           </div>
 
           <button type="submit" className="pub-submit" disabled={loading}>
@@ -404,7 +404,7 @@ Please log in and complete your profile.`;
         >
           <div
             style={{
-              background: "#1e293b",
+              background: "var(--bg-surface)",
               borderRadius: "14px",
               padding: "28px",
               maxWidth: "460px",
@@ -412,7 +412,7 @@ Please log in and complete your profile.`;
               maxHeight: "90vh",
               overflowY: "auto",
               border: "1px solid rgba(255,255,255,0.1)",
-              color: "white",
+              color: "var(--text)",
             }}
           >
             <h3
@@ -499,8 +499,8 @@ Please log in and complete your profile.`;
                   padding: "10px 20px",
                   borderRadius: "8px",
                   border: "none",
-                  background: "linear-gradient(to right, #7c3aed, #6d28d9)",
-                  color: "white",
+                  background: "linear-gradient(to right, var(--purple), #6d28d9)",
+                  color: "var(--text)",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: "500",
@@ -516,7 +516,7 @@ Please log in and complete your profile.`;
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   background: "transparent",
-                  color: "white",
+                  color: "var(--text)",
                   cursor: "pointer",
                   fontSize: "13px",
                   fontWeight: "500",

@@ -297,17 +297,17 @@ const Expenses = () => {
     const map = {
       pending: {
         bg: "rgba(234,179,8,0.15)",
-        color: "#fbbf24",
+        color: "var(--warning)",
         label: "⏳ PENDING",
       },
       approved: {
         bg: "rgba(16,185,129,0.15)",
-        color: "#34d399",
+        color: "var(--credit)",
         label: "✅ APPROVED",
       },
       rejected: {
         bg: "rgba(239,68,68,0.15)",
-        color: "#f87171",
+        color: "var(--debit)",
         label: "❌ REJECTED",
       },
     };
@@ -335,7 +335,7 @@ const Expenses = () => {
         style={{
           padding: 40,
           textAlign: "center",
-          color: "white",
+          color: "var(--text)",
           background: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -354,56 +354,56 @@ const Expenses = () => {
         padding: 24,
         background: "#0f172a",
         minHeight: "100vh",
-        color: "white",
+        color: "var(--text)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
       <style>{`
         .exp-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
         .exp-header h2 { font-size: 24px; font-weight: 700; margin: 0; }
-        .exp-header p { color: #9ca3af; margin: 4px 0 0 0; font-size: 14px; }
+        .exp-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
         .exp-btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
         .exp-btn-primary { background: linear-gradient(135deg, #059669, #0d9488); color: white; }
         .exp-btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px -8px rgba(5,150,105,0.6); }
-        .exp-btn-secondary { background: transparent; color: #cbd5e1; border: 1px solid rgba(255,255,255,0.12); }
+        .exp-btn-secondary { background: transparent; color: var(--text); border: 1px solid rgba(255,255,255,0.12); }
         .exp-btn-secondary:hover { background: rgba(255,255,255,0.06); }
         .exp-tabs { display: flex; gap: 4px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; padding: 4px; margin-bottom: 20px; flex-wrap: wrap; }
-        .exp-tab { flex: 1; min-width: 100px; padding: 10px; border: none; border-radius: 8px; background: transparent; color: #94a3b8; font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
+        .exp-tab { flex: 1; min-width: 100px; padding: 10px; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .exp-tab:hover { background: rgba(255,255,255,0.05); }
-        .exp-tab.active { background: rgba(16,185,129,0.2); color: #34d399; }
+        .exp-tab.active { background: rgba(16,185,129,0.2); color: var(--credit); }
         .exp-tab .count { margin-left: 6px; background: rgba(255,255,255,0.1); padding: 1px 6px; border-radius: 8px; font-size: 10px; }
         .exp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; margin-bottom: 20px; }
         .exp-stat { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.08); border-radius: 12px; padding: 16px; }
-        .exp-stat-label { font-size: 12px; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .exp-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
         .exp-stat-value { font-size: 22px; font-weight: 700; margin-top: 6px; }
         .exp-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 20px; }
         .exp-input, .exp-select { background: rgba(255,255,255,0.06); color: white; padding: 10px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); outline: none; font-size: 14px; width: 100%; box-sizing: border-box; }
-        .exp-input:focus, .exp-select:focus { border-color: #10b981; }
-        .exp-select option { background: #1e293b; color: white; }
+        .exp-input:focus, .exp-select:focus { border-color: var(--accent); }
+        .exp-select option { background: var(--bg-surface); color: white; }
         .exp-input::-webkit-calendar-picker-indicator { filter: invert(1); cursor: pointer; }
         .exp-table-wrap { background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 12px; overflow: auto; }
         table { width: 100%; border-collapse: collapse; }
-        th { position: sticky; top: 0; z-index: 2; background: #1e293b; color: #cbd5e1; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.1); }
+        th { position: sticky; top: 0; z-index: 2; background: var(--bg-surface); color: var(--text); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border-bottom: 1px solid rgba(255,255,255,0.1); }
         td { padding: 12px 16px; border-top: 1px solid rgba(255,255,255,0.05); color: #e5e7eb; font-size: 13px; vertical-align: middle; }
         tr:hover td { background: rgba(255,255,255,0.03); }
-        .exp-amount { color: #f87171; font-weight: 600; white-space: nowrap; }
-        .exp-cat { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(148,163,184,0.15); color: #cbd5e1; }
+        .exp-amount { color: var(--debit); font-weight: 600; white-space: nowrap; }
+        .exp-cat { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: rgba(148,163,184,0.15); color: var(--text); }
         .exp-actions { display: flex; gap: 4px; }
         .exp-icon-btn { background: transparent; border: none; cursor: pointer; font-size: 15px; padding: 4px 6px; border-radius: 6px; transition: background 0.15s; }
         .exp-icon-btn:hover { background: rgba(255,255,255,0.08); }
-        .exp-empty { text-align: center; padding: 60px 20px; color: #94a3b8; }
+        .exp-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
         .exp-empty-icon { font-size: 48px; margin-bottom: 10px; }
         .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
-        .modal-content { background: #1e293b; border-radius: 14px; padding: 28px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); }
+        .modal-content { background: var(--bg-surface); border-radius: 14px; padding: 28px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid rgba(255,255,255,0.1); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 18px; font-weight: 700; margin: 0; }
-        .modal-close { background: none; border: none; color: #9ca3af; font-size: 26px; cursor: pointer; padding: 0 6px; }
+        .modal-close { background: none; border: none; color: var(--text-muted); font-size: 26px; cursor: pointer; padding: 0 6px; }
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-group { margin-bottom: 14px; }
-        .form-label { display: block; font-size: 12px; font-weight: 600; color: #cbd5e1; margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
+        .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
         .form-input, .form-select { width: 100%; padding: 11px 14px; border-radius: 8px; border: 1px solid rgba(255,255,255,0.1); background: rgba(255,255,255,0.05); color: white; font-size: 14px; outline: none; box-sizing: border-box; }
-        .form-input:focus, .form-select:focus { border-color: #10b981; }
-        .form-select option { background: #1e293b; }
+        .form-input:focus, .form-select:focus { border-color: var(--accent); }
+        .form-select option { background: var(--bg-surface); }
         .modal-btns { display: flex; gap: 10px; margin-top: 8px; }
         .modal-btns button { flex: 1; }
       `}</style>
@@ -452,28 +452,28 @@ const Expenses = () => {
       <div className="exp-stats">
         <div className="exp-stat">
           <div className="exp-stat-label">💰 Approved Total</div>
-          <div className="exp-stat-value" style={{ color: "#f87171" }}>
+          <div className="exp-stat-value" style={{ color: "var(--debit)" }}>
             {formatCurrency(stats.total)}
           </div>
         </div>
         <div className="exp-stat">
           <div className="exp-stat-label">⏳ Pending Amount</div>
-          <div className="exp-stat-value" style={{ color: "#fbbf24" }}>
+          <div className="exp-stat-value" style={{ color: "var(--warning)" }}>
             {formatCurrency(stats.pendingAmt)}
           </div>
         </div>
         <div className="exp-stat">
           <div className="exp-stat-label">📅 This Month</div>
-          <div className="exp-stat-value" style={{ color: "#60a5fa" }}>
+          <div className="exp-stat-value" style={{ color: "var(--info)" }}>
             {formatCurrency(stats.thisMonth)}
           </div>
         </div>
         <div className="exp-stat">
           <div className="exp-stat-label">📄 Records</div>
-          <div className="exp-stat-value" style={{ color: "white" }}>
+          <div className="exp-stat-value" style={{ color: "var(--text)" }}>
             {stats.count}
             {stats.pendingCount > 0 && (
-              <span style={{ fontSize: 12, color: "#fbbf24", marginLeft: 8 }}>
+              <span style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8 }}>
                 + {stats.pendingCount} pending
               </span>
             )}
@@ -537,7 +537,7 @@ const Expenses = () => {
             ) : (
               filtered.map((e) => (
                 <tr key={e.id}>
-                  <td style={{ color: "#94a3b8", fontFamily: "monospace" }}>
+                  <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
                     #{e.id}
                   </td>
                   <td>{formatDate(e.expense_date)}</td>
@@ -548,26 +548,26 @@ const Expenses = () => {
                       {e.category}
                     </span>
                   </td>
-                  <td style={{ maxWidth: 240, color: "#cbd5e1" }}>
+                  <td style={{ maxWidth: 240, color: "var(--text)" }}>
                     {e.description || "—"}
                     {e.rejection_reason && (
                       <div
-                        style={{ fontSize: 11, color: "#f87171", marginTop: 3 }}
+                        style={{ fontSize: 11, color: "var(--debit)", marginTop: 3 }}
                       >
                         ❌ {e.rejection_reason}
                       </div>
                     )}
                   </td>
-                  <td style={{ color: "#cbd5e1" }}>{e.vendor || "—"}</td>
+                  <td style={{ color: "var(--text)" }}>{e.vendor || "—"}</td>
                   <td>{statusBadge(e.status)}</td>
                   <td className="exp-amount" style={{ textAlign: "right" }}>
                     −{formatCurrency(e.amount)}
                   </td>
-                  <td style={{ color: "#94a3b8", fontSize: 12 }}>
+                  <td style={{ color: "var(--text-muted)", fontSize: 12 }}>
                     {e.recorded_by || "—"}
                     {e.approved_by && e.status !== "pending" && (
                       <div
-                        style={{ fontSize: 10, color: "#64748b", marginTop: 2 }}
+                        style={{ fontSize: 10, color: "var(--text-dim)", marginTop: 2 }}
                       >
                         {e.status === "approved" ? "✅" : "❌"} {e.approved_by}
                       </div>
@@ -582,7 +582,7 @@ const Expenses = () => {
                             title="Approve"
                             disabled={busyId === e.id}
                             onClick={() => handleApprove(e)}
-                            style={{ color: "#34d399" }}
+                            style={{ color: "var(--credit)" }}
                           >
                             ✅
                           </button>
@@ -591,7 +591,7 @@ const Expenses = () => {
                             title="Reject"
                             disabled={busyId === e.id}
                             onClick={() => handleReject(e)}
-                            style={{ color: "#f87171" }}
+                            style={{ color: "var(--debit)" }}
                           >
                             ❌
                           </button>
@@ -648,7 +648,7 @@ const Expenses = () => {
                   padding: "10px 14px",
                   marginBottom: 16,
                   fontSize: 12,
-                  color: "#fbbf24",
+                  color: "var(--warning)",
                 }}
               >
                 ⚠️ Your expense will be sent to an admin for approval before it

@@ -463,7 +463,7 @@ const AdminSettings = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -494,7 +494,7 @@ const AdminSettings = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -526,7 +526,7 @@ const AdminSettings = () => {
           border-radius: 8px;
           border: none;
           background: transparent;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           font-size: 13px;
           font-weight: 500;
@@ -564,7 +564,7 @@ const AdminSettings = () => {
           display: block;
           font-size: 13px;
           font-weight: 500;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-bottom: 6px;
         }
         .form-input {
@@ -583,7 +583,7 @@ const AdminSettings = () => {
           border-color: #00aa69;
         }
         .form-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .form-select {
           width: 100%;
@@ -601,7 +601,7 @@ const AdminSettings = () => {
           border-color: #00aa69;
         }
         .form-select option {
-          background: #1e293b;
+          background: var(--bg-surface);
           color: white;
         }
         .form-checkbox {
@@ -648,7 +648,7 @@ const AdminSettings = () => {
           padding: 6px 16px;
           border-radius: 6px;
           border: none;
-          background: #ef4444;
+          background: var(--debit);
           color: white;
           cursor: pointer;
           font-size: 12px;
@@ -690,7 +690,7 @@ const AdminSettings = () => {
           padding: 4px 12px;
           border-radius: 4px;
           border: none;
-          background: #ef4444;
+          background: var(--debit);
           color: white;
           cursor: pointer;
           font-size: 11px;
@@ -709,7 +709,7 @@ const AdminSettings = () => {
           padding: 10px 12px;
           font-size: 11px;
           font-weight: 600;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
           border-bottom: 1px solid rgba(255,255,255,0.05);
@@ -731,22 +731,22 @@ const AdminSettings = () => {
         }
         .badge-suspended {
           background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          color: var(--debit);
           border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .badge-active {
           background-color: rgba(16, 185, 129, 0.2);
-          color: #34d399;
+          color: var(--credit);
           border: 1px solid rgba(16, 185, 129, 0.3);
         }
         .badge-permanent {
           background-color: rgba(239, 68, 68, 0.2);
-          color: #f87171;
+          color: var(--debit);
           border: 1px solid rgba(239, 68, 68, 0.3);
         }
         .badge-temporary {
           background-color: rgba(234, 179, 8, 0.2);
-          color: #fbbf24;
+          color: var(--warning);
           border: 1px solid rgba(234, 179, 8, 0.3);
         }
         .search-input {
@@ -766,7 +766,7 @@ const AdminSettings = () => {
           border-color: #00aa69;
         }
         .search-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .modal-overlay {
           position: fixed;
@@ -780,7 +780,7 @@ const AdminSettings = () => {
           padding: 16px;
         }
         .modal-content {
-          background-color: #1e293b;
+          background-color: var(--bg-surface);
           border-radius: 16px;
           padding: 24px;
           max-width: 500px;
@@ -802,7 +802,7 @@ const AdminSettings = () => {
         .modal-close {
           background: none;
           border: none;
-          color: #94a3b8;
+          color: var(--text-muted);
           cursor: pointer;
           padding: 4px;
           font-size: 24px;
@@ -836,7 +836,7 @@ const AdminSettings = () => {
           transition: all 0.2s;
         }
         .btn-confirm-danger {
-          background: #ef4444;
+          background: var(--debit);
           color: white;
         }
         .btn-confirm-danger:hover {
@@ -865,10 +865,10 @@ const AdminSettings = () => {
           font-family: inherit;
         }
         .textarea-input:focus {
-          border-color: #ef4444;
+          border-color: var(--debit);
         }
         .textarea-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .tier-item {
           display: flex;
@@ -907,16 +907,16 @@ const AdminSettings = () => {
         }
         .rule-box h4 {
           font-size: 13px;
-          color: #34d399;
+          color: var(--credit);
           margin: 0 0 8px 0;
         }
         .rule-box p {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin: 0;
         }
         .rule-box strong {
-          color: #34d399;
+          color: var(--credit);
         }
         .rule-example {
           margin-top: 12px;
@@ -926,11 +926,11 @@ const AdminSettings = () => {
         }
         .rule-example p {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin: 0;
         }
         .rule-example strong {
-          color: #34d399;
+          color: var(--credit);
         }
         .loan-restriction-box {
           background: rgba(139, 92, 246, 0.1);
@@ -941,19 +941,19 @@ const AdminSettings = () => {
         }
         .loan-restriction-box h4 {
           font-size: 13px;
-          color: #a78bfa;
+          color: var(--purple);
           margin: 0 0 8px 0;
         }
         .loan-restriction-box p {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin: 0;
         }
         .loan-restriction-box strong {
-          color: #a78bfa;
+          color: var(--purple);
         }
         .days-display {
-          color: #60a5fa;
+          color: var(--info);
           font-weight: 500;
         }
         @media (max-width: 768px) {
@@ -984,7 +984,7 @@ const AdminSettings = () => {
             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
               ⚙️ Settings
             </h2>
-            <p style={{ fontSize: "14px", color: "#94a3b8", marginTop: "4px" }}>
+            <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
               Configure application settings and manage accounts
             </p>
           </div>
@@ -1159,7 +1159,7 @@ const AdminSettings = () => {
                 <h4
                   style={{
                     fontSize: "14px",
-                    color: "#60a5fa",
+                    color: "var(--info)",
                     marginBottom: "12px",
                   }}
                 >
@@ -1200,7 +1200,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1284,7 +1284,7 @@ const AdminSettings = () => {
                     <p
                       style={{
                         fontSize: "11px",
-                        color: "#64748b",
+                        color: "var(--text-dim)",
                         marginTop: "4px",
                       }}
                     >
@@ -1305,7 +1305,7 @@ const AdminSettings = () => {
                 <h4
                   style={{
                     fontSize: "14px",
-                    color: "#fbbf24",
+                    color: "var(--warning)",
                     marginBottom: "12px",
                   }}
                 >
@@ -1331,7 +1331,7 @@ const AdminSettings = () => {
                     <p
                       style={{
                         fontSize: "11px",
-                        color: "#64748b",
+                        color: "var(--text-dim)",
                         marginTop: "4px",
                       }}
                     >
@@ -1358,7 +1358,7 @@ const AdminSettings = () => {
                     <p
                       style={{
                         fontSize: "11px",
-                        color: "#64748b",
+                        color: "var(--text-dim)",
                         marginTop: "4px",
                       }}
                     >
@@ -1388,7 +1388,7 @@ const AdminSettings = () => {
                     <p
                       style={{
                         fontSize: "11px",
-                        color: "#64748b",
+                        color: "var(--text-dim)",
                         marginTop: "4px",
                       }}
                     >
@@ -1413,7 +1413,7 @@ const AdminSettings = () => {
                     <p
                       style={{
                         fontSize: "11px",
-                        color: "#64748b",
+                        color: "var(--text-dim)",
                         marginTop: "4px",
                       }}
                     >
@@ -1434,7 +1434,7 @@ const AdminSettings = () => {
                 <h4
                   style={{
                     fontSize: "14px",
-                    color: "#a78bfa",
+                    color: "var(--purple)",
                     marginBottom: "12px",
                   }}
                 >
@@ -1463,7 +1463,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -1492,7 +1492,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -1519,12 +1519,12 @@ const AdminSettings = () => {
                     }}
                   >
                     <p
-                      style={{ fontSize: "12px", color: "#94a3b8", margin: 0 }}
+                      style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}
                     >
-                      <strong style={{ color: "#a78bfa" }}>Example:</strong>
+                      <strong style={{ color: "var(--purple)" }}>Example:</strong>
                       <br />
                       If a member has taken{" "}
-                      <strong style={{ color: "white" }}>
+                      <strong style={{ color: "var(--text)" }}>
                         {loanSettings.max_loans_per_member || 3}
                       </strong>{" "}
                       loans already, they cannot request another until they
@@ -1533,7 +1533,7 @@ const AdminSettings = () => {
                         <>
                           <br />
                           After completing a loan, they must wait{" "}
-                          <strong style={{ color: "#60a5fa" }}>
+                          <strong style={{ color: "var(--info)" }}>
                             {loanSettings.loan_cooldown_days} days
                           </strong>{" "}
                           before requesting a new one.
@@ -1555,15 +1555,15 @@ const AdminSettings = () => {
                 </p>
                 <div className="rule-example">
                   <p>
-                    <strong style={{ color: "#34d399" }}>Example:</strong>
+                    <strong style={{ color: "var(--credit)" }}>Example:</strong>
                     <br />
                     If a member has{" "}
-                    <strong style={{ color: "white" }}>₦100,000</strong> in
+                    <strong style={{ color: "var(--text)" }}>₦100,000</strong> in
                     savings, they can borrow up to{" "}
-                    <strong style={{ color: "#34d399" }}>₦50,000</strong> (50%).
+                    <strong style={{ color: "var(--credit)" }}>₦50,000</strong> (50%).
                   </p>
                   <p style={{ marginTop: "4px" }}>
-                    <strong style={{ color: "#60a5fa" }}>Formula:</strong>
+                    <strong style={{ color: "var(--info)" }}>Formula:</strong>
                     <br />
                     Savings × 50% = Maximum Borrow Amount
                   </p>
@@ -1598,7 +1598,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1621,7 +1621,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1647,7 +1647,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1673,7 +1673,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1699,7 +1699,7 @@ const AdminSettings = () => {
                   <p
                     style={{
                       fontSize: "11px",
-                      color: "#64748b",
+                      color: "var(--text-dim)",
                       marginTop: "4px",
                     }}
                   >
@@ -1834,7 +1834,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -1865,7 +1865,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -1891,7 +1891,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -1983,7 +1983,7 @@ const AdminSettings = () => {
                           marginBottom: "10px",
                         }}
                       >
-                        <span style={{ fontSize: "13px", color: "#94a3b8" }}>
+                        <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
                           Commission Tiers
                         </span>
                         <button
@@ -2048,7 +2048,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -2094,7 +2094,7 @@ const AdminSettings = () => {
                       <p
                         style={{
                           fontSize: "11px",
-                          color: "#64748b",
+                          color: "var(--text-dim)",
                           marginTop: "4px",
                         }}
                       >
@@ -2513,11 +2513,11 @@ const AdminSettings = () => {
                       .map((member) => (
                         <tr key={member.id}>
                           <td style={{ fontWeight: "500" }}>{member.name}</td>
-                          <td style={{ color: "#94a3b8" }}>{member.email}</td>
-                          <td style={{ color: "#94a3b8" }}>
+                          <td style={{ color: "var(--text-muted)" }}>{member.email}</td>
+                          <td style={{ color: "var(--text-muted)" }}>
                             {member.phone || "N/A"}
                           </td>
-                          <td style={{ color: "#34d399", fontWeight: "600" }}>
+                          <td style={{ color: "var(--credit)", fontWeight: "600" }}>
                             {formatNaira(member.balance)}
                           </td>
                           <td>
@@ -2542,7 +2542,7 @@ const AdminSettings = () => {
                     style={{
                       textAlign: "center",
                       padding: "24px",
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                     }}
                   >
                     No active members found
@@ -2571,16 +2571,16 @@ const AdminSettings = () => {
                     {filteredSuspended.map((account) => (
                       <tr key={account.id}>
                         <td style={{ fontWeight: "500" }}>{account.name}</td>
-                        <td style={{ color: "#94a3b8" }}>{account.email}</td>
-                        <td style={{ color: "#f87171", fontSize: "12px" }}>
+                        <td style={{ color: "var(--text-muted)" }}>{account.email}</td>
+                        <td style={{ color: "var(--debit)", fontSize: "12px" }}>
                           {account.reason}
                         </td>
-                        <td style={{ color: "#94a3b8" }}>
+                        <td style={{ color: "var(--text-muted)" }}>
                           {formatDate(account.suspended_date)}
                         </td>
                         <td
                           style={{
-                            color: account.balance < 0 ? "#f87171" : "#34d399",
+                            color: account.balance < 0 ? "var(--debit)" : "var(--credit)",
                             fontWeight: "600",
                           }}
                         >
@@ -2610,7 +2610,7 @@ const AdminSettings = () => {
                     style={{
                       textAlign: "center",
                       padding: "24px",
-                      color: "#94a3b8",
+                      color: "var(--text-muted)",
                     }}
                   >
                     No suspended accounts
@@ -2732,21 +2732,21 @@ const AdminSettings = () => {
                 marginBottom: "16px",
               }}
             >
-              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Member:{" "}
-                <strong style={{ color: "white" }}>
+                <strong style={{ color: "var(--text)" }}>
                   {selectedMember.name}
                 </strong>
               </div>
-              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Email:{" "}
-                <strong style={{ color: "white" }}>
+                <strong style={{ color: "var(--text)" }}>
                   {selectedMember.email}
                 </strong>
               </div>
-              <div style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Balance:{" "}
-                <strong style={{ color: "#34d399" }}>
+                <strong style={{ color: "var(--credit)" }}>
                   {formatNaira(selectedMember.balance)}
                 </strong>
               </div>
@@ -2829,13 +2829,13 @@ const AdminSettings = () => {
                 Reactivate {selectedMember.name}'s account?
               </p>
               <p
-                style={{ fontSize: "14px", color: "#94a3b8", marginTop: "4px" }}
+                style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}
               >
                 This will restore access to the account.
               </p>
-              <p style={{ fontSize: "14px", color: "#94a3b8" }}>
+              <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Reason for suspension:{" "}
-                <strong style={{ color: "#f87171" }}>
+                <strong style={{ color: "var(--debit)" }}>
                   {selectedMember.reason}
                 </strong>
               </p>

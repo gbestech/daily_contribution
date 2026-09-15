@@ -48,40 +48,42 @@
   --approved-bg: rgba(16, 185, 129, 0.15);
 }
 
-/* ============================================ */
+/* ============================================
+   LIGHT — fixed for sharp contrast
+   ============================================ */
 
 [data-theme="light"] {
-  --bg-app: #f8fafc;
+  --bg-app: #ffffff;
   --bg-surface: #ffffff;
-  --bg-surface-2: #f1f5f9;
-  --bg-surface-3: #e2e8f0;
-  --bg-hover: #f1f5f9;
+  --bg-surface-2: #f5f5f5;
+  --bg-surface-3: #e5e5e5;
+  --bg-hover: #f0f0f0;
 
-  --text: #1e293b;
-  --text-muted: #64748b;
-  --text-dim: #94a3b8;
+  --text: #000000;
+  --text-muted: #333333;
+  --text-dim: #666666;
   --text-inverse: #ffffff;
 
-  --border: #e2e8f0;
-  --border-strong: #cbd5e1;
+  --border: #cccccc;
+  --border-strong: #999999;
 
-  --accent: #059669;
-  --accent-hover: #047857;
-  --accent-text: #047857;
+  --accent: #000000;
+  --accent-hover: #333333;
+  --accent-text: #000000;
 
-  --credit: #059669;
-  --debit: #dc2626;
-  --warning: #d97706;
-  --info: #2563eb;
-  --purple: #7c3aed;
+  --credit: #000000;
+  --debit: #000000;
+  --warning: #000000;
+  --info: #000000;
+  --purple: #000000;
 
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
-  --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.08);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.1);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.12);
+  --shadow-lg: 0 10px 24px rgba(0, 0, 0, 0.15);
 
-  --debit-bg: rgba(220, 38, 38, 0.1);
-  --accent-bg: rgba(5, 150, 105, 0.1);
-  --approved-bg: rgba(5, 150, 105, 0.1);
+  --debit-bg: rgba(0, 0, 0, 0.05);
+  --accent-bg: rgba(0, 0, 0, 0.05);
+  --approved-bg: rgba(0, 0, 0, 0.05);
 }
 
 /* ============================================ */
@@ -461,9 +463,11 @@ html, body, #root {
    GLOBAL THEME OVERRIDES
    Force hardcoded dark colors inside inline styles
    to follow the current theme.
+   (Kept as a safety net — but the real fix is
+   replacing hardcoded colors in your components
+   with var(--text), var(--text-muted), etc.)
    ============================================ */
 
-/* Backgrounds (hex + rgb forms, since React serializes) */
 [style*="rgb(15, 23, 42)"],
 [style*="rgb(15,23,42)"],
 [style*="rgb(10, 10, 26)"],
@@ -487,7 +491,6 @@ html, body, #root {
   background-color: var(--bg-surface-2) !important;
 }
 
-/* Semi-transparent dark overlays */
 [style*="rgba(255, 255, 255, 0.05)"],
 [style*="rgba(255,255,255,0.05)"],
 [style*="rgba(0, 0, 0, 0.2)"],
@@ -502,7 +505,6 @@ html, body, #root {
   background-color: var(--bg-surface-3) !important;
 }
 
-/* Text (dark theme values → theme-aware) */
 [style*="rgb(255, 255, 255)"],
 [style*="rgb(255,255,255)"],
 [style*="color: white"],
@@ -542,7 +544,6 @@ html, body, #root {
   color: var(--text) !important;
 }
 
-/* Borders */
 [style*="rgba(255, 255, 255, 0.1)"],
 [style*="rgba(255,255,255,0.1)"],
 [style*="rgba(255, 255, 255, 0.05)"],

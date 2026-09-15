@@ -10,7 +10,7 @@ const ROLES = [
     label: "Admin",
     icon: "👑",
     bg: "rgba(239, 68, 68, 0.15)",
-    color: "#f87171",
+    color: "var(--debit)",
     description: "Full access — manage members, roles, and settings",
   },
   {
@@ -18,7 +18,7 @@ const ROLES = [
     label: "Manager",
     icon: "📊",
     bg: "rgba(59, 130, 246, 0.15)",
-    color: "#60a5fa",
+    color: "var(--info)",
     description: "Manage members and transactions",
   },
   {
@@ -26,7 +26,7 @@ const ROLES = [
     label: "Member",
     icon: "👤",
     bg: "rgba(16, 185, 129, 0.15)",
-    color: "#34d399",
+    color: "var(--credit)",
     description: "Regular member access",
   },
 ];
@@ -173,7 +173,7 @@ const Staff = () => {
         style={{
           padding: "40px",
           textAlign: "center",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -192,7 +192,7 @@ const Staff = () => {
         padding: "24px",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
-        color: "white",
+        color: "var(--text)",
         fontFamily: "system-ui, -apple-system, sans-serif",
       }}
     >
@@ -206,7 +206,7 @@ const Staff = () => {
           font-size: 24px; font-weight: 700; margin: 0;
         }
         .staff-header p {
-          color: #9ca3af; margin: 4px 0 0 0; font-size: 14px;
+          color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
         }
         .stats-row {
           display: grid;
@@ -226,7 +226,7 @@ const Staff = () => {
           transform: translateY(-2px);
         }
         .stat-label {
-          font-size: 12px; color: #94a3b8;
+          font-size: 12px; color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.5px; font-weight: 600;
         }
@@ -251,10 +251,10 @@ const Staff = () => {
         }
         .filter-input:focus,
         .filter-select:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .filter-select option {
-          background: #1e293b; color: white;
+          background: var(--bg-surface); color: white;
         }
         .table-wrap {
           background: rgba(255,255,255,0.05);
@@ -267,8 +267,8 @@ const Staff = () => {
         }
         th {
           position: sticky; top: 0; z-index: 2;
-          background: #1e293b;
-          color: #cbd5e1;
+          background: var(--bg-surface);
+          color: var(--text);
           font-size: 11px; font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
@@ -293,7 +293,7 @@ const Staff = () => {
           width: 36px; height: 36px;
           border-radius: 50%;
           background: rgba(16, 185, 129, 0.2);
-          color: #34d399;
+          color: var(--credit);
           display: flex; align-items: center;
           justify-content: center;
           font-weight: bold;
@@ -316,10 +316,10 @@ const Staff = () => {
           min-width: 130px;
         }
         .role-select:focus {
-          border-color: #10b981;
+          border-color: var(--accent);
         }
         .role-select option {
-          background: #1e293b; color: white;
+          background: var(--bg-surface); color: white;
         }
         .role-select:disabled {
           opacity: 0.5; cursor: not-allowed;
@@ -335,7 +335,7 @@ const Staff = () => {
         .empty {
           text-align: center;
           padding: 50px 20px !important;
-          color: #94a3b8;
+          color: var(--text-muted);
         }
         .empty-icon { font-size: 48px; margin-bottom: 8px; }
       `}</style>
@@ -353,7 +353,7 @@ const Staff = () => {
             borderRadius: "8px",
             border: "1px solid rgba(59, 130, 246, 0.25)",
             background: "rgba(59, 130, 246, 0.15)",
-            color: "#60a5fa",
+            color: "var(--info)",
             cursor: "pointer",
             fontSize: "13px",
             fontWeight: "600",
@@ -367,25 +367,25 @@ const Staff = () => {
       <div className="stats-row">
         <div className="stat-card">
           <span className="stat-label">👑 Admins</span>
-          <span className="stat-value" style={{ color: "#f87171" }}>
+          <span className="stat-value" style={{ color: "var(--debit)" }}>
             {counts.admin}
           </span>
         </div>
         <div className="stat-card">
           <span className="stat-label">📊 Managers</span>
-          <span className="stat-value" style={{ color: "#60a5fa" }}>
+          <span className="stat-value" style={{ color: "var(--info)" }}>
             {counts.manager}
           </span>
         </div>
         <div className="stat-card">
           <span className="stat-label">👤 Members</span>
-          <span className="stat-value" style={{ color: "#34d399" }}>
+          <span className="stat-value" style={{ color: "var(--credit)" }}>
             {counts.member}
           </span>
         </div>
         <div className="stat-card">
           <span className="stat-label">📄 Total</span>
-          <span className="stat-value" style={{ color: "white" }}>
+          <span className="stat-value" style={{ color: "var(--text)" }}>
             {counts.total}
           </span>
         </div>
@@ -455,7 +455,7 @@ const Staff = () => {
                         <div>
                           <div
                             style={{
-                              color: "white",
+                              color: "var(--text)",
                               fontWeight: 500,
                               fontSize: "14px",
                             }}
@@ -466,7 +466,7 @@ const Staff = () => {
                                 style={{
                                   marginLeft: "8px",
                                   fontSize: "10px",
-                                  color: "#34d399",
+                                  color: "var(--credit)",
                                   background: "rgba(16,185,129,0.15)",
                                   padding: "2px 6px",
                                   borderRadius: "10px",
@@ -480,17 +480,17 @@ const Staff = () => {
                       </div>
                     </td>
                     <td>
-                      <div style={{ color: "#d1d5db", fontSize: "13px" }}>
+                      <div style={{ color: "var(--text)", fontSize: "13px" }}>
                         {member.email}
                       </div>
-                      <div style={{ color: "#94a3b8", fontSize: "12px" }}>
+                      <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
                         {member.phone || "—"}
                       </div>
                     </td>
                     <td
                       style={{
                         fontFamily: "monospace",
-                        color: "#60a5fa",
+                        color: "var(--info)",
                         fontSize: "13px",
                       }}
                     >
@@ -507,7 +507,7 @@ const Staff = () => {
                               ? "rgba(16, 185, 129, 0.2)"
                               : "rgba(239, 68, 68, 0.2)",
                           color:
-                            member.status === "active" ? "#34d399" : "#f87171",
+                            member.status === "active" ? "var(--credit)" : "var(--debit)",
                         }}
                       >
                         {member.status}
@@ -562,7 +562,7 @@ const Staff = () => {
           style={{
             margin: "0 0 10px 0",
             fontSize: "12px",
-            color: "#94a3b8",
+            color: "var(--text-muted)",
             textTransform: "uppercase",
             letterSpacing: "0.5px",
             fontWeight: 600,
@@ -587,7 +587,7 @@ const Staff = () => {
             >
               {r.icon} {r.label}
             </span>
-            <span style={{ color: "#94a3b8" }}>{r.description}</span>
+            <span style={{ color: "var(--text-muted)" }}>{r.description}</span>
           </div>
         ))}
       </div>

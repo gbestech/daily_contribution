@@ -533,13 +533,13 @@
 //   const getStatusColor = (status) => {
 //     switch (status) {
 //       case "active":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
 //       case "inactive":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
 //       case "suspended":
-//         return { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" };
+//         return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
 //       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
 //     }
 //   };
 
@@ -548,13 +548,13 @@
 //     switch (role?.toLowerCase()) {
 //       case "admin":
 //       case "administrator":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
 //       case "manager":
-//         return { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
+//         return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
 //       case "member":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
 //       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
 //     }
 //   };
 
@@ -578,15 +578,15 @@
 //     switch (type) {
 //       case "deposit":
 //       case "contribution":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399", icon: "💰" };
+//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)", icon: "💰" };
 //       case "withdrawal":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171", icon: "🏦" };
+//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)", icon: "🏦" };
 //       case "transfer":
 //       case "transfer_in":
 //       case "transfer_out":
-//         return { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa", icon: "🔄" };
+//         return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)", icon: "🔄" };
 //       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af", icon: "💳" };
+//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)", icon: "💳" };
 //     }
 //   };
 
@@ -595,14 +595,14 @@
 //     switch (status) {
 //       case "completed":
 //       case "approved":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
 //       case "pending":
-//         return { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" };
+//         return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
 //       case "failed":
 //       case "rejected":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
 //       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
 //     }
 //   };
 
@@ -635,7 +635,7 @@
 //       <div
 //         style={{
 //           padding: "24px",
-//           color: "white",
+//           color: "var(--text)",
 //           backgroundColor: "#0f172a",
 //           minHeight: "100vh",
 //           display: "flex",
@@ -648,7 +648,7 @@
 //             width: "48px",
 //             height: "48px",
 //             border: "4px solid rgba(255,255,255,0.1)",
-//             borderTopColor: "#10b981",
+//             borderTopColor: "var(--accent)",
 //             borderRadius: "50%",
 //             animation: "spin 1s linear infinite",
 //           }}
@@ -666,7 +666,7 @@
 //     <div
 //       style={{
 //         padding: "24px",
-//         color: "white",
+//         color: "var(--text)",
 //         backgroundColor: "#0f172a",
 //         minHeight: "100vh",
 //       }}
@@ -687,7 +687,7 @@
 //           padding: 16px;
 //         }
 //         .modal-content {
-//           background-color: #1e293b;
+//           background-color: var(--bg-surface);
 //           border-radius: 12px;
 //           padding: 32px;
 //           max-width: 500px;
@@ -709,7 +709,7 @@
 //           margin: 0;
 //         }
 //         .modal-close {
-//           color: #9ca3af;
+//           color: var(--text-muted);
 //           background: none;
 //           border: none;
 //           font-size: 28px;
@@ -726,7 +726,7 @@
 //           display: block;
 //           font-size: 14px;
 //           font-weight: 500;
-//           color: #d1d5db;
+//           color: var(--text);
 //           margin-bottom: 4px;
 //         }
 //         .form-input {
@@ -742,14 +742,14 @@
 //           box-sizing: border-box;
 //         }
 //         .form-input:focus {
-//           border-color: #10b981;
+//           border-color: var(--accent);
 //         }
 //         .form-input:disabled {
 //           opacity: 0.6;
 //           cursor: not-allowed;
 //         }
 //         .form-input::placeholder {
-//           color: #6b7280;
+//           color: var(--text-dim);
 //         }
 //         .form-select {
 //           width: 100%;
@@ -764,28 +764,28 @@
 //           appearance: none;
 //         }
 //         .form-select:focus {
-//           border-color: #10b981;
+//           border-color: var(--accent);
 //         }
 //         .form-select option {
-//           background-color: #1e293b;
+//           background-color: var(--bg-surface);
 //           color: white;
 //           padding: 8px;
 //         }
 //         .email-hint {
 //           font-size: 12px;
-//           color: #94a3b8;
+//           color: var(--text-muted);
 //           margin-top: 4px;
 //           font-style: italic;
 //         }
 //         .email-hint strong {
-//           color: #60a5fa;
+//           color: var(--info);
 //           font-style: normal;
 //         }
 //         .btn-primary {
 //           padding: 10px 24px;
 //           border-radius: 8px;
 //           border: none;
-//           background: #10b981;
+//           background: var(--accent);
 //           color: white;
 //           cursor: pointer;
 //           font-size: 14px;
@@ -818,7 +818,7 @@
 //           border-radius: 8px;
 //           border: none;
 //           background: rgba(239, 68, 68, 0.15);
-//           color: #f87171;
+//           color: var(--debit);
 //           cursor: pointer;
 //           font-size: 14px;
 //           font-weight: 500;
@@ -832,7 +832,7 @@
 //           border-radius: 8px;
 //           border: none;
 //           background: rgba(16, 185, 129, 0.15);
-//           color: #34d399;
+//           color: var(--credit);
 //           cursor: pointer;
 //           font-size: 14px;
 //           font-weight: 500;
@@ -849,7 +849,7 @@
 //           border-radius: 6px;
 //           border: none;
 //           background: rgba(59, 130, 246, 0.15);
-//           color: #60a5fa;
+//           color: var(--info);
 //           cursor: pointer;
 //           font-size: 12px;
 //           font-weight: 500;
@@ -864,7 +864,7 @@
 //           border-radius: 6px;
 //           border: none;
 //           background: rgba(139, 92, 246, 0.15);
-//           color: #a78bfa;
+//           color: var(--purple);
 //           cursor: pointer;
 //           font-size: 12px;
 //           font-weight: 500;
@@ -879,7 +879,7 @@
 //           border-radius: 6px;
 //           border: none;
 //           background: rgba(239, 68, 68, 0.15);
-//           color: #f87171;
+//           color: var(--debit);
 //           cursor: pointer;
 //           font-size: 12px;
 //           font-weight: 500;
@@ -908,7 +908,7 @@
 //         }
 //         .pagination-info {
 //           font-size: 14px;
-//           color: #94a3b8;
+//           color: var(--text-muted);
 //         }
 //         .pagination-buttons {
 //           display: flex;
@@ -920,7 +920,7 @@
 //           border-radius: 6px;
 //           border: 1px solid rgba(255,255,255,0.1);
 //           background: transparent;
-//           color: #94a3b8;
+//           color: var(--text-muted);
 //           cursor: pointer;
 //           font-size: 13px;
 //           transition: all 0.2s;
@@ -955,7 +955,7 @@
 //           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
 //             👥 Members Management
 //           </h2>
-//           <p style={{ color: "#9ca3af", margin: "4px 0 0 0" }}>
+//           <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
 //             Manage members, assign roles, view transactions, and track balances
 //           </p>
 //         </div>
@@ -1000,14 +1000,14 @@
 //           style={{
 //             width: "100%",
 //             backgroundColor: "rgba(255,255,255,0.08)",
-//             color: "white",
+//             color: "var(--text)",
 //             padding: "10px 16px",
 //             borderRadius: "8px",
 //             border: "1px solid rgba(255,255,255,0.1)",
 //             outline: "none",
 //             fontSize: "14px",
 //           }}
-//           onFocus={(e) => (e.target.style.borderColor = "#10b981")}
+//           onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
 //           onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
 //         />
 //       </div>
@@ -1031,7 +1031,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1044,7 +1044,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1057,7 +1057,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1070,7 +1070,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1083,7 +1083,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1096,7 +1096,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1109,7 +1109,7 @@
 //                     textAlign: "left",
 //                     fontSize: "12px",
 //                     fontWeight: "600",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     textTransform: "uppercase",
 //                     letterSpacing: "0.5px",
 //                   }}
@@ -1129,7 +1129,7 @@
 //                       style={{
 //                         fontSize: "14px",
 //                         fontWeight: "600",
-//                         color: "#60a5fa",
+//                         color: "var(--info)",
 //                         fontFamily: "monospace",
 //                       }}
 //                     >
@@ -1153,7 +1153,7 @@
 //                           display: "flex",
 //                           alignItems: "center",
 //                           justifyContent: "center",
-//                           color: "#34d399",
+//                           color: "var(--credit)",
 //                           fontWeight: "bold",
 //                           fontSize: "14px",
 //                         }}
@@ -1163,7 +1163,7 @@
 //                       <div>
 //                         <div
 //                           style={{
-//                             color: "white",
+//                             color: "var(--text)",
 //                             fontSize: "14px",
 //                             fontWeight: "500",
 //                           }}
@@ -1174,10 +1174,10 @@
 //                     </div>
 //                   </td>
 //                   <td style={{ padding: "12px 16px" }}>
-//                     <div style={{ fontSize: "14px", color: "#d1d5db" }}>
+//                     <div style={{ fontSize: "14px", color: "var(--text)" }}>
 //                       {member.email || "N/A"}
 //                     </div>
-//                     <div style={{ fontSize: "12px", color: "#9ca3af" }}>
+//                     <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
 //                       {member.phone ? formatPhoneDisplay(member.phone) : "N/A"}
 //                     </div>
 //                   </td>
@@ -1210,7 +1210,7 @@
 //                       padding: "12px 16px",
 //                       fontSize: "14px",
 //                       fontWeight: "600",
-//                       color: "#34d399",
+//                       color: "var(--credit)",
 //                     }}
 //                   >
 //                     ₦{parseFloat(member.balance || 0).toLocaleString()}
@@ -1222,7 +1222,7 @@
 //                       <button
 //                         onClick={() => handleViewTransactions(member)}
 //                         style={{
-//                           color: "#60a5fa",
+//                           color: "var(--info)",
 //                           background: "none",
 //                           border: "none",
 //                           cursor: "pointer",
@@ -1244,7 +1244,7 @@
 //                       <button
 //                         onClick={() => handleEditMember(member)}
 //                         style={{
-//                           color: "#34d399",
+//                           color: "var(--credit)",
 //                           background: "none",
 //                           border: "none",
 //                           cursor: "pointer",
@@ -1266,7 +1266,7 @@
 //                       <button
 //                         onClick={() => handleDeleteMember(member.id)}
 //                         style={{
-//                           color: "#f87171",
+//                           color: "var(--debit)",
 //                           background: "none",
 //                           border: "none",
 //                           cursor: "pointer",
@@ -1294,7 +1294,7 @@
 //         </div>
 //         {filteredMembers.length === 0 && (
 //           <div
-//             style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}
+//             style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
 //           >
 //             <div style={{ fontSize: "48px", marginBottom: "8px" }}>📭</div>
 //             <p>No members found</p>
@@ -1311,7 +1311,7 @@
 //           marginTop: "16px",
 //           display: "flex",
 //           justifyContent: "space-between",
-//           color: "#9ca3af",
+//           color: "var(--text-muted)",
 //           fontSize: "14px",
 //           flexWrap: "wrap",
 //           gap: "8px",
@@ -1420,7 +1420,7 @@
 //                   Phone Number *
 //                   <span
 //                     style={{
-//                       color: "#9ca3af",
+//                       color: "var(--text-muted)",
 //                       fontWeight: "400",
 //                       fontSize: "12px",
 //                       marginLeft: "8px",
@@ -1444,7 +1444,7 @@
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1468,7 +1468,7 @@
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1487,23 +1487,23 @@
 //                   }
 //                   required
 //                 >
-//                   <option value="member" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👤 Member
 //                   </option>
 //                   <option
 //                     value="manager"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     📊 Manager
 //                   </option>
-//                   <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👑 Admin
 //                   </option>
 //                 </select>
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1525,18 +1525,18 @@
 //                     setNewMember({ ...newMember, status: e.target.value })
 //                   }
 //                 >
-//                   <option value="Active" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="Active" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     Active
 //                   </option>
 //                   <option
 //                     value="Inactive"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     Inactive
 //                   </option>
 //                   <option
 //                     value="Suspended"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     Suspended
 //                   </option>
@@ -1632,7 +1632,7 @@
 //                   className="form-input"
 //                   value={selectedMember.full_name || ""}
 //                   disabled
-//                   style={{ color: "#9ca3af" }}
+//                   style={{ color: "var(--text-muted)" }}
 //                 />
 //               </div>
 
@@ -1657,7 +1657,7 @@
 //                   Phone Number
 //                   <span
 //                     style={{
-//                       color: "#9ca3af",
+//                       color: "var(--text-muted)",
 //                       fontWeight: "400",
 //                       fontSize: "12px",
 //                       marginLeft: "8px",
@@ -1684,7 +1684,7 @@
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1705,23 +1705,23 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="member" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👤 Member
 //                   </option>
 //                   <option
 //                     value="manager"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     📊 Manager
 //                   </option>
-//                   <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👑 Admin
 //                   </option>
 //                 </select>
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1735,7 +1735,7 @@
 //               <div className="form-group">
 //                 <label className="form-label">
 //                   New Password{" "}
-//                   <span style={{ color: "#9ca3af", fontWeight: "400" }}>
+//                   <span style={{ color: "var(--text-muted)", fontWeight: "400" }}>
 //                     (leave blank to keep current)
 //                   </span>
 //                 </label>
@@ -1750,7 +1750,7 @@
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "4px",
 //                   }}
 //                 >
@@ -1787,18 +1787,18 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="active" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="active" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     Active
 //                   </option>
 //                   <option
 //                     value="inactive"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     Inactive
 //                   </option>
 //                   <option
 //                     value="suspended"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     Suspended
 //                   </option>
@@ -1867,14 +1867,14 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     Choose a member
 //                   </option>
 //                   {members.map((member) => (
 //                     <option
 //                       key={member.id}
 //                       value={member.id}
-//                       style={{ backgroundColor: "#1e293b" }}
+//                       style={{ backgroundColor: "var(--bg-surface)" }}
 //                     >
 //                       {member.full_name} ({member.membership_number}) - Current:{" "}
 //                       {member.role || "member"}
@@ -1896,40 +1896,40 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="member" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👤 Member - Basic access
 //                   </option>
 //                   <option
 //                     value="manager"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     📊 Manager - Manage members & transactions
 //                   </option>
-//                   <option value="admin" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     👑 Admin - Full access
 //                   </option>
 //                 </select>
 //                 <div
 //                   style={{
 //                     fontSize: "11px",
-//                     color: "#6b7280",
+//                     color: "var(--text-dim)",
 //                     marginTop: "8px",
 //                   }}
 //                 >
 //                   {roleAssignment.role === "admin" && (
-//                     <div style={{ color: "#f87171" }}>
+//                     <div style={{ color: "var(--debit)" }}>
 //                       ⚠️ Admins have full access to the system. They can login
 //                       to the admin dashboard.
 //                     </div>
 //                   )}
 //                   {roleAssignment.role === "manager" && (
-//                     <div style={{ color: "#60a5fa" }}>
+//                     <div style={{ color: "var(--info)" }}>
 //                       📊 Managers can manage members, view transactions, and
 //                       perform administrative tasks.
 //                     </div>
 //                   )}
 //                   {roleAssignment.role === "member" && (
-//                     <div style={{ color: "#34d399" }}>
+//                     <div style={{ color: "var(--credit)" }}>
 //                       👤 Members can view their own profile and transaction
 //                       history.
 //                     </div>
@@ -1943,7 +1943,7 @@
 //                   className="btn-primary"
 //                   style={{ flex: 1, backgroundColor: "#8b5cf6" }}
 //                   onMouseEnter={(e) =>
-//                     (e.target.style.backgroundColor = "#7c3aed")
+//                     (e.target.style.backgroundColor = "var(--purple)")
 //                   }
 //                   onMouseLeave={(e) =>
 //                     (e.target.style.backgroundColor = "#8b5cf6")
@@ -1977,7 +1977,7 @@
 //                 <h3 className="modal-title">📊 Transaction History</h3>
 //                 <p
 //                   style={{
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                     fontSize: "14px",
 //                     margin: "4px 0 0 0",
 //                   }}
@@ -2025,12 +2025,12 @@
 //                   alignItems: "center",
 //                 }}
 //               >
-//                 <span style={{ color: "#9ca3af" }}>Current Balance</span>
+//                 <span style={{ color: "var(--text-muted)" }}>Current Balance</span>
 //                 <span
 //                   style={{
 //                     fontSize: "24px",
 //                     fontWeight: "bold",
-//                     color: "#34d399",
+//                     color: "var(--credit)",
 //                   }}
 //                 >
 //                   ₦
@@ -2057,9 +2057,9 @@
 //                   style={{
 //                     backgroundColor:
 //                       transactionFilter === filter
-//                         ? "#10b981"
+//                         ? "var(--accent)"
 //                         : "rgba(255,255,255,0.08)",
-//                     color: transactionFilter === filter ? "white" : "#d1d5db",
+//                     color: transactionFilter === filter ? "white" : "var(--text)",
 //                     padding: "6px 16px",
 //                     border:
 //                       transactionFilter === filter
@@ -2130,17 +2130,17 @@
 //                           <div>
 //                             <div
 //                               style={{
-//                                 color: "white",
+//                                 color: "var(--text)",
 //                                 fontSize: "14px",
 //                                 fontWeight: "500",
 //                               }}
 //                             >
 //                               {transaction.transaction_type}
 //                             </div>
-//                             <div style={{ color: "#9ca3af", fontSize: "12px" }}>
+//                             <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
 //                               {transaction.description || "No description"}
 //                             </div>
-//                             <div style={{ color: "#6b7280", fontSize: "10px" }}>
+//                             <div style={{ color: "var(--text-dim)", fontSize: "10px" }}>
 //                               {formatDate(transaction.created_at)}
 //                             </div>
 //                           </div>
@@ -2151,8 +2151,8 @@
 //                               color:
 //                                 transaction.transaction_type === "deposit" ||
 //                                 transaction.transaction_type === "contribution"
-//                                   ? "#34d399"
-//                                   : "#f87171",
+//                                   ? "var(--credit)"
+//                                   : "var(--debit)",
 //                               fontSize: "14px",
 //                               fontWeight: "600",
 //                             }}
@@ -2187,7 +2187,7 @@
 //                   style={{
 //                     textAlign: "center",
 //                     padding: "32px",
-//                     color: "#9ca3af",
+//                     color: "var(--text-muted)",
 //                   }}
 //                 >
 //                   <div style={{ fontSize: "32px", marginBottom: "8px" }}>
@@ -2207,7 +2207,7 @@
 //                 marginTop: "16px",
 //                 display: "flex",
 //                 justifyContent: "space-between",
-//                 color: "#9ca3af",
+//                 color: "var(--text-muted)",
 //                 fontSize: "12px",
 //                 flexWrap: "wrap",
 //                 gap: "8px",
@@ -2275,14 +2275,14 @@
 //                     })
 //                   }
 //                 >
-//                   <option value="" style={{ backgroundColor: "#1e293b" }}>
+//                   <option value="" style={{ backgroundColor: "var(--bg-surface)" }}>
 //                     Select a member
 //                   </option>
 //                   {members.map((member) => (
 //                     <option
 //                       key={member.id}
 //                       value={member.id}
-//                       style={{ backgroundColor: "#1e293b" }}
+//                       style={{ backgroundColor: "var(--bg-surface)" }}
 //                     >
 //                       {member.full_name} - {member.membership_number} [
 //                       {member.role || "member"}]
@@ -2306,13 +2306,13 @@
 //                 >
 //                   <option
 //                     value="deposit"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     💰 Deposit
 //                   </option>
 //                   <option
 //                     value="withdrawal"
-//                     style={{ backgroundColor: "#1e293b" }}
+//                     style={{ backgroundColor: "var(--bg-surface)" }}
 //                   >
 //                     🏦 Withdrawal
 //                   </option>
@@ -2682,24 +2682,24 @@ const AdminMembers = () => {
     switch (role?.toLowerCase()) {
       case "admin":
       case "administrator":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
       case "manager":
-        return { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" };
+        return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
       default:
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" };
+        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
       case "inactive":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" };
+        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
       case "suspended":
-        return { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" };
+        return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
       default:
-        return { bg: "rgba(255, 255, 255, 0.1)", color: "#9ca3af" };
+        return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
     }
   };
 
@@ -2708,7 +2708,7 @@ const AdminMembers = () => {
       <div
         style={{
           padding: "24px",
-          color: "white",
+          color: "var(--text)",
           backgroundColor: "#0f172a",
           minHeight: "100vh",
           display: "flex",
@@ -2716,7 +2716,7 @@ const AdminMembers = () => {
           justifyContent: "center",
         }}
       >
-        <div style={{ color: "white" }}>Loading...</div>
+        <div style={{ color: "var(--text)" }}>Loading...</div>
       </div>
     );
   }
@@ -2725,7 +2725,7 @@ const AdminMembers = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -2739,7 +2739,7 @@ const AdminMembers = () => {
           z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background: #1e293b; border-radius: 12px;
+          background: var(--bg-surface); border-radius: 12px;
           padding: 28px; max-width: 480px; width: 100%;
           max-height: 90vh; overflow-y: auto;
           border: 1px solid rgba(255,255,255,0.1);
@@ -2750,13 +2750,13 @@ const AdminMembers = () => {
         }
         .modal-title { font-size: 18px; font-weight: bold; margin: 0; }
         .modal-close {
-          background: none; border: none; color: #9ca3af;
+          background: none; border: none; color: var(--text-muted);
           font-size: 26px; cursor: pointer; padding: 0 6px;
         }
         .form-group { margin-bottom: 14px; }
         .form-label {
           display: block; font-size: 13px; font-weight: 500;
-          color: #d1d5db; margin-bottom: 4px;
+          color: var(--text); margin-bottom: 4px;
         }
         .form-input {
           width: 100%; padding: 10px 14px; border-radius: 8px;
@@ -2765,19 +2765,19 @@ const AdminMembers = () => {
           color: white; font-size: 14px; outline: none;
           box-sizing: border-box;
         }
-        .form-input:focus { border-color: #10b981; }
+        .form-input:focus { border-color: var(--accent); }
         .form-input:disabled { opacity: 0.6; }
-        .form-input::placeholder { color: #6b7280; }
+        .form-input::placeholder { color: var(--text-dim); }
         .form-select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid rgba(255,255,255,0.1);
           background: rgba(255,255,255,0.08);
           color: white; font-size: 14px; outline: none;
         }
-        .form-select option { background: #1e293b; }
+        .form-select option { background: var(--bg-surface); }
         .btn-primary {
           padding: 10px 24px; border-radius: 8px; border: none;
-          background: #10b981; color: white; cursor: pointer;
+          background: var(--accent); color: white; cursor: pointer;
           font-size: 14px; font-weight: 500;
         }
         .btn-primary:hover { background: #059669; }
@@ -2789,13 +2789,13 @@ const AdminMembers = () => {
         }
         .btn-add {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(16, 185, 129, 0.15); color: #34d399;
+          background: rgba(16, 185, 129, 0.15); color: var(--credit);
           cursor: pointer; font-size: 14px; font-weight: 500;
         }
         .btn-add:hover { background: rgba(16, 185, 129, 0.25); }
         .btn-role {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(139, 92, 246, 0.15); color: #a78bfa;
+          background: rgba(139, 92, 246, 0.15); color: var(--purple);
           cursor: pointer; font-size: 14px;
         }
       `}</style>
@@ -2815,7 +2815,7 @@ const AdminMembers = () => {
             👥 Members Management
           </h2>
           <p
-            style={{ color: "#9ca3af", margin: "4px 0 0 0", fontSize: "14px" }}
+            style={{ color: "var(--text-muted)", margin: "4px 0 0 0", fontSize: "14px" }}
           >
             Manage members, assign roles, view balances
           </p>
@@ -2847,7 +2847,7 @@ const AdminMembers = () => {
           style={{
             width: "100%",
             backgroundColor: "rgba(255,255,255,0.08)",
-            color: "white",
+            color: "var(--text)",
             padding: "10px 16px",
             borderRadius: "8px",
             border: "1px solid rgba(255,255,255,0.1)",
@@ -2886,7 +2886,7 @@ const AdminMembers = () => {
                       padding: "12px 16px",
                       textAlign: "left",
                       fontSize: "12px",
-                      color: "#9ca3af",
+                      color: "var(--text-muted)",
                       textTransform: "uppercase",
                     }}
                   >
@@ -2906,7 +2906,7 @@ const AdminMembers = () => {
                       style={{
                         fontSize: "14px",
                         fontWeight: "600",
-                        color: "#60a5fa",
+                        color: "var(--info)",
                         fontFamily: "monospace",
                       }}
                     >
@@ -2930,7 +2930,7 @@ const AdminMembers = () => {
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "#34d399",
+                          color: "var(--credit)",
                           fontWeight: "bold",
                           overflow: "hidden",
                         }}
@@ -2951,7 +2951,7 @@ const AdminMembers = () => {
                       </div>
                       <div
                         style={{
-                          color: "white",
+                          color: "var(--text)",
                           fontSize: "14px",
                           fontWeight: "500",
                         }}
@@ -2961,10 +2961,10 @@ const AdminMembers = () => {
                     </div>
                   </td>
                   <td style={{ padding: "12px 16px" }}>
-                    <div style={{ fontSize: "13px", color: "#d1d5db" }}>
+                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {member.email}
                     </div>
-                    <div style={{ fontSize: "12px", color: "#9ca3af" }}>
+                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
                       {member.phone || "—"}
                     </div>
                   </td>
@@ -2996,11 +2996,11 @@ const AdminMembers = () => {
                   </td>
                   <td style={{ padding: "12px 16px" }}>
                     {member.profile_completed ? (
-                      <span style={{ color: "#34d399", fontSize: "12px" }}>
+                      <span style={{ color: "var(--credit)", fontSize: "12px" }}>
                         ✅ Complete
                       </span>
                     ) : (
-                      <span style={{ color: "#fbbf24", fontSize: "12px" }}>
+                      <span style={{ color: "var(--warning)", fontSize: "12px" }}>
                         ⏳ Pending
                       </span>
                     )}
@@ -3010,7 +3010,7 @@ const AdminMembers = () => {
                       padding: "12px 16px",
                       fontSize: "14px",
                       fontWeight: "600",
-                      color: "#34d399",
+                      color: "var(--credit)",
                     }}
                   >
                     ₦{parseFloat(member.balance || 0).toLocaleString()}
@@ -3020,7 +3020,7 @@ const AdminMembers = () => {
                       <button
                         onClick={() => handleEditMember(member)}
                         style={{
-                          color: "#34d399",
+                          color: "var(--credit)",
                           background: "none",
                           border: "none",
                           cursor: "pointer",
@@ -3032,7 +3032,7 @@ const AdminMembers = () => {
                       <button
                         onClick={() => handleDeleteMember(member.id)}
                         style={{
-                          color: "#f87171",
+                          color: "var(--debit)",
                           background: "none",
                           border: "none",
                           cursor: "pointer",
@@ -3050,7 +3050,7 @@ const AdminMembers = () => {
         </div>
         {filteredMembers.length === 0 && (
           <div
-            style={{ textAlign: "center", padding: "40px", color: "#9ca3af" }}
+            style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
             <p>No members found</p>
@@ -3155,9 +3155,9 @@ const AdminMembers = () => {
                   marginBottom: "12px",
                 }}
               >
-                <p style={{ margin: 0, fontSize: "12px", color: "#34d399" }}>
+                <p style={{ margin: 0, fontSize: "12px", color: "var(--credit)" }}>
                   📧 Auto email:{" "}
-                  <strong style={{ color: "white" }}>
+                  <strong style={{ color: "var(--text)" }}>
                     {newMember.email || "—"}
                   </strong>
                 </p>

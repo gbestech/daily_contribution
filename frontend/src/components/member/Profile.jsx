@@ -235,9 +235,9 @@ const MemberProfile = () => {
 
   const getStatusBadge = (status) => {
     const colors = {
-      Active: { bg: "rgba(16, 185, 129, 0.2)", color: "#34d399" },
-      Inactive: { bg: "rgba(239, 68, 68, 0.2)", color: "#f87171" },
-      Suspended: { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" },
+      Active: { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" },
+      Inactive: { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" },
+      Suspended: { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" },
     };
     const style = colors[status] || colors.Active;
     return (
@@ -259,9 +259,9 @@ const MemberProfile = () => {
 
   const getMembershipBadge = (type) => {
     const colors = {
-      Premium: { bg: "rgba(234, 179, 8, 0.2)", color: "#fbbf24" },
-      VIP: { bg: "rgba(168, 85, 247, 0.2)", color: "#a78bfa" },
-      Standard: { bg: "rgba(59, 130, 246, 0.2)", color: "#60a5fa" },
+      Premium: { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" },
+      VIP: { bg: "rgba(168, 85, 247, 0.2)", color: "var(--purple)" },
+      Standard: { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" },
     };
     const style = colors[type] || colors.Standard;
     return (
@@ -287,7 +287,7 @@ const MemberProfile = () => {
         padding: "24px",
         maxWidth: "1200px",
         margin: "0 auto",
-        color: "white",
+        color: "var(--text)",
         backgroundColor: "#0f172a",
         minHeight: "100vh",
       }}
@@ -390,7 +390,7 @@ const MemberProfile = () => {
           display: block;
           font-size: 13px;
           font-weight: 500;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-bottom: 4px;
         }
         .form-input {
@@ -413,7 +413,7 @@ const MemberProfile = () => {
           cursor: not-allowed;
         }
         .form-input::placeholder {
-          color: #64748b;
+          color: var(--text-dim);
         }
         .btn-primary {
           padding: 10px 24px;
@@ -452,7 +452,7 @@ const MemberProfile = () => {
           border-radius: 8px;
           border: none;
           background: rgba(59, 130, 246, 0.15);
-          color: #60a5fa;
+          color: var(--info);
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -466,7 +466,7 @@ const MemberProfile = () => {
           border-radius: 8px;
           border: none;
           background: rgba(239, 68, 68, 0.15);
-          color: #f87171;
+          color: var(--debit);
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -488,7 +488,7 @@ const MemberProfile = () => {
         }
         .info-label {
           font-size: 11px;
-          color: #94a3b8;
+          color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
@@ -507,11 +507,11 @@ const MemberProfile = () => {
         .stat-value {
           font-size: 24px;
           font-weight: bold;
-          color: #34d399;
+          color: var(--credit);
         }
         .stat-label {
           font-size: 12px;
-          color: #94a3b8;
+          color: var(--text-muted);
           margin-top: 4px;
         }
         .stats-grid {
@@ -572,7 +572,7 @@ const MemberProfile = () => {
           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
             {formData.full_name || formData.name || "User"}
           </h2>
-          <p style={{ color: "#94a3b8", margin: "4px 0 0 0" }}>
+          <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
             {formData.email}
           </p>
           <div
@@ -593,7 +593,7 @@ const MemberProfile = () => {
                 fontSize: "13px",
                 fontWeight: "500",
                 backgroundColor: "rgba(59, 130, 246, 0.2)",
-                color: "#60a5fa",
+                color: "var(--info)",
                 border: "1px solid rgba(59, 130, 246, 0.3)",
               }}
             >
@@ -644,13 +644,13 @@ const MemberProfile = () => {
           <div className="stat-label">💰 Balance</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value" style={{ color: "#60a5fa" }}>
+          <div className="stat-value" style={{ color: "var(--info)" }}>
             {formData.accountNumber}
           </div>
           <div className="stat-label">🏦 Account Number</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value" style={{ color: "#a78bfa" }}>
+          <div className="stat-value" style={{ color: "var(--purple)" }}>
             {formatDate(formData.joinDate)}
           </div>
           <div className="stat-label">📅 Joined</div>
@@ -703,7 +703,7 @@ const MemberProfile = () => {
             </div>
             <div className="info-item">
               <div className="info-label">Balance</div>
-              <div className="info-value" style={{ color: "#34d399" }}>
+              <div className="info-value" style={{ color: "var(--credit)" }}>
                 {formatCurrency(formData.balance)}
               </div>
             </div>

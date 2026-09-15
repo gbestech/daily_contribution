@@ -149,7 +149,7 @@ const MemberWithdraw = () => {
     <div
       style={{
         padding: "24px",
-        color: "white",
+        color: "var(--text)",
         maxWidth: "600px",
         margin: "0 auto",
       }}
@@ -172,10 +172,10 @@ const MemberWithdraw = () => {
         >
           <span style={{ fontSize: "32px" }}>💸</span>
           <div>
-            <h2 style={{ margin: 0, color: "white" }}>Withdraw Funds</h2>
+            <h2 style={{ margin: 0, color: "var(--text)" }}>Withdraw Funds</h2>
             <p
               style={{
-                color: "#9ca3af",
+                color: "var(--text-muted)",
                 margin: "4px 0 0 0",
                 fontSize: "14px",
               }}
@@ -203,12 +203,12 @@ const MemberWithdraw = () => {
               }}
             >
               <div>
-                <p style={{ color: "#9ca3af", fontSize: "13px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
                   Available Balance
                 </p>
                 <p
                   style={{
-                    color: "#34d399",
+                    color: "var(--credit)",
                     fontSize: "28px",
                     fontWeight: "bold",
                     margin: "4px 0 0 0",
@@ -218,12 +218,12 @@ const MemberWithdraw = () => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ color: "#9ca3af", fontSize: "12px", margin: 0 }}>
+                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
                   Min. Withdrawal
                 </p>
                 <p
                   style={{
-                    color: "#fbbf24",
+                    color: "var(--warning)",
                     fontSize: "16px",
                     fontWeight: "600",
                     margin: "4px 0 0 0",
@@ -244,7 +244,7 @@ const MemberWithdraw = () => {
                   display: "block",
                   fontSize: "14px",
                   fontWeight: "500",
-                  color: "#d1d5db",
+                  color: "var(--text)",
                   marginBottom: "6px",
                 }}
               >
@@ -259,7 +259,7 @@ const MemberWithdraw = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "rgba(255,255,255,0.05)",
-                  color: "white",
+                  color: "var(--text)",
                   fontSize: "14px",
                   outline: "none",
                 }}
@@ -281,7 +281,7 @@ const MemberWithdraw = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -294,7 +294,7 @@ const MemberWithdraw = () => {
                   left: "16px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "#6b7280",
+                  color: "var(--text-dim)",
                   fontSize: "18px",
                   fontWeight: "bold",
                 }}
@@ -312,7 +312,7 @@ const MemberWithdraw = () => {
                   borderRadius: "8px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "rgba(255,255,255,0.05)",
-                  color: "white",
+                  color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
                 }}
@@ -332,7 +332,7 @@ const MemberWithdraw = () => {
                   borderRadius: "4px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "transparent",
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   cursor: "pointer",
                 }}
@@ -349,7 +349,7 @@ const MemberWithdraw = () => {
                   borderRadius: "4px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "transparent",
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   cursor: "pointer",
                 }}
@@ -366,7 +366,7 @@ const MemberWithdraw = () => {
                   borderRadius: "4px",
                   border: "1px solid rgba(255,255,255,0.1)",
                   backgroundColor: "transparent",
-                  color: "#9ca3af",
+                  color: "var(--text-muted)",
                   fontSize: "12px",
                   cursor: "pointer",
                 }}
@@ -382,7 +382,7 @@ const MemberWithdraw = () => {
                 display: "block",
                 fontSize: "14px",
                 fontWeight: "500",
-                color: "#d1d5db",
+                color: "var(--text)",
                 marginBottom: "6px",
               }}
             >
@@ -399,7 +399,7 @@ const MemberWithdraw = () => {
                 borderRadius: "8px",
                 border: "1px solid rgba(255,255,255,0.1)",
                 backgroundColor: "rgba(255,255,255,0.05)",
-                color: "white",
+                color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
               }}
@@ -415,9 +415,9 @@ const MemberWithdraw = () => {
               borderRadius: "8px",
               border: "none",
               background: loading
-                ? "#6b7280"
-                : "linear-gradient(to right, #ef4444, #dc2626)",
-              color: "white",
+                ? "var(--text-dim)"
+                : "linear-gradient(to right, var(--debit), #dc2626)",
+              color: "var(--text)",
               fontSize: "16px",
               fontWeight: "600",
               cursor: loading ? "not-allowed" : "pointer",
@@ -439,7 +439,7 @@ const MemberWithdraw = () => {
           >
             <p
               style={{
-                color: "#94a3b8",
+                color: "var(--text-muted)",
                 fontSize: "12px",
                 margin: 0,
                 textAlign: "center",
