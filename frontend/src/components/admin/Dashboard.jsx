@@ -508,11 +508,11 @@ const AdminDashboard = () => {
   ];
 
   const colorMap = {
-    emerald: { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" },
-    gold: { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" },
-    cyan: { bg: "rgba(6, 182, 212, 0.2)", color: "#22d3ee" },
-    blue: { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" },
-    purple: { bg: "rgba(139, 92, 246, 0.2)", color: "var(--purple)" },
+    emerald: { bg: "transparent", color: "var(--credit)" },
+    gold: { bg: "transparent", color: "var(--warning)" },
+    cyan: { bg: "transparent", color: "#22d3ee" },
+    blue: { bg: "transparent", color: "var(--info)" },
+    purple: { bg: "transparent", color: "var(--purple)" },
   };
 
   const filteredMembers = members.filter(
@@ -1109,7 +1109,7 @@ const AdminDashboard = () => {
       <div
         style={{
           padding: "24px",
-          backgroundColor: "#0f172a",
+          backgroundColor: "transparent",
           minHeight: "100vh",
           display: "flex",
           flexDirection: "column",
@@ -1119,7 +1119,7 @@ const AdminDashboard = () => {
       >
         <div
           style={{
-            backgroundColor: "rgba(239, 68, 68, 0.1)",
+            backgroundColor: "transparent",
             border: "1px solid rgba(239, 68, 68, 0.3)",
             borderRadius: "12px",
             padding: "32px",
@@ -1129,18 +1129,24 @@ const AdminDashboard = () => {
         >
           <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
           <h2
-            style={{ color: "var(--debit)", fontSize: "20px", marginBottom: "12px" }}
+            style={{
+              color: "var(--debit)",
+              fontSize: "20px",
+              marginBottom: "12px",
+            }}
           >
             Connection Error
           </h2>
-          <p style={{ color: "var(--text-muted)", marginBottom: "16px" }}>{error}</p>
+          <p style={{ color: "var(--text-muted)", marginBottom: "16px" }}>
+            {error}
+          </p>
           <button
             onClick={() => window.location.reload()}
             style={{
-              backgroundColor: "#3b82f6",
-              color: "var(--text)",
+              backgroundColor: "transparent",
+              color: "var(--info)",
               padding: "10px 24px",
-              border: "none",
+              border: "1px solid var(--info)",
               borderRadius: "8px",
               cursor: "pointer",
               fontSize: "14px",
@@ -1159,7 +1165,7 @@ const AdminDashboard = () => {
       <div
         style={{
           padding: "24px",
-          backgroundColor: "#0f172a",
+          backgroundColor: "transparent",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -1175,7 +1181,7 @@ const AdminDashboard = () => {
     <div
       style={{
         padding: "24px",
-        backgroundColor: "#0f172a",
+        backgroundColor: "transparent",
         minHeight: "100vh",
         overflow: "hidden",
       }}
@@ -1205,41 +1211,43 @@ const AdminDashboard = () => {
           background-color: var(--bg-surface); border-radius: 16px;
           padding: 32px; max-width: 500px; width: 100%;
           max-height: 90vh; overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
           animation: fadeIn 0.3s ease;
         }
         .modal-header {
           display: flex; justify-content: space-between;
           align-items: center; margin-bottom: 16px;
         }
-        .modal-title { font-size: 18px; font-weight: bold; color: white; }
+        .modal-title { font-size: 18px; font-weight: bold; color: var(--text); }
         .modal-close {
           background: none; border: none; color: var(--text-muted);
           cursor: pointer; padding: 4px; font-size: 24px;
         }
-        .modal-close:hover { color: white; }
+        .modal-close:hover { color: var(--text); }
         .form-group { margin-bottom: 16px; }
         .form-label {
           display: block; font-size: 14px; font-weight: 500;
           color: var(--text); margin-bottom: 6px;
         }
         .form-input {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
-          color: white; font-size: 14px; outline: none;
+          width: 100%; padding: 10px 0; border-radius: 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          background-color: transparent;
+          color: var(--text); font-size: 14px; outline: none;
           box-sizing: border-box;
         }
-        .form-input:focus { border-color: var(--accent); }
+        .form-input:focus { border-bottom-color: var(--accent); }
         .form-input::placeholder { color: var(--text-dim); }
         .form-select {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
-          color: white; font-size: 14px; outline: none; cursor: pointer;
+          width: 100%; padding: 10px 0; border-radius: 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          background-color: transparent;
+          color: var(--text); font-size: 14px; outline: none; cursor: pointer;
         }
-        .form-select:focus { border-color: var(--accent); }
-        .form-select option { background-color: var(--bg-surface); color: white; }
+        .form-select:focus { border-bottom-color: var(--accent); }
+        .form-select option { background-color: var(--bg-surface); color: var(--text); }
         .btn-submit {
           width: 100%; padding: 12px; border-radius: 8px; border: none;
           background: linear-gradient(to right, #059669, #0d9488);
@@ -1248,45 +1256,45 @@ const AdminDashboard = () => {
         }
         .btn-cancel {
           width: 100%; padding: 12px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent; color: white; font-size: 16px;
+          border: 1px solid var(--border);
+          background: transparent; color: var(--text); font-size: 16px;
           cursor: pointer;
         }
-        .btn-cancel:hover { background-color: rgba(255,255,255,0.05); }
+        .btn-cancel:hover { background-color: var(--bg-surface-2); }
         .modal-buttons { display: flex; gap: 12px; margin-top: 16px; }
         .modal-buttons button { flex: 1; }
         .table-container {
           overflow-x: auto; max-height: 550px; overflow-y: auto;
         }
-        table { width: 100%; border-collapse: collapse; }
+        table { width: 100%; border-collapse: collapse; background: transparent; }
         th {
           padding: 14px 16px; text-align: left; font-size: 12px;
           font-weight: 600; color: var(--text-muted);
-          background-color: rgba(255, 255, 255, 0.08);
+          background-color: transparent;
           position: sticky; top: 0; z-index: 10;
           white-space: nowrap;
+          border-bottom: 1px solid var(--border);
         }
         td {
           padding: 14px 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          border: none;
+          border-top: 1px solid var(--border);
+          background: transparent;
         }
+        tr { background: transparent; }
 
         .stat-card {
-          background-color: rgba(255, 255, 255, 0.05);
-          backdrop-filter: blur(10px);
-          border-radius: 12px;
-          padding: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          background-color: transparent;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          padding: 8px 0 12px 0;
           transition: all 0.3s;
           min-width: 0;
           overflow: hidden;
         }
-        .stat-card:hover {
-          transform: translateY(-2px);
-          border-color: rgba(255, 255, 255, 0.2);
-        }
         .stat-icon-wrap {
-          padding: 10px;
+          padding: 0;
           border-radius: 12px;
           flex-shrink: 0;
           display: flex;
@@ -1306,7 +1314,7 @@ const AdminDashboard = () => {
         .stat-value {
           font-size: 20px;
           font-weight: bold;
-          color: white;
+          color: var(--text);
           margin: 0;
           white-space: nowrap;
           line-height: 1.2;
@@ -1354,41 +1362,41 @@ const AdminDashboard = () => {
           white-space: nowrap;
           transition: all 0.2s;
           border: 1px solid rgba(16,185,129,0.3);
-          background: rgba(16,185,129,0.15);
+          background: transparent;
           color: var(--credit);
           display: inline-flex;
           align-items: center;
           gap: 6px;
         }
-        .ad-mic-btn:hover { background: rgba(16,185,129,0.25); }
+        .ad-mic-btn:hover { background: rgba(16,185,129,0.1); }
         .ad-mic-btn.listening {
           border-color: var(--debit);
-          background: rgba(239,68,68,0.25);
-          color: #fca5a5;
+          background: rgba(239,68,68,0.15);
+          color: var(--debit);
           animation: pulseMic 1.2s infinite;
         }
         .ad-mic-btn.unsupported {
           opacity: 0.5;
           cursor: not-allowed;
-          border-color: rgba(148,163,184,0.3);
-          background: rgba(148,163,184,0.15);
+          border-color: var(--border);
+          background: transparent;
           color: var(--text-muted);
         }
-        .ad-mic-btn.unsupported:hover { background: rgba(148,163,184,0.15); }
+        .ad-mic-btn.unsupported:hover { background: transparent; }
 
         .voice-toast {
           position: fixed;
           bottom: 28px;
           right: 28px;
           max-width: 360px;
-          background-color: rgba(30, 41, 59, 0.98);
-          border: 1px solid rgba(255,255,255,0.15);
+          background-color: var(--bg-surface);
+          border: 1px solid var(--border);
           border-radius: 12px;
           padding: 14px 18px;
-          color: white;
+          color: var(--text);
           font-size: 14px;
           z-index: 1100;
-          box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+          box-shadow: 0 8px 32px rgba(0,0,0,0.4);
           animation: fadeIn 0.25s ease;
           backdrop-filter: blur(8px);
         }
@@ -1397,7 +1405,7 @@ const AdminDashboard = () => {
           color: var(--text-muted);
           margin-top: 6px;
           font-style: italic;
-          border-top: 1px solid rgba(255,255,255,0.08);
+          border-top: 1px solid var(--border);
           padding-top: 6px;
         }
         .sound-wave {
@@ -1445,7 +1453,11 @@ const AdminDashboard = () => {
             Admin Dashboard
           </h2>
           <p
-            style={{ fontSize: "14px", color: "var(--text-muted)", margin: "4px 0 0 0" }}
+            style={{
+              fontSize: "14px",
+              color: "var(--text-muted)",
+              margin: "4px 0 0 0",
+            }}
           >
             Welcome back, {adminUsername} 👋
           </p>
@@ -1454,10 +1466,10 @@ const AdminDashboard = () => {
           <button
             onClick={refreshData}
             style={{
-              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              backgroundColor: "transparent",
               color: "var(--info)",
               padding: "10px 20px",
-              border: "1px solid rgba(59, 130, 246, 0.2)",
+              border: "1px solid var(--info)",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
@@ -1467,7 +1479,7 @@ const AdminDashboard = () => {
             🔄 Refresh
           </button>
 
-          {/* 🎙️ Voice button — same style as Broadsheet */}
+          {/* 🎙️ Voice button */}
           <button
             type="button"
             onClick={() => {
@@ -1496,10 +1508,10 @@ const AdminDashboard = () => {
           <button
             onClick={() => setShowTransactionModal(true)}
             style={{
-              backgroundColor: "#3b82f6",
-              color: "var(--text)",
+              backgroundColor: "transparent",
+              color: "var(--info)",
               padding: "10px 20px",
-              border: "none",
+              border: "1px solid var(--info)",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
@@ -1511,10 +1523,10 @@ const AdminDashboard = () => {
           <button
             onClick={() => setShowTransferModal(true)}
             style={{
-              backgroundColor: "#8b5cf6",
-              color: "var(--text)",
+              backgroundColor: "transparent",
+              color: "var(--purple)",
               padding: "10px 20px",
-              border: "none",
+              border: "1px solid var(--purple)",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
@@ -1526,10 +1538,10 @@ const AdminDashboard = () => {
           <button
             onClick={() => setShowExpenseModal(true)}
             style={{
-              backgroundColor: "var(--debit)",
-              color: "var(--text)",
+              backgroundColor: "transparent",
+              color: "var(--debit)",
               padding: "10px 20px",
-              border: "none",
+              border: "1px solid var(--debit)",
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
@@ -1570,7 +1582,7 @@ const AdminDashboard = () => {
                 <div
                   className="stat-icon-wrap"
                   style={{
-                    backgroundColor: colorMap[stat.color].bg,
+                    backgroundColor: "transparent",
                     color: colorMap[stat.color].color,
                   }}
                 >
@@ -1593,11 +1605,11 @@ const AdminDashboard = () => {
         style={{
           display: "flex",
           gap: "4px",
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
-          borderRadius: "12px",
-          padding: "4px",
+          backgroundColor: "transparent",
+          borderRadius: "0",
+          padding: "0",
           marginBottom: "24px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          borderBottom: "1px solid var(--border)",
           flexWrap: "wrap",
         }}
       >
@@ -1607,13 +1619,14 @@ const AdminDashboard = () => {
             flex: 1,
             minWidth: "120px",
             padding: "10px",
-            backgroundColor:
-              activeTab === "members"
-                ? "rgba(16, 185, 129, 0.2)"
-                : "transparent",
-            color: activeTab === "members" ? "var(--credit)" : "var(--text-muted)",
+            backgroundColor: "transparent",
+            color:
+              activeTab === "members" ? "var(--credit)" : "var(--text-muted)",
             border: "none",
-            borderRadius: "8px",
+            borderBottom:
+              activeTab === "members"
+                ? "2px solid var(--credit)"
+                : "2px solid transparent",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
@@ -1627,13 +1640,16 @@ const AdminDashboard = () => {
             flex: 1,
             minWidth: "120px",
             padding: "10px",
-            backgroundColor:
+            backgroundColor: "transparent",
+            color:
               activeTab === "pending_loans"
-                ? "rgba(234, 179, 8, 0.2)"
-                : "transparent",
-            color: activeTab === "pending_loans" ? "var(--warning)" : "var(--text-muted)",
+                ? "var(--warning)"
+                : "var(--text-muted)",
             border: "none",
-            borderRadius: "8px",
+            borderBottom:
+              activeTab === "pending_loans"
+                ? "2px solid var(--warning)"
+                : "2px solid transparent",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
@@ -1667,13 +1683,14 @@ const AdminDashboard = () => {
             flex: 1,
             minWidth: "120px",
             padding: "10px",
-            backgroundColor:
-              activeTab === "all_loans"
-                ? "rgba(139, 92, 246, 0.2)"
-                : "transparent",
-            color: activeTab === "all_loans" ? "var(--purple)" : "var(--text-muted)",
+            backgroundColor: "transparent",
+            color:
+              activeTab === "all_loans" ? "var(--purple)" : "var(--text-muted)",
             border: "none",
-            borderRadius: "8px",
+            borderBottom:
+              activeTab === "all_loans"
+                ? "2px solid var(--purple)"
+                : "2px solid transparent",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
@@ -1687,13 +1704,16 @@ const AdminDashboard = () => {
             flex: 1,
             minWidth: "120px",
             padding: "10px",
-            backgroundColor:
+            backgroundColor: "transparent",
+            color:
               activeTab === "transactions"
-                ? "rgba(59, 130, 246, 0.2)"
-                : "transparent",
-            color: activeTab === "transactions" ? "var(--info)" : "var(--text-muted)",
+                ? "var(--info)"
+                : "var(--text-muted)",
             border: "none",
-            borderRadius: "8px",
+            borderBottom:
+              activeTab === "transactions"
+                ? "2px solid var(--info)"
+                : "2px solid transparent",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
@@ -1707,13 +1727,14 @@ const AdminDashboard = () => {
             flex: 1,
             minWidth: "120px",
             padding: "10px",
-            backgroundColor:
-              activeTab === "expenses"
-                ? "rgba(239, 68, 68, 0.2)"
-                : "transparent",
-            color: activeTab === "expenses" ? "var(--debit)" : "var(--text-muted)",
+            backgroundColor: "transparent",
+            color:
+              activeTab === "expenses" ? "var(--debit)" : "var(--text-muted)",
             border: "none",
-            borderRadius: "8px",
+            borderBottom:
+              activeTab === "expenses"
+                ? "2px solid var(--debit)"
+                : "2px solid transparent",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "600",
@@ -1748,10 +1769,10 @@ const AdminDashboard = () => {
         <>
           <div
             style={{
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              borderRadius: "12px",
-              padding: "20px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              backgroundColor: "transparent",
+              borderRadius: "0",
+              padding: "0 0 16px 0",
+              borderBottom: "1px solid var(--border)",
               marginBottom: "24px",
             }}
           >
@@ -1762,11 +1783,12 @@ const AdminDashboard = () => {
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
                 width: "100%",
-                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                backgroundColor: "transparent",
                 color: "var(--text)",
-                padding: "12px 18px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255, 255, 255, 0.1)",
+                padding: "10px 0",
+                borderRadius: "0",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
                 outline: "none",
                 fontSize: "15px",
                 boxSizing: "border-box",
@@ -1777,11 +1799,12 @@ const AdminDashboard = () => {
           {filteredMembers.length > 0 && (
             <div
               style={{
-                backgroundColor: "rgba(255,255,255,0.05)",
-                borderRadius: "12px",
-                padding: "12px 16px",
+                backgroundColor: "transparent",
+                borderRadius: "0",
+                padding: "12px 0",
                 marginBottom: "16px",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
                 display: "flex",
                 alignItems: "center",
                 gap: "12px",
@@ -1796,10 +1819,10 @@ const AdminDashboard = () => {
                   <button
                     onClick={handleBulkSuspend}
                     style={{
-                      backgroundColor: "rgba(234, 179, 8, 0.15)",
+                      backgroundColor: "transparent",
                       color: "var(--warning)",
                       padding: "6px 16px",
-                      border: "1px solid rgba(234, 179, 8, 0.2)",
+                      border: "1px solid var(--warning)",
                       borderRadius: "6px",
                       cursor: "pointer",
                       fontSize: "13px",
@@ -1811,10 +1834,10 @@ const AdminDashboard = () => {
                   <button
                     onClick={handleBulkDelete}
                     style={{
-                      backgroundColor: "rgba(239, 68, 68, 0.15)",
+                      backgroundColor: "transparent",
                       color: "var(--debit)",
                       padding: "6px 16px",
-                      border: "1px solid rgba(239, 68, 68, 0.2)",
+                      border: "1px solid var(--debit)",
                       borderRadius: "6px",
                       cursor: "pointer",
                       fontSize: "13px",
@@ -1830,9 +1853,9 @@ const AdminDashboard = () => {
 
           <div
             style={{
-              backgroundColor: "rgba(255, 255, 255, 0.05)",
-              borderRadius: "12px",
-              border: "1px solid rgba(255, 255, 255, 0.1)",
+              backgroundColor: "transparent",
+              borderRadius: "0",
+              border: "none",
               overflow: "hidden",
             }}
           >
@@ -1845,7 +1868,10 @@ const AdminDashboard = () => {
                         type="checkbox"
                         checked={selectAll}
                         onChange={handleSelectAll}
-                        style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                        style={{
+                          accentColor: "var(--accent)",
+                          cursor: "pointer",
+                        }}
                       />
                     </th>
                     <th>Member</th>
@@ -1858,18 +1884,16 @@ const AdminDashboard = () => {
                 </thead>
                 <tbody>
                   {filteredMembers.map((member) => (
-                    <tr
-                      key={member.id}
-                      style={{
-                        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                      }}
-                    >
+                    <tr key={member.id}>
                       <td style={{ textAlign: "center" }}>
                         <input
                           type="checkbox"
                           checked={selectedMembers.includes(member.id)}
                           onChange={() => handleSelectMember(member.id)}
-                          style={{ accentColor: "var(--accent)", cursor: "pointer" }}
+                          style={{
+                            accentColor: "var(--accent)",
+                            cursor: "pointer",
+                          }}
                         />
                       </td>
                       <td>
@@ -1912,7 +1936,12 @@ const AdminDashboard = () => {
                         <div style={{ color: "var(--text)", fontSize: "13px" }}>
                           {member.email}
                         </div>
-                        <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                        <div
+                          style={{
+                            color: "var(--text-muted)",
+                            fontSize: "12px",
+                          }}
+                        >
                           {member.phone || "No phone"}
                         </div>
                       </td>
@@ -1985,16 +2014,16 @@ const AdminDashboard = () => {
       {activeTab === "pending_loans" && (
         <div
           style={{
-            backgroundColor: "rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            backgroundColor: "transparent",
+            borderRadius: "0",
+            border: "none",
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              padding: "20px",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              padding: "0 0 16px 0",
+              borderBottom: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -2006,10 +2035,10 @@ const AdminDashboard = () => {
             <button
               onClick={refreshData}
               style={{
-                backgroundColor: "rgba(59, 130, 246, 0.15)",
+                backgroundColor: "transparent",
                 color: "var(--info)",
                 padding: "6px 16px",
-                border: "1px solid rgba(59, 130, 246, 0.2)",
+                border: "1px solid var(--info)",
                 borderRadius: "6px",
                 cursor: "pointer",
                 fontSize: "13px",
@@ -2038,14 +2067,12 @@ const AdminDashboard = () => {
                   pendingLoans.map((loan) => {
                     const member = members.find((m) => m.id === loan.user_id);
                     return (
-                      <tr
-                        key={loan.id}
-                        style={{
-                          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                        }}
-                      >
+                      <tr key={loan.id}>
                         <td
-                          style={{ color: "var(--info)", fontFamily: "monospace" }}
+                          style={{
+                            color: "var(--info)",
+                            fontFamily: "monospace",
+                          }}
                         >
                           #{loan.id}
                         </td>
@@ -2054,7 +2081,9 @@ const AdminDashboard = () => {
                             {member ? member.name : "Unknown"}
                           </div>
                         </td>
-                        <td style={{ color: "var(--credit)", fontWeight: "600" }}>
+                        <td
+                          style={{ color: "var(--credit)", fontWeight: "600" }}
+                        >
                           {formatCurrency(loan.amount)}
                         </td>
                         <td style={{ color: "var(--warning)" }}>
@@ -2069,7 +2098,12 @@ const AdminDashboard = () => {
                         <td style={{ color: "var(--text-muted)" }}>
                           {loan.duration_months} months
                         </td>
-                        <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+                        <td
+                          style={{
+                            color: "var(--text-muted)",
+                            fontSize: "13px",
+                          }}
+                        >
                           {new Date(loan.request_date).toLocaleDateString()}
                         </td>
                         <td>
@@ -2116,16 +2150,16 @@ const AdminDashboard = () => {
       {activeTab === "all_loans" && (
         <div
           style={{
-            backgroundColor: "rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            backgroundColor: "transparent",
+            borderRadius: "0",
+            border: "none",
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              padding: "20px",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              padding: "0 0 16px 0",
+              borderBottom: "1px solid var(--border)",
             }}
           >
             <h3 style={{ color: "var(--text)", margin: 0 }}>
@@ -2151,21 +2185,21 @@ const AdminDashboard = () => {
                   loans.map((loan) => {
                     const member = members.find((m) => m.id === loan.user_id);
                     return (
-                      <tr
-                        key={loan.id}
-                        style={{
-                          borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                        }}
-                      >
+                      <tr key={loan.id}>
                         <td
-                          style={{ color: "var(--info)", fontFamily: "monospace" }}
+                          style={{
+                            color: "var(--info)",
+                            fontFamily: "monospace",
+                          }}
                         >
                           #{loan.id}
                         </td>
                         <td style={{ color: "var(--text)" }}>
                           {member ? member.name : "Unknown"}
                         </td>
-                        <td style={{ color: "var(--credit)", fontWeight: "600" }}>
+                        <td
+                          style={{ color: "var(--credit)", fontWeight: "600" }}
+                        >
                           {formatCurrency(loan.amount)}
                         </td>
                         <td style={{ color: "var(--warning)" }}>
@@ -2182,7 +2216,12 @@ const AdminDashboard = () => {
                             {loan.status.toUpperCase()}
                           </span>
                         </td>
-                        <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+                        <td
+                          style={{
+                            color: "var(--text-muted)",
+                            fontSize: "13px",
+                          }}
+                        >
                           {new Date(loan.request_date).toLocaleDateString()}
                         </td>
                       </tr>
@@ -2213,16 +2252,16 @@ const AdminDashboard = () => {
       {activeTab === "transactions" && (
         <div
           style={{
-            backgroundColor: "rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            backgroundColor: "transparent",
+            borderRadius: "0",
+            border: "none",
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              padding: "20px",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              padding: "0 0 16px 0",
+              borderBottom: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -2235,13 +2274,13 @@ const AdminDashboard = () => {
             </h3>
             <div
               style={{
-                backgroundColor: "rgba(6, 182, 212, 0.15)",
+                backgroundColor: "transparent",
                 color: "#22d3ee",
                 padding: "6px 14px",
                 borderRadius: "8px",
                 fontSize: "13px",
                 fontWeight: "600",
-                border: "1px solid rgba(6, 182, 212, 0.2)",
+                border: "1px solid rgba(6, 182, 212, 0.3)",
               }}
             >
               💸 Charges: {formatCurrency(totalCharges)}
@@ -2264,14 +2303,18 @@ const AdminDashboard = () => {
               </thead>
               <tbody>
                 {transactions.map((transaction) => (
-                  <tr
-                    key={transaction.id}
-                    style={{ borderTop: "1px solid rgba(255, 255, 255, 0.05)" }}
-                  >
-                    <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
+                  <tr key={transaction.id}>
+                    <td
+                      style={{
+                        color: "var(--text-muted)",
+                        fontFamily: "monospace",
+                      }}
+                    >
                       #{transaction.id}
                     </td>
-                    <td style={{ color: "var(--text)" }}>{transaction.memberName}</td>
+                    <td style={{ color: "var(--text)" }}>
+                      {transaction.memberName}
+                    </td>
                     <td>
                       <span
                         style={{
@@ -2304,7 +2347,9 @@ const AdminDashboard = () => {
                     >
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ color: "var(--warning)", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{ color: "var(--warning)", whiteSpace: "nowrap" }}
+                    >
                       {transaction.charge > 0
                         ? `−${formatCurrency(transaction.charge)}`
                         : "—"}
@@ -2343,7 +2388,12 @@ const AdminDashboard = () => {
                         {transaction.status.toUpperCase()}
                       </span>
                     </td>
-                    <td style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                    <td
+                      style={{
+                        color: "var(--text-muted)",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       {transaction.date}
                     </td>
                     <td>
@@ -2369,7 +2419,9 @@ const AdminDashboard = () => {
                           </button>
                         </div>
                       ) : (
-                        <span style={{ color: "var(--text-dim)", fontSize: "12px" }}>
+                        <span
+                          style={{ color: "var(--text-dim)", fontSize: "12px" }}
+                        >
                           —
                         </span>
                       )}
@@ -2401,16 +2453,16 @@ const AdminDashboard = () => {
       {activeTab === "expenses" && (
         <div
           style={{
-            backgroundColor: "rgba(255, 255, 255, 0.05)",
-            borderRadius: "12px",
-            border: "1px solid rgba(255, 255, 255, 0.1)",
+            backgroundColor: "transparent",
+            borderRadius: "0",
+            border: "none",
             overflow: "hidden",
           }}
         >
           <div
             style={{
-              padding: "20px",
-              borderBottom: "1px solid rgba(255, 255, 255, 0.05)",
+              padding: "0 0 16px 0",
+              borderBottom: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -2425,13 +2477,13 @@ const AdminDashboard = () => {
             <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
               <div
                 style={{
-                  backgroundColor: "rgba(239, 68, 68, 0.15)",
+                  backgroundColor: "transparent",
                   color: "var(--debit)",
                   padding: "6px 14px",
                   borderRadius: "8px",
                   fontSize: "13px",
                   fontWeight: "600",
-                  border: "1px solid rgba(239, 68, 68, 0.2)",
+                  border: "1px solid var(--debit)",
                 }}
               >
                 🧾 Total Approved: {formatCurrency(totalExpenses)}
@@ -2439,10 +2491,10 @@ const AdminDashboard = () => {
               <button
                 onClick={refreshData}
                 style={{
-                  backgroundColor: "rgba(59, 130, 246, 0.15)",
+                  backgroundColor: "transparent",
                   color: "var(--info)",
                   padding: "6px 16px",
-                  border: "1px solid rgba(59, 130, 246, 0.2)",
+                  border: "1px solid var(--info)",
                   borderRadius: "6px",
                   cursor: "pointer",
                   fontSize: "13px",
@@ -2469,13 +2521,13 @@ const AdminDashboard = () => {
               <tbody>
                 {expenses.length > 0 ? (
                   expenses.map((expense) => (
-                    <tr
-                      key={expense.id}
-                      style={{
-                        borderTop: "1px solid rgba(255, 255, 255, 0.05)",
-                      }}
-                    >
-                      <td style={{ color: "var(--text-muted)", fontFamily: "monospace" }}>
+                    <tr key={expense.id}>
+                      <td
+                        style={{
+                          color: "var(--text-muted)",
+                          fontFamily: "monospace",
+                        }}
+                      >
                         #{expense.id}
                       </td>
                       <td style={{ color: "var(--text)", fontWeight: "500" }}>
@@ -2490,7 +2542,12 @@ const AdminDashboard = () => {
                       <td style={{ color: "var(--text)" }}>
                         {expense.requested_by || "Admin"}
                       </td>
-                      <td style={{ color: "var(--text-muted)", whiteSpace: "nowrap" }}>
+                      <td
+                        style={{
+                          color: "var(--text-muted)",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
                         {expense.date}
                       </td>
                       <td>
@@ -2633,8 +2690,8 @@ const AdminDashboard = () => {
                   return (
                     <div
                       style={{
-                        backgroundColor: "rgba(6, 182, 212, 0.08)",
-                        border: "1px solid rgba(6, 182, 212, 0.2)",
+                        backgroundColor: "transparent",
+                        border: "1px solid rgba(6, 182, 212, 0.3)",
                         borderRadius: "8px",
                         padding: "12px 16px",
                         marginBottom: "16px",

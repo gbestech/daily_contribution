@@ -146,6 +146,12 @@ const Layout = ({ children }) => {
       permission: "manage_permissions",
     },
     {
+      path: "/admin/password-resets",
+      label: "Password Resets",
+      icon: "🔐",
+      permission: "manage_settings",
+    },
+    {
       path: "/admin/settings",
       label: "Settings",
       icon: "⚙️",

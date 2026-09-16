@@ -12,7 +12,6 @@ const AdminReports = () => {
   const [selectedReportType, setSelectedReportType] = useState("all");
   const [loading, setLoading] = useState(true);
 
-  // State for real data
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [pendingRequests, setPendingRequests] = useState([]);
@@ -35,28 +34,25 @@ const AdminReports = () => {
     transactions: [],
   });
 
-  // Fetch data on component mount
   useEffect(() => {
     fetchData();
   }, []);
 
-  // Apply filters whenever transactions, dateRange, or selectedReportType changes
   useEffect(() => {
     if (transactions.length > 0) {
       applyFilters();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [transactions, dateRange, startDate, endDate, selectedReportType]);
 
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch members
       const membersResponse = await fetch(`${API_BASE_URL}/api/members.php`);
       const membersData = await membersResponse.json();
       const membersList = membersData.members || [];
       setMembers(membersList);
 
-      // Fetch transactions
       const transactionsResponse = await fetch(
         `${API_BASE_URL}/api/transactions.php`,
       );
@@ -64,11 +60,9 @@ const AdminReports = () => {
       const transactionsList = transactionsData.transactions || [];
       setTransactions(transactionsList);
 
-      // Filter pending transactions
       const pending = transactionsList.filter((t) => t.status === "pending");
       setPendingRequests(pending);
 
-      // Calculate overview stats
       const totalDeposits = transactionsList
         .filter((t) => t.type === "deposit" && t.status === "approved")
         .reduce((sum, t) => sum + t.amount, 0);
@@ -87,7 +81,6 @@ const AdminReports = () => {
         (m) => m.status === "Active",
       ).length;
 
-      // Calculate monthly data
       const monthlyData = calculateMonthlyData(transactionsList);
 
       setReportData({
@@ -107,7 +100,6 @@ const AdminReports = () => {
         transactions: transactionsList,
       });
 
-      // Initial filter application
       applyFiltersWithData(transactionsList, membersList);
     } catch (error) {
       console.error("Error fetching report data:", error);
@@ -122,12 +114,8 @@ const AdminReports = () => {
   };
 
   const applyFiltersWithData = (transactionsList, membersList) => {
-    // Filter transactions by date range
     let filtered = [...transactionsList];
     const now = new Date();
-
-    console.log("Applying filters - Date Range:", dateRange);
-    console.log("Total transactions before filter:", filtered.length);
 
     if (dateRange !== "custom") {
       const start = new Date();
@@ -137,22 +125,19 @@ const AdminReports = () => {
         case "today":
           start.setHours(0, 0, 0, 0);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: Today -", start, "to", end);
           break;
-        case "this_week":
-          // Get start of week (Monday)
+        case "this_week": {
           const dayOfWeek = start.getDay();
           const diff = start.getDate() - dayOfWeek + (dayOfWeek === 0 ? -6 : 1);
           start.setDate(diff);
           start.setHours(0, 0, 0, 0);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: This Week -", start, "to", end);
           break;
+        }
         case "this_month":
           start.setDate(1);
           start.setHours(0, 0, 0, 0);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: This Month -", start, "to", end);
           break;
         case "last_month":
           start.setMonth(now.getMonth() - 1);
@@ -161,9 +146,8 @@ const AdminReports = () => {
           end.setMonth(now.getMonth());
           end.setDate(0);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: Last Month -", start, "to", end);
           break;
-        case "this_quarter":
+        case "this_quarter": {
           const quarterMonth = Math.floor(now.getMonth() / 3) * 3;
           start.setMonth(quarterMonth);
           start.setDate(1);
@@ -171,8 +155,8 @@ const AdminReports = () => {
           end.setMonth(quarterMonth + 3);
           end.setDate(0);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: This Quarter -", start, "to", end);
           break;
+        }
         case "this_year":
           start.setMonth(0);
           start.setDate(1);
@@ -180,7 +164,6 @@ const AdminReports = () => {
           end.setMonth(11);
           end.setDate(31);
           end.setHours(23, 59, 59, 999);
-          console.log("Filter: This Year -", start, "to", end);
           break;
         default:
           break;
@@ -192,7 +175,6 @@ const AdminReports = () => {
         return transactionDate >= start && transactionDate <= end;
       });
     } else {
-      // Custom date range
       let start = null;
       let end = null;
 
@@ -215,25 +197,18 @@ const AdminReports = () => {
       });
     }
 
-    console.log("Transactions after date filter:", filtered.length);
-
-    // Filter by transaction type
     if (selectedReportType !== "all") {
       filtered = filtered.filter((t) => t.type === selectedReportType);
-      console.log("Transactions after type filter:", filtered.length);
     }
 
-    // Store filtered transactions
     setFilteredTransactions(filtered);
 
-    // Filter members based on filtered transactions
     const memberIds = new Set(filtered.map((t) => t.memberId));
     const filteredMembersList = membersList.filter(
       (m) => memberIds.has(m.id) || filtered.length === 0,
     );
     setFilteredMembers(filteredMembersList);
 
-    // Update overview stats with filtered data
     const totalDeposits = filtered
       .filter((t) => t.type === "deposit" && t.status === "approved")
       .reduce((sum, t) => sum + t.amount, 0);
@@ -248,7 +223,6 @@ const AdminReports = () => {
 
     const totalSales = totalDeposits + totalTransfers;
 
-    // Update overview stats
     setReportData((prev) => ({
       ...prev,
       overview: {
@@ -263,7 +237,6 @@ const AdminReports = () => {
       },
     }));
 
-    // Update members list with filtered data
     const formattedMembers = filteredMembersList.map((m) => ({
       id: m.id,
       name: m.name || "Unknown",
@@ -319,7 +292,6 @@ const AdminReports = () => {
       transfers: 0,
     }));
 
-    // Use filtered transactions if available, otherwise use all
     const dataToUse =
       filteredTransactions.length > 0 ? filteredTransactions : transactionsList;
 
@@ -367,25 +339,25 @@ const AdminReports = () => {
     }
   };
 
-  const getTypeBadge = (type) => {
-    const styles = {
-      deposit: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      withdrawal: "bg-red-100 text-red-800 border border-red-200",
-      transfer: "bg-blue-100 text-blue-800 border border-blue-200",
-      contribution: "bg-purple-100 text-purple-800 border border-purple-200",
+  const getTypeColors = (type) => {
+    const map = {
+      deposit: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
+      withdrawal: { bg: "var(--rejected-bg)", color: "var(--badge-text)" },
+      transfer: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
+      contribution: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
     };
-    return styles[type] || "bg-gray-100 text-gray-800 border border-gray-200";
+    return map[type] || { bg: "var(--bg-surface-3)", color: "var(--text)" };
   };
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      completed: "bg-green-100 text-green-800 border border-green-200",
-      approved: "bg-green-100 text-green-800 border border-green-200",
-      pending: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-      failed: "bg-red-100 text-red-800 border border-red-200",
-      rejected: "bg-red-100 text-red-800 border border-red-200",
+  const getStatusColors = (status) => {
+    const map = {
+      completed: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
+      approved: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
+      pending: { bg: "var(--pending-bg)", color: "var(--badge-text)" },
+      failed: { bg: "var(--rejected-bg)", color: "var(--badge-text)" },
+      rejected: { bg: "var(--rejected-bg)", color: "var(--badge-text)" },
     };
-    return styles[status] || "bg-gray-100 text-gray-800 border border-gray-200";
+    return map[status] || { bg: "var(--bg-surface-3)", color: "var(--text)" };
   };
 
   const handleExport = (type) => {
@@ -405,7 +377,6 @@ const AdminReports = () => {
     }
   };
 
-  // Get current monthly data based on filters
   const getCurrentMonthlyData = () => {
     const dataToUse =
       filteredTransactions.length > 0 ? filteredTransactions : transactions;
@@ -418,7 +389,7 @@ const AdminReports = () => {
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -429,8 +400,8 @@ const AdminReports = () => {
           style={{
             width: "48px",
             height: "48px",
-            border: "4px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00aa69",
+            border: "4px solid var(--border)",
+            borderTopColor: "var(--accent)",
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
           }}
@@ -452,7 +423,7 @@ const AdminReports = () => {
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
       }}
     >
@@ -464,17 +435,18 @@ const AdminReports = () => {
           max-width: 1400px;
           margin: 0 auto;
         }
+
+        /* ===== STAT CARDS — no background, no border ===== */
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 12px;
+          gap: 16px;
           margin-bottom: 24px;
         }
         .stat-card {
-          background-color: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 12px;
-          padding: 16px;
+          background: transparent;
+          border: none;
+          padding: 4px 0;
         }
         .stat-label {
           font-size: 12px;
@@ -485,17 +457,17 @@ const AdminReports = () => {
           font-weight: 700;
           margin-top: 4px;
         }
+
+        /* ===== TABS — no container background ===== */
         .tabs-container {
           display: flex;
-          gap: 4px;
-          background-color: rgba(255,255,255,0.03);
-          border-radius: 12px;
-          padding: 4px;
+          gap: 8px;
+          padding: 0;
           margin-bottom: 24px;
           flex-wrap: wrap;
         }
         .tab-btn {
-          padding: 10px 20px;
+          padding: 8px 18px;
           border-radius: 8px;
           border: none;
           background: transparent;
@@ -504,29 +476,31 @@ const AdminReports = () => {
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
-          flex: 1;
-          min-width: 100px;
         }
         .tab-btn:hover {
-          color: white;
-          background: rgba(255,255,255,0.05);
+          color: var(--text);
+          background: var(--bg-surface-2);
         }
         .tab-btn.active {
-          background: #00aa69;
+          background: var(--accent);
           color: white;
         }
+
+        /* ===== REPORT CARDS — no background, no border ===== */
         .report-card {
-          background-color: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 20px;
+          background: transparent;
+          border: none;
+          padding: 0;
+          margin-bottom: 24px;
         }
         .report-card-title {
           font-size: 16px;
           font-weight: 600;
           margin-bottom: 16px;
+          color: var(--text);
         }
+
+        /* ===== CHART ===== */
         .chart-bars {
           display: flex;
           align-items: flex-end;
@@ -560,9 +534,16 @@ const AdminReports = () => {
           color: var(--text-muted);
           margin-bottom: 4px;
         }
+
+        /* ===== TABLES — no borders, no background ===== */
         .reports-table {
           width: 100%;
           border-collapse: collapse;
+          background: transparent;
+          border: none;
+        }
+        .reports-table thead {
+          background: transparent;
         }
         .reports-table th {
           text-align: left;
@@ -572,23 +553,35 @@ const AdminReports = () => {
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
+          background: transparent;
         }
         .reports-table td {
           padding: 10px 12px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
           font-size: 13px;
+          background: transparent;
         }
-        .reports-table tr:hover {
-          background-color: rgba(255,255,255,0.02);
+        .reports-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
         }
+        .reports-table tbody tr:hover {
+          background-color: var(--bg-surface-2);
+        }
+
+        /* ===== BADGES ===== */
         .badge {
           display: inline-block;
           padding: 3px 10px;
           border-radius: 9999px;
           font-size: 11px;
-          font-weight: 500;
+          font-weight: 600;
+          border: none;
         }
+
+        /* ===== FILTER CONTROLS — no backgrounds ===== */
         .filter-controls {
           display: flex;
           gap: 12px;
@@ -599,62 +592,65 @@ const AdminReports = () => {
         .filter-select {
           padding: 8px 16px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: none;
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 13px;
           outline: none;
           cursor: pointer;
-          transition: border-color 0.2s;
+          transition: box-shadow 0.2s;
         }
         .filter-select:focus {
-          border-color: #00aa69;
+          box-shadow: 0 0 0 2px var(--accent-bg);
         }
         .filter-select option {
           background: var(--bg-surface);
-          color: white;
+          color: var(--text);
         }
         .date-input {
           padding: 8px 12px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: none;
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 13px;
           outline: none;
-          transition: border-color 0.2s;
+          transition: box-shadow 0.2s;
         }
         .date-input:focus {
-          border-color: #00aa69;
+          box-shadow: 0 0 0 2px var(--accent-bg);
         }
+
+        /* ===== BUTTONS ===== */
         .btn-export {
           padding: 8px 20px;
           border-radius: 8px;
           border: none;
-          background: #00aa69;
+          background: var(--accent);
           color: white;
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-export:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .btn-print {
           padding: 8px 20px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent;
-          color: white;
+          border: none;
+          background: var(--bg-surface-2);
+          color: var(--text);
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-print:hover {
-          background: rgba(255,255,255,0.05);
+          background: var(--bg-surface-3);
         }
+
         .action-buttons {
           display: flex;
           gap: 8px;
@@ -668,11 +664,9 @@ const AdminReports = () => {
         .filter-indicator {
           font-size: 12px;
           color: var(--text-muted);
-          padding: 4px 12px;
-          background: rgba(255,255,255,0.05);
-          border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.05);
+          padding: 4px 0;
         }
+
         @media (max-width: 768px) {
           .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -705,28 +699,19 @@ const AdminReports = () => {
           body {
             background-color: white !important;
           }
-          .stat-card {
-            background-color: #f8fafc !important;
-            border-color: #e2e8f0 !important;
-          }
-          .stat-label {
-            color: var(--text-dim) !important;
-          }
-          .stat-value {
-            color: #0f172a !important;
-          }
+          .stat-card,
           .report-card {
-            background-color: #f8fafc !important;
-            border-color: #e2e8f0 !important;
+            background: transparent !important;
+            border: none !important;
           }
-          .report-card-title {
-            color: #0f172a !important;
-          }
-          .reports-table th {
-            color: var(--text-dim) !important;
-          }
+          .stat-value,
+          .report-card-title,
           .reports-table td {
             color: #0f172a !important;
+          }
+          .stat-label,
+          .reports-table th {
+            color: #64748b !important;
           }
           .badge {
             color: white !important;
@@ -750,7 +735,13 @@ const AdminReports = () => {
             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
               📈 Reports & Analytics
             </h2>
-            <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "var(--text-muted)",
+                marginTop: "4px",
+              }}
+            >
               View analytics and reports for your organization
             </p>
           </div>
@@ -813,7 +804,7 @@ const AdminReports = () => {
             </select>
           </div>
           <button
-            className="btn-export"
+            className="btn-print"
             onClick={() => {
               setDateRange("this_month");
               setSelectedReportType("all");
@@ -821,7 +812,6 @@ const AdminReports = () => {
               setEndDate("");
               toast.success("Filters reset");
             }}
-            style={{ background: "rgba(255,255,255,0.1)" }}
           >
             🔄 Reset Filters
           </button>
@@ -830,7 +820,7 @@ const AdminReports = () => {
           </span>
         </div>
 
-        {/* Stats Cards */}
+        {/* Stats — no cards */}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-label">Total Sales</div>
@@ -979,7 +969,11 @@ const AdminReports = () => {
                     }}
                   >
                     {reportData.overview.active_members > 0
-                      ? `+${Math.round((reportData.overview.active_members / reportData.overview.total_members) * 100)}%`
+                      ? `+${Math.round(
+                          (reportData.overview.active_members /
+                            reportData.overview.total_members) *
+                            100,
+                        )}%`
                       : "0%"}
                   </div>
                 </div>
@@ -1008,7 +1002,7 @@ const AdminReports = () => {
                         className="chart-bar"
                         style={{
                           height: `${Math.max(height, 8)}%`,
-                          background: `linear-gradient(to top, var(--credit), var(--credit)dd)`,
+                          background: `linear-gradient(to top, var(--accent), var(--accent-hover))`,
                         }}
                       />
                       <div className="chart-bar-label">{month.month}</div>
@@ -1040,7 +1034,7 @@ const AdminReports = () => {
                       width: "12px",
                       height: "12px",
                       borderRadius: "2px",
-                      background: "var(--credit)",
+                      background: "var(--accent)",
                     }}
                   ></span>
                   Sales
@@ -1085,7 +1079,9 @@ const AdminReports = () => {
                         <tr key={member.id}>
                           <td>{index + 1}</td>
                           <td style={{ fontWeight: "500" }}>{member.name}</td>
-                          <td style={{ color: "var(--text-muted)" }}>{member.email}</td>
+                          <td style={{ color: "var(--text-muted)" }}>
+                            {member.email}
+                          </td>
                           <td style={{ color: "var(--text-muted)" }}>
                             {formatDate(member.joined)}
                           </td>
@@ -1105,7 +1101,10 @@ const AdminReports = () => {
                       <tr>
                         <td
                           colSpan="6"
-                          style={{ textAlign: "center", color: "var(--text-muted)" }}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--text-muted)",
+                          }}
                         >
                           No members found for the selected filters
                         </td>
@@ -1136,38 +1135,60 @@ const AdminReports = () => {
                   </thead>
                   <tbody>
                     {reportData.transactions.length > 0 ? (
-                      reportData.transactions.map((transaction) => (
-                        <tr key={transaction.id}>
-                          <td>
-                            <span
-                              className={`badge ${getTypeBadge(transaction.type)}`}
+                      reportData.transactions.map((transaction) => {
+                        const typeColors = getTypeColors(transaction.type);
+                        const statusColors = getStatusColors(
+                          transaction.status,
+                        );
+                        return (
+                          <tr key={transaction.id}>
+                            <td>
+                              <span
+                                className="badge"
+                                style={{
+                                  background: typeColors.bg,
+                                  color: typeColors.color,
+                                }}
+                              >
+                                {transaction.type}
+                              </span>
+                            </td>
+                            <td style={{ fontWeight: "500" }}>
+                              {transaction.customer}
+                            </td>
+                            <td
+                              style={{
+                                color: "var(--credit)",
+                                fontWeight: "600",
+                              }}
                             >
-                              {transaction.type}
-                            </span>
-                          </td>
-                          <td style={{ fontWeight: "500" }}>
-                            {transaction.customer}
-                          </td>
-                          <td style={{ color: "var(--credit)", fontWeight: "600" }}>
-                            {formatNaira(transaction.amount)}
-                          </td>
-                          <td style={{ color: "var(--text-muted)" }}>
-                            {formatDate(transaction.date)}
-                          </td>
-                          <td>
-                            <span
-                              className={`badge ${getStatusBadge(transaction.status)}`}
-                            >
-                              {transaction.status}
-                            </span>
-                          </td>
-                        </tr>
-                      ))
+                              {formatNaira(transaction.amount)}
+                            </td>
+                            <td style={{ color: "var(--text-muted)" }}>
+                              {formatDate(transaction.date)}
+                            </td>
+                            <td>
+                              <span
+                                className="badge"
+                                style={{
+                                  background: statusColors.bg,
+                                  color: statusColors.color,
+                                }}
+                              >
+                                {transaction.status}
+                              </span>
+                            </td>
+                          </tr>
+                        );
+                      })
                     ) : (
                       <tr>
                         <td
                           colSpan="5"
-                          style={{ textAlign: "center", color: "var(--text-muted)" }}
+                          style={{
+                            textAlign: "center",
+                            color: "var(--text-muted)",
+                          }}
                         >
                           No transactions found for the selected filters
                         </td>

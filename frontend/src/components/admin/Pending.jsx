@@ -24,7 +24,6 @@ const AdminPending = () => {
     today: 0,
   });
 
-  // Fetch pending transactions from API
   useEffect(() => {
     fetchPendingTransactions();
   }, []);
@@ -45,10 +44,8 @@ const AdminPending = () => {
         allTransactions = data;
       }
 
-      // Filter only pending transactions
       const pending = allTransactions.filter((t) => t.status === "pending");
 
-      // Format the data
       const formatted = pending.map((t) => ({
         id: t.id,
         type: t.type || "deposit",
@@ -68,7 +65,6 @@ const AdminPending = () => {
 
       setPendingRequests(formatted);
 
-      // Calculate stats
       const totalAmount = formatted.reduce((sum, r) => sum + r.amount, 0);
       const deposits = formatted.filter((r) => r.type === "deposit").length;
       const withdrawals = formatted.filter(
@@ -134,27 +130,27 @@ const AdminPending = () => {
     return icons[type] || "📋";
   };
 
-  const getTypeBadge = (type) => {
-    const styles = {
-      deposit: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      withdrawal: "bg-red-100 text-red-800 border border-red-200",
-      transfer: "bg-blue-100 text-blue-800 border border-blue-200",
-      contribution: "bg-purple-100 text-purple-800 border border-purple-200",
+  // Returns color pair from theme tokens instead of Tailwind classes
+  const getTypeColors = (type) => {
+    const map = {
+      deposit: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
+      withdrawal: { bg: "var(--rejected-bg)", color: "var(--badge-text)" },
+      transfer: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
+      contribution: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
     };
-    return styles[type] || "bg-gray-100 text-gray-800 border border-gray-200";
+    return map[type] || { bg: "var(--bg-surface-3)", color: "var(--text)" };
   };
 
-  const getPaymentMethodBadge = (method) => {
-    const styles = {
-      cash: "bg-green-100 text-green-800 border border-green-200",
-      bank_transfer: "bg-blue-100 text-blue-800 border border-blue-200",
-      mobile_money: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-      card: "bg-purple-100 text-purple-800 border border-purple-200",
+  const getPaymentMethodColors = (method) => {
+    const map = {
+      cash: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
+      bank_transfer: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
+      mobile_money: { bg: "var(--pending-bg)", color: "var(--badge-text)" },
+      card: { bg: "var(--accent-bg)", color: "var(--badge-text)" },
     };
-    return styles[method] || "bg-gray-100 text-gray-800 border border-gray-200";
+    return map[method] || { bg: "var(--bg-surface-3)", color: "var(--text)" };
   };
 
-  // Approve transaction
   const handleApprove = async (request) => {
     try {
       const response = await fetch(
@@ -171,9 +167,7 @@ const AdminPending = () => {
         toast.success(
           `✅ ${request.type.charAt(0).toUpperCase() + request.type.slice(1)} request from ${request.customer} approved successfully!`,
         );
-        // Remove from pending list
         setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
-        // Refresh stats
         fetchPendingTransactions();
       } else {
         toast.error(data.message || "Failed to approve transaction");
@@ -184,7 +178,6 @@ const AdminPending = () => {
     }
   };
 
-  // Reject transaction
   const handleReject = async (request) => {
     if (!rejectReason.trim()) {
       toast.error("Please provide a reason for rejection");
@@ -210,7 +203,6 @@ const AdminPending = () => {
         setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
         setRejectReason("");
         setShowRejectModal(false);
-        // Refresh stats
         fetchPendingTransactions();
       } else {
         toast.error(data.message || "Failed to reject transaction");
@@ -262,7 +254,7 @@ const AdminPending = () => {
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -273,8 +265,8 @@ const AdminPending = () => {
           style={{
             width: "48px",
             height: "48px",
-            border: "4px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00aa69",
+            border: "4px solid var(--border)",
+            borderTopColor: "var(--accent)",
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
           }}
@@ -294,7 +286,7 @@ const AdminPending = () => {
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
         }}
       >
@@ -308,14 +300,12 @@ const AdminPending = () => {
           ⏳ Pending Approvals
         </h2>
 
+        {/* Empty state — no background */}
         <div
           style={{
-            backgroundColor: "rgba(255,255,255,0.05)",
-            borderRadius: "12px",
-            padding: "20px",
-            border: "1px solid rgba(255,255,255,0.1)",
             textAlign: "center",
             color: "var(--text-muted)",
+            padding: "48px 20px",
           }}
         >
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
@@ -333,7 +323,7 @@ const AdminPending = () => {
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
       }}
     >
@@ -341,9 +331,16 @@ const AdminPending = () => {
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+
+        /* ===== TABLE — no borders, no background ===== */
         .pending-table {
           width: 100%;
           border-collapse: collapse;
+          background: transparent;
+          border: none;
+        }
+        .pending-table thead {
+          background: transparent;
         }
         .pending-table th {
           text-align: left;
@@ -353,27 +350,38 @@ const AdminPending = () => {
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
+          background: transparent;
         }
         .pending-table td {
           padding: 12px 16px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
+          background: transparent;
         }
-        .pending-table tr:hover {
-          background-color: rgba(255,255,255,0.02);
+        .pending-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
         }
+        .pending-table tbody tr:hover {
+          background-color: var(--bg-surface-2);
+        }
+
+        /* ===== BADGES ===== */
         .badge {
           display: inline-block;
           padding: 4px 10px;
           border-radius: 9999px;
           font-size: 11px;
-          font-weight: 500;
+          font-weight: 600;
+          border: none;
         }
         .badge-pending {
-          background-color: rgba(234, 179, 8, 0.2);
-          color: var(--warning);
-          border: 1px solid rgba(234, 179, 8, 0.3);
+          background-color: var(--pending-bg);
+          color: var(--badge-text);
         }
+
+        /* ===== STAT CARDS — no background, no border ===== */
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -381,10 +389,9 @@ const AdminPending = () => {
           margin-bottom: 24px;
         }
         .stat-card {
-          background-color: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 12px;
-          padding: 16px;
+          background: transparent;
+          border: none;
+          padding: 4px 0;
         }
         .stat-label {
           font-size: 12px;
@@ -395,13 +402,16 @@ const AdminPending = () => {
           font-weight: 700;
           margin-top: 4px;
         }
+
+        /* ===== SEARCH — underline only ===== */
         .search-input {
           width: 100%;
-          padding: 10px 16px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+          padding: 10px 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          background: transparent;
+          color: var(--text);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s;
@@ -409,17 +419,18 @@ const AdminPending = () => {
           box-sizing: border-box;
         }
         .search-input:focus {
-          border-color: #00aa69;
+          border-bottom-color: var(--accent);
         }
         .search-input::placeholder {
           color: var(--text-dim);
         }
+
+        /* ===== PAGINATION ===== */
         .pagination {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 16px;
-          border-top: 1px solid rgba(255,255,255,0.05);
+          padding: 12px 0;
           margin-top: 4px;
           flex-wrap: wrap;
           gap: 8px;
@@ -436,7 +447,7 @@ const AdminPending = () => {
         .page-btn {
           padding: 6px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: none;
           background: transparent;
           color: var(--text-muted);
           cursor: pointer;
@@ -444,22 +455,23 @@ const AdminPending = () => {
           transition: all 0.2s;
         }
         .page-btn:hover:not(:disabled) {
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+          background-color: var(--bg-surface-2);
+          color: var(--text);
         }
         .page-btn.active {
-          background-color: #00aa69;
-          border-color: #00aa69;
+          background-color: var(--accent);
           color: white;
         }
         .page-btn:disabled {
           opacity: 0.3;
           cursor: not-allowed;
         }
+
+        /* ===== MODALS ===== */
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(0,0,0,0.7);
+          background-color: var(--bg-overlay);
           backdrop-filter: blur(4px);
           display: flex;
           align-items: center;
@@ -475,7 +487,8 @@ const AdminPending = () => {
           width: 100%;
           max-height: 90vh;
           overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
+          color: var(--text);
         }
         .modal-header {
           display: flex;
@@ -486,6 +499,7 @@ const AdminPending = () => {
         .modal-title {
           font-size: 18px;
           font-weight: bold;
+          color: var(--text);
         }
         .modal-close {
           background: none;
@@ -496,8 +510,9 @@ const AdminPending = () => {
           font-size: 24px;
         }
         .modal-close:hover {
-          color: white;
+          color: var(--text);
         }
+
         .detail-row {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -510,21 +525,23 @@ const AdminPending = () => {
         }
         .detail-value {
           font-weight: 500;
+          color: var(--text);
         }
+
         .btn-approve {
           padding: 8px 20px;
           border-radius: 8px;
           border: none;
-          background: #00aa69;
+          background: var(--accent);
           color: white;
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
           margin-right: 8px;
         }
         .btn-approve:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .btn-reject {
           padding: 8px 20px;
@@ -534,11 +551,11 @@ const AdminPending = () => {
           color: white;
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-reject:hover {
-          background: #dc2626;
+          opacity: 0.85;
         }
         .btn-view {
           background: none;
@@ -548,11 +565,13 @@ const AdminPending = () => {
           padding: 4px 8px;
           border-radius: 4px;
           font-size: 13px;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-view:hover {
-          background: rgba(96, 165, 250, 0.1);
+          background: var(--accent-bg);
         }
+
         .btn-confirm {
           flex: 1;
           padding: 10px;
@@ -560,60 +579,61 @@ const AdminPending = () => {
           border: none;
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-confirm-approve {
-          background: #00aa69;
+          background: var(--accent);
           color: white;
         }
         .btn-confirm-approve:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .btn-confirm-reject {
           background: var(--debit);
           color: white;
         }
         .btn-confirm-reject:hover {
-          background: #dc2626;
+          opacity: 0.85;
         }
         .btn-close-modal {
           flex: 1;
           padding: 10px;
           border-radius: 8px;
           border: none;
-          background: rgba(255,255,255,0.05);
-          color: white;
+          background: var(--bg-surface-2);
+          color: var(--text);
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-close-modal:hover {
-          background: rgba(255,255,255,0.1);
+          background: var(--bg-surface-3);
         }
         .btn-cancel {
           flex: 1;
           padding: 10px;
           border-radius: 8px;
           border: none;
-          background: rgba(255,255,255,0.05);
-          color: white;
+          background: var(--bg-surface-2);
+          color: var(--text);
           cursor: pointer;
           font-size: 13px;
-          font-weight: 500;
+          font-weight: 600;
           transition: all 0.2s;
         }
         .btn-cancel:hover {
-          background: rgba(255,255,255,0.1);
+          background: var(--bg-surface-3);
         }
+
         .textarea-input {
           width: 100%;
           padding: 10px 12px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s;
@@ -628,6 +648,7 @@ const AdminPending = () => {
         .textarea-input::placeholder {
           color: var(--text-dim);
         }
+
         @media (max-width: 768px) {
           .stats-grid {
             grid-template-columns: repeat(2, 1fr);
@@ -655,7 +676,7 @@ const AdminPending = () => {
         ⏳ Pending Approvals
       </h2>
 
-      {/* Stats Cards */}
+      {/* Stats — no card background */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Pending</div>
@@ -695,7 +716,7 @@ const AdminPending = () => {
         </div>
       </div>
 
-      {/* Search */}
+      {/* Search — underline only */}
       <input
         type="text"
         className="search-input"
@@ -720,15 +741,8 @@ const AdminPending = () => {
         </div>
       )}
 
-      {/* Pending Requests Table */}
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.03)",
-          borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.05)",
-          overflow: "hidden",
-        }}
-      >
+      {/* ===== TABLE — no card background ===== */}
+      <div>
         <div style={{ overflowX: "auto" }}>
           <table className="pending-table">
             <thead>
@@ -744,100 +758,124 @@ const AdminPending = () => {
             </thead>
             <tbody>
               {filteredRequests().length > 0 ? (
-                filteredRequests().map((request) => (
-                  <tr key={request.id}>
-                    <td>
-                      <div
-                        style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: "8px",
-                        }}
-                      >
-                        <span style={{ fontSize: "20px" }}>
-                          {getTypeIcon(request.type)}
-                        </span>
-                        <span className={`badge ${getTypeBadge(request.type)}`}>
-                          {request.type}
-                        </span>
-                      </div>
-                    </td>
-                    <td>
-                      <div>
-                        <div style={{ fontSize: "14px", fontWeight: "500" }}>
-                          {request.customer}
-                        </div>
-                        <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-                          {request.phone}
-                        </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div
-                        style={{
-                          fontSize: "14px",
-                          fontWeight: "600",
-                          color: "var(--credit)",
-                        }}
-                      >
-                        {formatNaira(request.amount)}
-                      </div>
-                    </td>
-                    <td>
-                      <span
-                        className={`badge ${getPaymentMethodBadge(
-                          request.payment_method,
-                        )}`}
-                      >
-                        {request.payment_method.replace("_", " ")}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-                        {formatDate(request.date)}
-                      </div>
-                    </td>
-                    <td>
-                      <span className="badge badge-pending">Pending</span>
-                    </td>
-                    <td style={{ textAlign: "center" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "center",
-                          gap: "4px",
-                          flexWrap: "wrap",
-                        }}
-                      >
-                        <button
-                          className="btn-view"
-                          onClick={() => viewDetails(request)}
-                        >
-                          View
-                        </button>
-                        <button
-                          className="btn-approve"
-                          onClick={() => {
-                            setSelectedRequest(request);
-                            setShowApproveModal(true);
+                filteredRequests().map((request) => {
+                  const typeColors = getTypeColors(request.type);
+                  const payColors = getPaymentMethodColors(
+                    request.payment_method,
+                  );
+                  return (
+                    <tr key={request.id}>
+                      <td>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
                           }}
                         >
-                          Approve
-                        </button>
-                        <button
-                          className="btn-reject"
-                          onClick={() => {
-                            setSelectedRequest(request);
-                            setRejectReason("");
-                            setShowRejectModal(true);
+                          <span style={{ fontSize: "20px" }}>
+                            {getTypeIcon(request.type)}
+                          </span>
+                          <span
+                            className="badge"
+                            style={{
+                              background: typeColors.bg,
+                              color: typeColors.color,
+                            }}
+                          >
+                            {request.type}
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        <div>
+                          <div style={{ fontSize: "14px", fontWeight: "500" }}>
+                            {request.customer}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {request.phone}
+                          </div>
+                        </div>
+                      </td>
+                      <td>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: "var(--credit)",
                           }}
                         >
-                          Reject
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                          {formatNaira(request.amount)}
+                        </div>
+                      </td>
+                      <td>
+                        <span
+                          className="badge"
+                          style={{
+                            background: payColors.bg,
+                            color: payColors.color,
+                          }}
+                        >
+                          {request.payment_method.replace("_", " ")}
+                        </span>
+                      </td>
+                      <td>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {formatDate(request.date)}
+                        </div>
+                      </td>
+                      <td>
+                        <span className="badge badge-pending">Pending</span>
+                      </td>
+                      <td style={{ textAlign: "center" }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: "4px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            className="btn-view"
+                            onClick={() => viewDetails(request)}
+                          >
+                            View
+                          </button>
+                          <button
+                            className="btn-approve"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setShowApproveModal(true);
+                            }}
+                          >
+                            Approve
+                          </button>
+                          <button
+                            className="btn-reject"
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setRejectReason("");
+                              setShowRejectModal(true);
+                            }}
+                          >
+                            Reject
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
               ) : (
                 <tr>
                   <td colSpan="7">
@@ -950,7 +988,7 @@ const AdminPending = () => {
                 alignItems: "center",
                 gap: "12px",
                 paddingBottom: "16px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid var(--border)",
                 marginBottom: "16px",
               }}
             >
@@ -969,7 +1007,11 @@ const AdminPending = () => {
                 </div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
                   <span
-                    className={`badge ${getTypeBadge(selectedRequest.type)}`}
+                    className="badge"
+                    style={{
+                      background: getTypeColors(selectedRequest.type).bg,
+                      color: getTypeColors(selectedRequest.type).color,
+                    }}
                   >
                     {selectedRequest.type}
                   </span>
@@ -1047,7 +1089,7 @@ const AdminPending = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button
@@ -1100,18 +1142,17 @@ const AdminPending = () => {
               </button>
             </div>
 
-            <div
-              style={{
-                textAlign: "center",
-                padding: "20px 0",
-              }}
-            >
+            <div style={{ textAlign: "center", padding: "20px 0" }}>
               <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
               <p style={{ fontSize: "16px", fontWeight: "500" }}>
                 Approve {selectedRequest.type} request?
               </p>
               <p
-                style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                  marginTop: "4px",
+                }}
               >
                 Customer: <strong>{selectedRequest.customer}</strong>
               </p>
@@ -1129,7 +1170,7 @@ const AdminPending = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button
@@ -1176,7 +1217,7 @@ const AdminPending = () => {
             <div
               style={{
                 paddingBottom: "16px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid var(--border)",
                 marginBottom: "16px",
               }}
             >
@@ -1198,7 +1239,7 @@ const AdminPending = () => {
                   fontSize: "14px",
                   fontWeight: "500",
                   marginBottom: "8px",
-                  color: "#e5e7eb",
+                  color: "var(--text)",
                 }}
               >
                 Reason for Rejection *
@@ -1217,7 +1258,7 @@ const AdminPending = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button

@@ -367,38 +367,14 @@ const Broadsheet = () => {
 
   const typeBadge = (type) => {
     const map = {
-      deposit: {
-        bg: "rgba(16,185,129,0.2)",
-        color: "var(--credit)",
-        icon: "💰",
-      },
-      contribution: {
-        bg: "rgba(59,130,246,0.2)",
-        color: "var(--info)",
-        icon: "🤝",
-      },
-      withdrawal: {
-        bg: "rgba(239,68,68,0.2)",
-        color: "var(--debit)",
-        icon: "💸",
-      },
-      transfer: {
-        bg: "rgba(139,92,246,0.2)",
-        color: "var(--purple)",
-        icon: "🔄",
-      },
-      charge: {
-        bg: "rgba(234,179,8,0.2)",
-        color: "var(--warning)",
-        icon: "⚡",
-      },
-      fee: { bg: "rgba(234,179,8,0.2)", color: "var(--warning)", icon: "⚡" },
+      deposit: { bg: "var(--approved-bg)", icon: "💰" },
+      contribution: { bg: "var(--accent-bg)", icon: "🤝" },
+      withdrawal: { bg: "var(--rejected-bg)", icon: "💸" },
+      transfer: { bg: "var(--accent-bg)", icon: "🔄" },
+      charge: { bg: "var(--pending-bg)", icon: "⚡" },
+      fee: { bg: "var(--pending-bg)", icon: "⚡" },
     };
-    const s = map[type] || {
-      bg: "rgba(148,163,184,0.2)",
-      color: "var(--text)",
-      icon: "📄",
-    };
+    const s = map[type] || { bg: "var(--bg-surface-3)", icon: "📄" };
     return (
       <span
         style={{
@@ -409,7 +385,7 @@ const Broadsheet = () => {
           fontWeight: "600",
           whiteSpace: "nowrap",
           background: s.bg,
-          color: s.color,
+          color: "var(--badge-text)",
         }}
       >
         {s.icon} {String(type || "").toUpperCase()}
@@ -419,14 +395,11 @@ const Broadsheet = () => {
 
   const statusBadge = (status) => {
     const map = {
-      pending: { bg: "rgba(234,179,8,0.2)", color: "var(--warning)" },
-      approved: { bg: "rgba(16,185,129,0.2)", color: "var(--credit)" },
-      rejected: { bg: "rgba(239,68,68,0.2)", color: "var(--debit)" },
+      pending: { bg: "var(--pending-bg)" },
+      approved: { bg: "var(--approved-bg)" },
+      rejected: { bg: "var(--rejected-bg)" },
     };
-    const s = map[status] || {
-      bg: "rgba(148,163,184,0.2)",
-      color: "var(--text)",
-    };
+    const s = map[status] || { bg: "var(--bg-surface-3)" };
     return (
       <span
         style={{
@@ -437,7 +410,7 @@ const Broadsheet = () => {
           fontWeight: "600",
           whiteSpace: "nowrap",
           background: s.bg,
-          color: s.color,
+          color: "var(--badge-text)",
         }}
       >
         {String(status || "n/a").toUpperCase()}
@@ -509,6 +482,7 @@ const Broadsheet = () => {
           textAlign: "center",
           color: "var(--text)",
           fontSize: "20px",
+          background: "transparent",
         }}
       >
         ⏳ Loading broadsheet...
@@ -527,6 +501,7 @@ const Broadsheet = () => {
         maxWidth: "1400px",
         margin: "0 auto",
         fontFamily: "system-ui, -apple-system, sans-serif",
+        background: "transparent",
       }}
     >
       {/* ===== SCOPED STYLES ===== */}
@@ -547,15 +522,16 @@ const Broadsheet = () => {
           padding: 8px 16px; border-radius: 6px;
           border: 1px solid transparent; font-size: 13px;
           font-weight: 500; cursor: pointer; transition: all 0.2s;
+          background: transparent;
         }
-        .bs-btn-blue { background: rgba(59,130,246,0.15); color: var(--info); border-color: rgba(59,130,246,0.25); }
-        .bs-btn-blue:hover { background: rgba(59,130,246,0.25); }
-        .bs-btn-red { background: rgba(239,68,68,0.15); color: var(--debit); border-color: rgba(239,68,68,0.25); }
-        .bs-btn-red:hover { background: rgba(239,68,68,0.25); }
-        .bs-btn-green { background: rgba(16,185,129,0.15); color: var(--credit); border-color: rgba(16,185,129,0.25); }
-        .bs-btn-green:hover { background: rgba(16,185,129,0.25); }
-        .bs-btn-purple { background: rgba(139,92,246,0.15); color: var(--purple); border-color: rgba(139,92,246,0.25); }
-        .bs-btn-purple:hover { background: rgba(139,92,246,0.25); }
+        .bs-btn-blue { color: var(--info); border-color: rgba(59,130,246,0.25); }
+        .bs-btn-blue:hover { background: rgba(59,130,246,0.1); }
+        .bs-btn-red { color: var(--debit); border-color: rgba(239,68,68,0.25); }
+        .bs-btn-red:hover { background: rgba(239,68,68,0.1); }
+        .bs-btn-green { color: var(--credit); border-color: rgba(16,185,129,0.25); }
+        .bs-btn-green:hover { background: rgba(16,185,129,0.1); }
+        .bs-btn-purple { color: var(--purple); border-color: rgba(139,92,246,0.25); }
+        .bs-btn-purple:hover { background: rgba(139,92,246,0.1); }
 
         .bs-stats {
           display: grid;
@@ -563,13 +539,13 @@ const Broadsheet = () => {
           gap: 14px; margin-bottom: 20px;
         }
         .bs-stat-card {
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          border-radius: 12px; padding: 16px;
+          background: transparent;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          padding: 8px 0 12px 0;
           display: flex; flex-direction: column; gap: 6px;
-          transition: all 0.2s;
         }
-        .bs-stat-card:hover { transform: translateY(-2px); border-color: var(--border-strong); }
         .bs-stat-label { color: var(--text-muted); font-size: 12px; font-weight: 500; }
         .bs-stat-value { font-size: 20px; font-weight: 700; }
         .bs-green { color: var(--credit); }
@@ -579,9 +555,12 @@ const Broadsheet = () => {
         .bs-blue { color: var(--info); }
 
         .bs-filter-bar {
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          border-radius: 12px; padding: 16px; margin-bottom: 20px;
+          background: transparent;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          padding: 0 0 16px 0;
+          margin-bottom: 20px;
         }
         .bs-filter-grid {
           display: grid;
@@ -589,13 +568,15 @@ const Broadsheet = () => {
           gap: 10px;
         }
         .bs-input, .bs-select {
-          background: var(--bg-surface); color: var(--text);
-          padding: 9px 12px; border-radius: 6px;
-          border: 1px solid var(--border);
+          background: transparent; color: var(--text);
+          padding: 9px 0;
+          border-radius: 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
           outline: none; font-size: 13px; width: 100%;
           box-sizing: border-box; transition: border-color 0.2s;
         }
-        .bs-input:focus, .bs-select:focus { border-color: var(--accent); }
+        .bs-input:focus, .bs-select:focus { border-bottom-color: var(--accent); }
         .bs-input::placeholder { color: var(--text-dim); }
         .bs-select option { background: var(--bg-surface); color: var(--text); }
         .bs-filter-summary { margin-top: 12px; color: var(--text-muted); font-size: 13px; }
@@ -616,13 +597,13 @@ const Broadsheet = () => {
           white-space: nowrap;
           transition: all 0.2s;
           border: 1px solid rgba(16,185,129,0.3);
-          background: rgba(16,185,129,0.15);
+          background: transparent;
           color: var(--credit);
         }
-        .bs-mic-btn:hover { background: rgba(16,185,129,0.25); }
+        .bs-mic-btn:hover { background: rgba(16,185,129,0.1); }
         .bs-mic-btn.listening {
           border-color: var(--debit);
-          background: rgba(239,68,68,0.25);
+          background: rgba(239,68,68,0.15);
           color: var(--debit);
           animation: bs-pulse 1.2s infinite;
         }
@@ -634,22 +615,31 @@ const Broadsheet = () => {
           opacity: 0.5;
           cursor: not-allowed;
           border-color: var(--border);
-          background: var(--bg-surface-2);
+          background: transparent;
           color: var(--text-muted);
         }
-        .bs-mic-btn.unsupported:hover {
-          background: var(--bg-surface-2);
-        }
+        .bs-mic-btn.unsupported:hover { background: transparent; }
 
+        /* ===== CLEAN TABLE — no scrolling, no borders ===== */
         .bs-table-wrap {
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          border-radius: 12px; overflow: auto; max-height: 600px;
+          background: transparent;
+          border: none;
+          border-radius: 0;
+          overflow: visible;
+          max-height: none;
+          max-width: 100%;
         }
-        .bs-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+        .bs-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+          background: transparent;
+          table-layout: auto;
+        }
         .bs-table thead th {
-          position: sticky; top: 0; z-index: 2;
-          background: var(--bg-surface); color: var(--text);
+          position: static;
+          background: transparent;
+          color: var(--text-muted);
           font-size: 11px; font-weight: 600;
           text-transform: uppercase; letter-spacing: 0.5px;
           padding: 12px 14px; text-align: left;
@@ -658,10 +648,15 @@ const Broadsheet = () => {
         }
         .bs-table tbody td {
           padding: 11px 14px;
-          border-top: 1px solid var(--border);
+          border-top: none;
           color: var(--text); vertical-align: middle;
         }
-        .bs-table tbody tr:hover { background: var(--bg-hover); }
+        .bs-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
+        }
+        .bs-table tbody tr:hover { background: var(--bg-surface-2); }
         .bs-mono { font-family: "SF Mono","Monaco",monospace; font-size: 12px; color: var(--text-muted); }
         .bs-muted { color: var(--text-muted); font-size: 12px; }
         .bs-right { text-align: right; }
@@ -672,7 +667,7 @@ const Broadsheet = () => {
         .bs-net { color: var(--credit); font-weight: 600; white-space: nowrap; }
         .bs-desc { color: var(--text); font-size: 12px; max-width: 260px; }
         .bs-table tfoot td {
-          background: var(--bg-surface-2);
+          background: transparent;
           padding: 12px 14px; font-size: 13px;
           border-top: 2px solid var(--border-strong);
           color: var(--text);
@@ -694,10 +689,10 @@ const Broadsheet = () => {
           background: transparent; color: var(--text);
           cursor: pointer; font-size: 13px; transition: all 0.2s;
         }
-        .bs-page-btn:hover:not(:disabled) { background: var(--bg-hover); }
+        .bs-page-btn:hover:not(:disabled) { background: var(--bg-surface-2); }
         .bs-page-btn.active {
-          background: rgba(16,185,129,0.2);
-          border-color: var(--accent); color: var(--credit);
+          background: var(--approved-bg);
+          border-color: var(--accent); color: var(--badge-text);
         }
         .bs-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
       `}</style>

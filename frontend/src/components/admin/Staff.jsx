@@ -9,24 +9,21 @@ const ROLES = [
     value: "admin",
     label: "Admin",
     icon: "👑",
-    bg: "rgba(239, 68, 68, 0.15)",
-    color: "var(--debit)",
+    bg: "var(--rejected-bg)",
     description: "Full access — manage members, roles, and settings",
   },
   {
     value: "manager",
     label: "Manager",
     icon: "📊",
-    bg: "rgba(59, 130, 246, 0.15)",
-    color: "var(--info)",
+    bg: "var(--accent-bg)",
     description: "Manage members and transactions",
   },
   {
     value: "member",
     label: "Member",
     icon: "👤",
-    bg: "rgba(16, 185, 129, 0.15)",
-    color: "var(--credit)",
+    bg: "var(--approved-bg)",
     description: "Regular member access",
   },
 ];
@@ -65,7 +62,6 @@ const Staff = () => {
           role: (m.role || "member").toLowerCase(),
           passport_photo: m.passport_photo || null,
         }));
-        // Sort: admins first, then managers, then members
         mapped.sort((a, b) => {
           const order = { admin: 0, manager: 1, member: 2 };
           return (order[a.role] ?? 3) - (order[b.role] ?? 3);
@@ -83,7 +79,6 @@ const Staff = () => {
   const handleRoleChange = async (member, newRole) => {
     if (member.role === newRole) return;
 
-    // Prevent demoting yourself by accident
     if (currentUser && Number(member.id) === Number(currentUser.id)) {
       if (
         member.role === "admin" &&
@@ -124,7 +119,6 @@ const Staff = () => {
         );
         toast.success(`✅ ${member.name} is now a ${meta.label}`);
 
-        // If the admin changed their own role, refresh localStorage
         if (currentUser && Number(member.id) === Number(currentUser.id)) {
           const updated = { ...currentUser, role: newRole };
           localStorage.setItem("user", JSON.stringify(updated));
@@ -174,7 +168,7 @@ const Staff = () => {
           padding: "40px",
           textAlign: "center",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -190,7 +184,7 @@ const Staff = () => {
     <div
       style={{
         padding: "24px",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
         color: "var(--text)",
         fontFamily: "system-ui, -apple-system, sans-serif",
@@ -204,26 +198,23 @@ const Staff = () => {
         }
         .staff-header h2 {
           font-size: 24px; font-weight: 700; margin: 0;
+          color: var(--text);
         }
         .staff-header p {
           color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
         }
+
+        /* ===== STAT CARDS — no background, no border ===== */
         .stats-row {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 14px; margin-bottom: 20px;
+          gap: 16px; margin-bottom: 20px;
         }
         .stat-card {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
-          border-radius: 12px;
-          padding: 16px;
+          background: transparent;
+          border: none;
+          padding: 4px 0;
           display: flex; flex-direction: column; gap: 6px;
-          transition: all 0.2s;
-        }
-        .stat-card:hover {
-          border-color: rgba(255,255,255,0.2);
-          transform: translateY(-2px);
         }
         .stat-label {
           font-size: 12px; color: var(--text-muted);
@@ -233,67 +224,75 @@ const Staff = () => {
         .stat-value {
           font-size: 22px; font-weight: 700;
         }
+
+        /* ===== FILTERS — no border, keep subtle fill ===== */
         .filter-bar {
           display: flex; gap: 10px; flex-wrap: wrap;
           margin-bottom: 20px;
         }
         .filter-input, .filter-select {
-          background: rgba(255,255,255,0.08);
-          color: white;
+          background: var(--bg-surface-2);
+          color: var(--text);
           padding: 10px 14px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: none;
           outline: none;
           font-size: 14px;
+          transition: box-shadow 0.2s;
         }
-        .filter-input {
-          flex: 1; min-width: 220px;
-        }
-        .filter-input:focus,
-        .filter-select:focus {
-          border-color: var(--accent);
+        .filter-input { flex: 1; min-width: 220px; }
+        .filter-input::placeholder { color: var(--text-dim); }
+        .filter-input:focus, .filter-select:focus {
+          box-shadow: 0 0 0 2px var(--accent-bg);
         }
         .filter-select option {
-          background: var(--bg-surface); color: white;
+          background: var(--bg-surface); color: var(--text);
         }
+
+        /* ===== TABLE — no borders, no background ===== */
         .table-wrap {
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.1);
-          border-radius: 12px;
+          background: transparent;
+          border: none;
+          border-radius: 0;
           overflow: auto;
         }
-        table {
-          width: 100%; border-collapse: collapse;
-        }
+        table { width: 100%; border-collapse: collapse; background: transparent; }
+        thead { background: transparent; }
         th {
-          position: sticky; top: 0; z-index: 2;
-          background: var(--bg-surface);
-          color: var(--text);
+          background: transparent;
+          color: var(--text-muted);
           font-size: 11px; font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.5px;
           padding: 12px 16px;
           text-align: left;
           white-space: nowrap;
-          border-bottom: 1px solid rgba(255,255,255,0.1);
+          border: none;
         }
         td {
           padding: 12px 16px;
-          border-top: 1px solid rgba(255,255,255,0.05);
-          color: #e5e7eb; font-size: 13px;
+          border: none;
+          color: var(--text); font-size: 13px;
           vertical-align: middle;
+          background: transparent;
         }
-        tr:hover td {
-          background: rgba(255,255,255,0.03);
+        tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
         }
+        tbody tr:hover td {
+          background: var(--bg-surface-2);
+        }
+
         .member-cell {
           display: flex; align-items: center; gap: 10px;
         }
         .avatar {
           width: 36px; height: 36px;
           border-radius: 50%;
-          background: rgba(16, 185, 129, 0.2);
-          color: var(--credit);
+          background: var(--approved-bg);
+          color: var(--badge-text);
           display: flex; align-items: center;
           justify-content: center;
           font-weight: bold;
@@ -303,27 +302,30 @@ const Staff = () => {
         .avatar img {
           width: 100%; height: 100%; object-fit: cover;
         }
+
         .role-select {
           padding: 6px 10px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.15);
-          background: rgba(255,255,255,0.06);
-          color: white;
+          border: none;
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
           outline: none;
           min-width: 130px;
+          transition: box-shadow 0.2s;
         }
         .role-select:focus {
-          border-color: var(--accent);
+          box-shadow: 0 0 0 2px var(--accent-bg);
         }
         .role-select option {
-          background: var(--bg-surface); color: white;
+          background: var(--bg-surface); color: var(--text);
         }
         .role-select:disabled {
           opacity: 0.5; cursor: not-allowed;
         }
+
         .badge {
           display: inline-flex;
           align-items: center; gap: 5px;
@@ -331,7 +333,9 @@ const Staff = () => {
           border-radius: 20px;
           font-size: 11px;
           font-weight: 600;
+          color: var(--badge-text);
         }
+
         .empty {
           text-align: center;
           padding: 50px 20px !important;
@@ -351,9 +355,9 @@ const Staff = () => {
           style={{
             padding: "10px 20px",
             borderRadius: "8px",
-            border: "1px solid rgba(59, 130, 246, 0.25)",
-            background: "rgba(59, 130, 246, 0.15)",
-            color: "var(--info)",
+            border: "none",
+            background: "var(--accent-bg)",
+            color: "var(--text)",
             cursor: "pointer",
             fontSize: "13px",
             fontWeight: "600",
@@ -363,7 +367,7 @@ const Staff = () => {
         </button>
       </div>
 
-      {/* Stats */}
+      {/* Stats — no cards */}
       <div className="stats-row">
         <div className="stat-card">
           <span className="stat-label">👑 Admins</span>
@@ -412,7 +416,7 @@ const Staff = () => {
         </select>
       </div>
 
-      {/* Table */}
+      {/* Table — no background, no borders */}
       <div className="table-wrap">
         <table>
           <thead>
@@ -466,8 +470,8 @@ const Staff = () => {
                                 style={{
                                   marginLeft: "8px",
                                   fontSize: "10px",
-                                  color: "var(--credit)",
-                                  background: "rgba(16,185,129,0.15)",
+                                  color: "var(--badge-text)",
+                                  background: "var(--accent-bg)",
                                   padding: "2px 6px",
                                   borderRadius: "10px",
                                 }}
@@ -483,7 +487,9 @@ const Staff = () => {
                       <div style={{ color: "var(--text)", fontSize: "13px" }}>
                         {member.email}
                       </div>
-                      <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                      <div
+                        style={{ color: "var(--text-muted)", fontSize: "12px" }}
+                      >
                         {member.phone || "—"}
                       </div>
                     </td>
@@ -504,23 +510,17 @@ const Staff = () => {
                           borderRadius: "20px",
                           backgroundColor:
                             member.status === "active"
-                              ? "rgba(16, 185, 129, 0.2)"
-                              : "rgba(239, 68, 68, 0.2)",
-                          color:
-                            member.status === "active" ? "var(--credit)" : "var(--debit)",
+                              ? "var(--approved-bg)"
+                              : "var(--rejected-bg)",
+                          color: "var(--badge-text)",
+                          fontWeight: "600",
                         }}
                       >
                         {member.status}
                       </span>
                     </td>
                     <td>
-                      <span
-                        className="badge"
-                        style={{
-                          background: meta.bg,
-                          color: meta.color,
-                        }}
-                      >
+                      <span className="badge" style={{ background: meta.bg }}>
                         {meta.icon} {meta.label}
                       </span>
                     </td>
@@ -548,16 +548,8 @@ const Staff = () => {
         </table>
       </div>
 
-      {/* Legend */}
-      <div
-        style={{
-          marginTop: "20px",
-          padding: "16px",
-          background: "rgba(255,255,255,0.03)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: "12px",
-        }}
-      >
+      {/* Legend — no background, no border */}
+      <div style={{ marginTop: "24px" }}>
         <p
           style={{
             margin: "0 0 10px 0",
@@ -581,10 +573,7 @@ const Staff = () => {
               fontSize: "13px",
             }}
           >
-            <span
-              className="badge"
-              style={{ background: r.bg, color: r.color }}
-            >
+            <span className="badge" style={{ background: r.bg }}>
               {r.icon} {r.label}
             </span>
             <span style={{ color: "var(--text-muted)" }}>{r.description}</span>

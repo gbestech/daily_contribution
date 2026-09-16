@@ -369,7 +369,7 @@ const AdminTransactions = () => {
               border: "1px solid rgba(255,255,255,0.1)",
               borderRadius: "8px",
               overflow: "hidden",
-              backgroundColor: "rgba(0,0,0,0.2)",
+              backgroundColor: "transparent",
               textAlign: "center",
             }}
           >
@@ -434,7 +434,7 @@ const AdminTransactions = () => {
               padding: "12px",
               borderRadius: "8px",
               border: "1px solid rgba(96,165,250,0.3)",
-              backgroundColor: "rgba(96,165,250,0.08)",
+              backgroundColor: "transparent",
               color: "var(--info)",
               textDecoration: "none",
               fontSize: "13px",
@@ -458,7 +458,7 @@ const AdminTransactions = () => {
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "transparent",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -489,7 +489,7 @@ const AdminTransactions = () => {
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "transparent",
         minHeight: "100vh",
       }}
     >
@@ -500,6 +500,11 @@ const AdminTransactions = () => {
         .transaction-table {
           width: 100%;
           border-collapse: collapse;
+          border: none;
+          background: transparent;
+        }
+        .transaction-table thead {
+          background: transparent;
         }
         .transaction-table th {
           text-align: left;
@@ -509,14 +514,20 @@ const AdminTransactions = () => {
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
         }
         .transaction-table td {
           padding: 12px 16px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border: none;
+          color: var(--text);
         }
-        .transaction-table tr:hover {
-          background-color: rgba(255,255,255,0.02);
+        .transaction-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
+        }
+        .transaction-table tbody tr:hover {
+          background-color: var(--bg-surface-2);
         }
         .badge {
           display: inline-block;
@@ -593,10 +604,11 @@ const AdminTransactions = () => {
           margin-bottom: 24px;
         }
         .stat-card {
-          background-color: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
-          border-radius: 12px;
-          padding: 16px;
+          background-color: transparent;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          padding: 8px 0 12px 0;
         }
         .stat-label {
           font-size: 12px;
@@ -609,11 +621,12 @@ const AdminTransactions = () => {
         }
         .search-input {
           width: 100%;
-          padding: 10px 16px;
-          border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+          padding: 10px 0;
+          border-radius: 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          background-color: transparent;
+          color: var(--text);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s;
@@ -621,7 +634,7 @@ const AdminTransactions = () => {
           box-sizing: border-box;
         }
         .search-input:focus {
-          border-color: #00aa69;
+          border-bottom-color: var(--accent);
         }
         .search-input::placeholder {
           color: var(--text-dim);
@@ -630,8 +643,8 @@ const AdminTransactions = () => {
           display: flex;
           justify-content: space-between;
           align-items: center;
-          padding: 12px 16px;
-          border-top: 1px solid rgba(255,255,255,0.05);
+          padding: 12px 0;
+          border-top: 1px solid var(--border);
           margin-top: 4px;
           flex-wrap: wrap;
           gap: 8px;
@@ -648,7 +661,7 @@ const AdminTransactions = () => {
         .page-btn {
           padding: 6px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
           background: transparent;
           color: var(--text-muted);
           cursor: pointer;
@@ -656,12 +669,12 @@ const AdminTransactions = () => {
           transition: all 0.2s;
         }
         .page-btn:hover:not(:disabled) {
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+          background-color: var(--bg-surface-2);
+          color: var(--text);
         }
         .page-btn.active {
-          background-color: #00aa69;
-          border-color: #00aa69;
+          background-color: var(--accent);
+          border-color: var(--accent);
           color: white;
         }
         .page-btn:disabled {
@@ -696,7 +709,7 @@ const AdminTransactions = () => {
           width: 100%;
           max-height: 90vh;
           overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
         }
         .modal-header {
           display: flex;
@@ -717,7 +730,7 @@ const AdminTransactions = () => {
           font-size: 24px;
         }
         .modal-close:hover {
-          color: white;
+          color: var(--text);
         }
         .detail-row {
           display: grid;
@@ -736,16 +749,16 @@ const AdminTransactions = () => {
           flex: 1;
           padding: 10px;
           border-radius: 8px;
-          border: none;
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--text);
           cursor: pointer;
           font-size: 13px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-close:hover {
-          background: rgba(255,255,255,0.1);
+          background: var(--bg-surface-2);
         }
         .slip-indicator {
           display: inline-flex;
@@ -844,14 +857,7 @@ const AdminTransactions = () => {
       )}
 
       {/* Transactions Table */}
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.03)",
-          borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.05)",
-          overflow: "hidden",
-        }}
-      >
+      <div style={{ background: "transparent" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="transaction-table">
             <thead>
@@ -898,7 +904,12 @@ const AdminTransactions = () => {
                           )}
                         </div>
                         {t.customer_phone && (
-                          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "var(--text-muted)",
+                            }}
+                          >
                             {t.customer_phone}
                           </div>
                         )}
@@ -924,7 +935,9 @@ const AdminTransactions = () => {
                       </span>
                     </td>
                     <td>
-                      <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                      <div
+                        style={{ fontSize: "13px", color: "var(--text-muted)" }}
+                      >
                         {formatDate(t.created_at)}
                       </div>
                     </td>
@@ -1058,7 +1071,7 @@ const AdminTransactions = () => {
                 alignItems: "center",
                 gap: "12px",
                 paddingBottom: "16px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid var(--border)",
                 marginBottom: "16px",
               }}
             >
@@ -1236,7 +1249,7 @@ const AdminTransactions = () => {
                   gap: "8px",
                   marginTop: "16px",
                   paddingTop: "16px",
-                  borderTop: "1px solid rgba(255,255,255,0.05)",
+                  borderTop: "1px solid var(--border)",
                 }}
               >
                 <button
@@ -1303,7 +1316,7 @@ const AdminTransactions = () => {
                 borderTop:
                   selectedTransaction.status === "pending"
                     ? "none"
-                    : "1px solid rgba(255,255,255,0.05)",
+                    : "1px solid var(--border)",
               }}
             >
               <button
@@ -1362,8 +1375,8 @@ const AdminTransactions = () => {
                 width: "100%",
                 padding: "12px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
+                border: "1px solid var(--border)",
+                backgroundColor: "transparent",
                 color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
@@ -1379,7 +1392,7 @@ const AdminTransactions = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button
@@ -1392,7 +1405,7 @@ const AdminTransactions = () => {
                   flex: 1,
                   padding: "10px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid var(--border)",
                   background: "transparent",
                   color: "var(--text)",
                   cursor: "pointer",
@@ -1410,7 +1423,9 @@ const AdminTransactions = () => {
                   padding: "10px",
                   borderRadius: "8px",
                   border: "none",
-                  backgroundColor: rejectReason.trim() ? "var(--debit)" : "var(--text-dim)",
+                  backgroundColor: rejectReason.trim()
+                    ? "var(--debit)"
+                    : "var(--text-dim)",
                   color: "var(--text)",
                   cursor: rejectReason.trim() ? "pointer" : "not-allowed",
                   fontSize: "13px",

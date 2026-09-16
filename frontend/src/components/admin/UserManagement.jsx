@@ -164,7 +164,6 @@ const AdminMembers = ({ publicMode = false }) => {
           accountNumber,
         });
 
-        // If we're in publicMode, we still show the credentials modal
         setShowAddModal(false);
         setShowCredentialsModal(true);
         setNewMember({ firstName: "", lastName: "", email: "", password: "" });
@@ -306,24 +305,24 @@ Please log in and complete your profile.`;
     switch (role?.toLowerCase()) {
       case "admin":
       case "administrator":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
+        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
       case "manager":
-        return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
+        return { bg: "var(--info)", color: "var(--badge-text)" };
       default:
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
+        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
+        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
       case "inactive":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
+        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
       case "suspended":
-        return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
+        return { bg: "var(--pending-bg)", color: "var(--badge-text)" };
       default:
-        return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
+        return { bg: "var(--bg-surface-3)", color: "var(--text)" };
     }
   };
 
@@ -338,7 +337,8 @@ Please log in and complete your profile.`;
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
+          background:
+            "radial-gradient(circle at top, var(--bg-surface) 0%, var(--bg-app) 60%)",
           padding: "20px",
           fontFamily: "system-ui, -apple-system, sans-serif",
         }}
@@ -347,15 +347,15 @@ Please log in and complete your profile.`;
           .pub-card {
             width: 100%;
             max-width: 440px;
-            background: rgba(255, 255, 255, 0.04);
+            background: var(--bg-surface);
             backdrop-filter: blur(12px);
-            border: 1px solid rgba(255, 255, 255, 0.08);
+            border: 1px solid var(--border);
             border-radius: 20px;
             padding: 36px 30px 28px;
-            box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
+            box-shadow: var(--shadow-lg);
             position: relative;
             overflow: hidden;
-            color: white;
+            color: var(--text);
           }
           .pub-card::before {
             content: "";
@@ -375,7 +375,7 @@ Please log in and complete your profile.`;
           }
           .pub-title {
             font-size: 22px; font-weight: 700;
-            color: white; text-align: center;
+            color: var(--text); text-align: center;
             margin: 0 0 4px 0; letter-spacing: -0.3px;
           }
           .pub-subtitle {
@@ -383,13 +383,13 @@ Please log in and complete your profile.`;
             text-align: center; margin: 0 0 22px 0;
           }
           .pub-info {
-            background: rgba(59, 130, 246, 0.08);
-            border: 1px solid rgba(59, 130, 246, 0.2);
+            background: var(--accent-bg);
+            border: 1px solid var(--border);
             border-radius: 10px;
             padding: 12px 14px;
             margin-bottom: 20px;
             font-size: 12px;
-            color: #93c5fd;
+            color: var(--text);
             line-height: 1.5;
           }
           .pub-group { margin-bottom: 14px; }
@@ -402,9 +402,9 @@ Please log in and complete your profile.`;
           .pub-input {
             width: 100%;
             padding: 12px 14px;
-            font-size: 14px; color: white;
-            background: rgba(255, 255, 255, 0.05);
-            border: 1px solid rgba(255, 255, 255, 0.1);
+            font-size: 14px; color: var(--text);
+            background: var(--bg-surface-2);
+            border: 1px solid var(--border);
             border-radius: 10px;
             outline: none;
             box-sizing: border-box;
@@ -413,17 +413,16 @@ Please log in and complete your profile.`;
           .pub-input::placeholder { color: var(--text-dim); }
           .pub-input:focus {
             border-color: var(--accent);
-            background: rgba(16, 185, 129, 0.06);
-            box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
+            box-shadow: 0 0 0 3px var(--accent-bg);
           }
           .pub-email-note {
-            background: rgba(16, 185, 129, 0.08);
-            border: 1px solid rgba(16, 185, 129, 0.2);
+            background: var(--approved-bg);
+            border: 1px solid var(--border);
             border-radius: 8px;
             padding: 10px 14px;
             margin-bottom: 14px;
             font-size: 12px;
-            color: var(--credit);
+            color: var(--text);
             word-break: break-all;
           }
           .pub-submit {
@@ -450,7 +449,7 @@ Please log in and complete your profile.`;
             color: var(--text-muted);
           }
           .pub-footer a {
-            color: var(--credit);
+            color: var(--accent);
             text-decoration: none;
             font-weight: 600;
           }
@@ -554,7 +553,7 @@ Please log in and complete your profile.`;
             style={{
               position: "fixed",
               inset: 0,
-              background: "rgba(0,0,0,0.75)",
+              background: "var(--bg-overlay)",
               backdropFilter: "blur(6px)",
               display: "flex",
               alignItems: "center",
@@ -572,7 +571,7 @@ Please log in and complete your profile.`;
                 width: "100%",
                 maxHeight: "90vh",
                 overflowY: "auto",
-                border: "1px solid rgba(255,255,255,0.1)",
+                border: "1px solid var(--border)",
                 color: "var(--text)",
               }}
             >
@@ -588,13 +587,13 @@ Please log in and complete your profile.`;
 
               <div
                 style={{
-                  background: "rgba(16, 185, 129, 0.1)",
-                  border: "1px solid rgba(16, 185, 129, 0.25)",
+                  background: "var(--approved-bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "8px",
                   padding: "12px 14px",
                   marginBottom: "16px",
                   fontSize: "13px",
-                  color: "#6ee7b7",
+                  color: "var(--text)",
                   lineHeight: 1.5,
                 }}
               >
@@ -619,8 +618,8 @@ Please log in and complete your profile.`;
                     gap: "8px",
                     padding: "10px 12px",
                     borderRadius: "8px",
-                    background: "rgba(255,255,255,0.05)",
-                    border: "1px solid rgba(255,255,255,0.08)",
+                    background: "var(--bg-surface-2)",
+                    border: "1px solid var(--border)",
                     marginBottom: "8px",
                   }}
                 >
@@ -651,9 +650,9 @@ Please log in and complete your profile.`;
                   <button
                     onClick={() => copyToClipboard(row.value, row.label)}
                     style={{
-                      background: "rgba(59, 130, 246, 0.15)",
-                      color: "var(--info)",
-                      border: "1px solid rgba(59, 130, 246, 0.25)",
+                      background: "var(--accent-bg)",
+                      color: "var(--text)",
+                      border: "1px solid var(--border)",
                       padding: "6px 12px",
                       borderRadius: "6px",
                       cursor: "pointer",
@@ -681,8 +680,9 @@ Please log in and complete your profile.`;
                     padding: "10px 20px",
                     borderRadius: "8px",
                     border: "none",
-                    background: "linear-gradient(to right, var(--purple), #6d28d9)",
-                    color: "var(--text)",
+                    background:
+                      "linear-gradient(to right, var(--purple), #6d28d9)",
+                    color: "white",
                     cursor: "pointer",
                     fontSize: "13px",
                     fontWeight: "500",
@@ -700,7 +700,7 @@ Please log in and complete your profile.`;
                     flex: 1,
                     padding: "10px 20px",
                     borderRadius: "8px",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    border: "1px solid var(--border)",
                     background: "transparent",
                     color: "var(--text)",
                     cursor: "pointer",
@@ -719,7 +719,7 @@ Please log in and complete your profile.`;
   }
 
   // ============================================================
-  // ADMIN MODE — original full page with members table
+  // ADMIN MODE — main dashboard
   // ============================================================
   if (loading) {
     return (
@@ -727,7 +727,7 @@ Please log in and complete your profile.`;
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -744,29 +744,37 @@ Please log in and complete your profile.`;
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
       }}
     >
       <style>{`
         .modal-overlay {
           position: fixed; inset: 0;
-          background: rgba(0,0,0,0.7);
+          background: var(--bg-overlay);
           backdrop-filter: blur(4px);
           display: flex; align-items: center; justify-content: center;
           z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background: var(--bg-surface); border-radius: 12px;
-          padding: 28px; max-width: 480px; width: 100%;
-          max-height: 90vh; overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--bg-surface);
+          border-radius: 12px;
+          padding: 28px;
+          max-width: 480px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          border: 1px solid var(--border);
+          color: var(--text);
         }
         .modal-header {
           display: flex; justify-content: space-between;
           align-items: center; margin-bottom: 20px;
         }
-        .modal-title { font-size: 18px; font-weight: bold; margin: 0; }
+        .modal-title {
+          font-size: 18px; font-weight: bold; margin: 0;
+          color: var(--text);
+        }
         .modal-close {
           background: none; border: none; color: var(--text-muted);
           font-size: 26px; cursor: pointer; padding: 0 6px;
@@ -778,9 +786,9 @@ Please log in and complete your profile.`;
         }
         .form-input {
           width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.08);
-          color: white; font-size: 14px; outline: none;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text); font-size: 14px; outline: none;
           box-sizing: border-box;
         }
         .form-input:focus { border-color: var(--accent); }
@@ -788,39 +796,39 @@ Please log in and complete your profile.`;
         .form-input::placeholder { color: var(--text-dim); }
         .form-select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.08);
-          color: white; font-size: 14px; outline: none;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text); font-size: 14px; outline: none;
         }
-        .form-select option { background: var(--bg-surface); }
+        .form-select option { background: var(--bg-surface); color: var(--text); }
         .btn-primary {
           padding: 10px 24px; border-radius: 8px; border: none;
           background: var(--accent); color: white; cursor: pointer;
           font-size: 14px; font-weight: 500;
         }
-        .btn-primary:hover { background: #059669; }
+        .btn-primary:hover { background: var(--accent-hover); }
         .btn-secondary {
           padding: 10px 24px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent; color: white;
+          border: 1px solid var(--border);
+          background: transparent; color: var(--text);
           cursor: pointer; font-size: 14px;
         }
         .btn-add {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(16, 185, 129, 0.15); color: var(--credit);
+          background: var(--approved-bg); color: var(--badge-text);
           cursor: pointer; font-size: 14px; font-weight: 500;
         }
-        .btn-add:hover { background: rgba(16, 185, 129, 0.25); }
+        .btn-add:hover { opacity: 0.85; }
         .btn-role {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(139, 92, 246, 0.15); color: var(--purple);
+          background: var(--accent-bg); color: var(--purple);
           cursor: pointer; font-size: 14px;
         }
         .credential-row {
           display: flex; justify-content: space-between; align-items: center;
           gap: 8px; padding: 10px 12px; border-radius: 8px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           margin-bottom: 8px;
         }
         .credential-label {
@@ -828,18 +836,70 @@ Please log in and complete your profile.`;
           letter-spacing: 0.5px; margin-bottom: 2px;
         }
         .credential-value {
-          font-size: 14px; color: white; font-weight: 600;
+          font-size: 14px; color: var(--text); font-weight: 600;
           font-family: monospace; word-break: break-all;
         }
         .cred-copy-btn {
-          background: rgba(59, 130, 246, 0.15);
-          color: var(--info); border: 1px solid rgba(59, 130, 246, 0.25);
+          background: var(--accent-bg);
+          color: var(--text);
+          border: 1px solid var(--border);
           padding: 6px 12px; border-radius: 6px; cursor: pointer;
           font-size: 12px; font-weight: 500; white-space: nowrap;
         }
-        .cred-copy-btn:hover { background: rgba(59, 130, 246, 0.25); }
+        .cred-copy-btn:hover { opacity: 0.85; }
+
+        /* ===== CLEAN TABLE — no borders, transparent ===== */
+        .am-table {
+          width: 100%;
+          border-collapse: collapse;
+          border: none;
+          background: transparent;
+        }
+        .am-table thead {
+          background: transparent;
+        }
+        .am-table thead th {
+          padding: 12px 16px;
+          text-align: left;
+          font-size: 12px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          font-weight: 600;
+          border: none;
+        }
+        .am-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
+        }
+        .am-table tbody tr:hover {
+          background: var(--bg-surface-2);
+        }
+        .am-table tbody td {
+          padding: 12px 16px;
+          border: none;
+          color: var(--text);
+        }
+
+        /* Plain underline search input */
+        .am-search {
+          width: 100%;
+          background: transparent;
+          color: var(--text);
+          padding: 10px 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          outline: none;
+          font-size: 14px;
+          box-sizing: border-box;
+          transition: border-color 0.2s ease;
+        }
+        .am-search::placeholder { color: var(--text-dim); }
+        .am-search:focus { border-bottom-color: var(--accent); }
       `}</style>
 
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -855,7 +915,11 @@ Please log in and complete your profile.`;
             👥 Members Management
           </h2>
           <p
-            style={{ color: "var(--text-muted)", margin: "4px 0 0 0", fontSize: "14px" }}
+            style={{
+              color: "var(--text-muted)",
+              margin: "4px 0 0 0",
+              fontSize: "14px",
+            }}
           >
             Manage members, assign roles, view balances
           </p>
@@ -870,45 +934,22 @@ Please log in and complete your profile.`;
         </div>
       </div>
 
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.05)",
-          borderRadius: "12px",
-          padding: "14px",
-          marginBottom: "20px",
-          border: "1px solid rgba(255,255,255,0.1)",
-        }}
-      >
+      {/* Plain search — no wrapper, no card */}
+      <div style={{ marginBottom: "20px" }}>
         <input
           type="text"
+          className="am-search"
           placeholder="🔍 Search by name, email, phone, or account number..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            width: "100%",
-            backgroundColor: "rgba(255,255,255,0.08)",
-            color: "var(--text)",
-            padding: "10px 16px",
-            borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            outline: "none",
-            fontSize: "14px",
-            boxSizing: "border-box",
-          }}
         />
       </div>
 
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.05)",
-          borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          overflow: "hidden",
-        }}
-      >
+      {/* Plain table — no background, blends with page */}
+      <div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+          <table className="am-table">
+            <thead>
               <tr>
                 {[
                   "Membership",
@@ -920,28 +961,14 @@ Please log in and complete your profile.`;
                   "Balance",
                   "Actions",
                 ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {h}
-                  </th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredMembers.map((member) => (
-                <tr
-                  key={member.id}
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-                >
-                  <td style={{ padding: "12px 16px" }}>
+                <tr key={member.id}>
+                  <td>
                     <div
                       style={{
                         fontSize: "14px",
@@ -953,7 +980,7 @@ Please log in and complete your profile.`;
                       {member.membership_number}
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <div
                       style={{
                         display: "flex",
@@ -966,11 +993,11 @@ Please log in and complete your profile.`;
                           width: "36px",
                           height: "36px",
                           borderRadius: "50%",
-                          backgroundColor: "rgba(16, 185, 129, 0.2)",
+                          backgroundColor: "var(--approved-bg)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "var(--credit)",
+                          color: "var(--badge-text)",
                           fontWeight: "bold",
                           overflow: "hidden",
                         }}
@@ -1000,20 +1027,23 @@ Please log in and complete your profile.`;
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {member.email}
                     </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                    <div
+                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                    >
                       {member.phone || "—"}
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <span
                       style={{
                         padding: "3px 10px",
                         fontSize: "11px",
                         borderRadius: "12px",
+                        fontWeight: "600",
                         backgroundColor: getRoleColor(member.role).bg,
                         color: getRoleColor(member.role).color,
                       }}
@@ -1021,12 +1051,13 @@ Please log in and complete your profile.`;
                       {member.role}
                     </span>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <span
                       style={{
                         padding: "4px 12px",
                         fontSize: "12px",
                         borderRadius: "20px",
+                        fontWeight: "600",
                         backgroundColor: getStatusColor(member.status).bg,
                         color: getStatusColor(member.status).color,
                       }}
@@ -1034,20 +1065,31 @@ Please log in and complete your profile.`;
                       {member.status}
                     </span>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     {member.profile_completed ? (
-                      <span style={{ color: "var(--credit)", fontSize: "12px" }}>
+                      <span
+                        style={{
+                          color: "var(--credit)",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }}
+                      >
                         ✅ Complete
                       </span>
                     ) : (
-                      <span style={{ color: "var(--warning)", fontSize: "12px" }}>
+                      <span
+                        style={{
+                          color: "var(--warning)",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }}
+                      >
                         ⏳ Pending
                       </span>
                     )}
                   </td>
                   <td
                     style={{
-                      padding: "12px 16px",
                       fontSize: "14px",
                       fontWeight: "600",
                       color: "var(--credit)",
@@ -1055,31 +1097,21 @@ Please log in and complete your profile.`;
                   >
                     ₦{parseFloat(member.balance || 0).toLocaleString()}
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", gap: "6px" }}>
+                  <td>
+                    <div style={{ display: "flex", gap: "8px" }}>
                       <button
                         onClick={() => handleEditMember(member)}
-                        style={{
-                          color: "var(--credit)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
+                        className="action-btn action-btn-edit"
+                        title="Edit"
                       >
-                        ✏️ Edit
+                        ✏️
                       </button>
                       <button
                         onClick={() => handleDeleteMember(member.id)}
-                        style={{
-                          color: "var(--debit)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
+                        className="action-btn action-btn-delete"
+                        title="Delete"
                       >
-                        🗑️ Delete
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -1090,7 +1122,11 @@ Please log in and complete your profile.`;
         </div>
         {filteredMembers.length === 0 && (
           <div
-            style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
+            style={{
+              textAlign: "center",
+              padding: "40px",
+              color: "var(--text-muted)",
+            }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
             <p>No members found</p>
@@ -1122,14 +1158,20 @@ Please log in and complete your profile.`;
 
             <div
               style={{
-                backgroundColor: "rgba(59, 130, 246, 0.08)",
-                border: "1px solid rgba(59, 130, 246, 0.2)",
+                backgroundColor: "var(--accent-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: "8px",
                 padding: "12px 14px",
                 marginBottom: "16px",
               }}
             >
-              <p style={{ margin: 0, fontSize: "13px", color: "#93c5fd" }}>
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13px",
+                  color: "var(--text)",
+                }}
+              >
                 💡 Only basic info here. The member will complete their profile
                 (phone, address, next of kin, passport, savings plan) after
                 logging in.
@@ -1188,14 +1230,20 @@ Please log in and complete your profile.`;
 
               <div
                 style={{
-                  backgroundColor: "rgba(16, 185, 129, 0.08)",
-                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  backgroundColor: "var(--approved-bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "8px",
                   padding: "10px 14px",
                   marginBottom: "12px",
                 }}
               >
-                <p style={{ margin: 0, fontSize: "12px", color: "var(--credit)" }}>
+                <p
+                  style={{
+                    margin: 0,
+                    fontSize: "12px",
+                    color: "var(--text)",
+                  }}
+                >
                   📧 Auto email:{" "}
                   <strong style={{ color: "var(--text)" }}>
                     {newMember.email || "—"}
@@ -1252,8 +1300,8 @@ Please log in and complete your profile.`;
 
             <div
               style={{
-                backgroundColor: "rgba(16, 185, 129, 0.1)",
-                border: "1px solid rgba(16, 185, 129, 0.25)",
+                backgroundColor: "var(--approved-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: "8px",
                 padding: "12px 14px",
                 marginBottom: "16px",
@@ -1263,7 +1311,7 @@ Please log in and complete your profile.`;
                 style={{
                   margin: 0,
                   fontSize: "13px",
-                  color: "#6ee7b7",
+                  color: "var(--text)",
                   lineHeight: 1.5,
                 }}
               >
@@ -1332,7 +1380,9 @@ Please log in and complete your profile.`;
                 className="btn-primary"
                 style={{
                   flex: 1,
-                  background: "linear-gradient(to right, var(--purple), #6d28d9)",
+                  background:
+                    "linear-gradient(to right, var(--purple), #6d28d9)",
+                  color: "white",
                 }}
                 onClick={copyAllCredentials}
               >
@@ -1578,7 +1628,11 @@ Please log in and complete your profile.`;
                 <button
                   type="submit"
                   className="btn-primary"
-                  style={{ flex: 1, background: "#8b5cf6" }}
+                  style={{
+                    flex: 1,
+                    background: "var(--purple)",
+                    color: "white",
+                  }}
                 >
                   Assign Role
                 </button>

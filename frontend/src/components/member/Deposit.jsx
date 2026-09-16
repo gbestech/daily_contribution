@@ -1,6 +1,7 @@
 // src/components/member/Deposit.jsx
 import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
+import { useNavigate } from "react-router-dom";
 
 const API_BASE_URL = "http://localhost:8000";
 const MAX_SLIP_SIZE_MB = 2;
@@ -65,7 +66,8 @@ const extractBalance = (obj) => {
   return undefined;
 };
 
-const MemberDeposit = () => {
+const MemberDeposit = ({ onClose }) => {
+  const navigate = useNavigate();
   const [members, setMembers] = useState([]);
   const [selectedMember, setSelectedMember] = useState("");
   const [amount, setAmount] = useState("");
@@ -92,6 +94,18 @@ const MemberDeposit = () => {
     contribution_frequency: "daily",
   });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  // ============================================================
+  // Handle close — calls onClose if provided, otherwise navigates back
+  // ============================================================
+  const handleClose = () => {
+    if (loading) return;
+    if (typeof onClose === "function") {
+      onClose();
+    } else {
+      navigate(-1);
+    }
+  };
 
   // ============================================================
   // Apply settings safely
@@ -511,22 +525,69 @@ const MemberDeposit = () => {
         color: "var(--text)",
         maxWidth: "600px",
         margin: "0 auto",
+        background: "transparent",
       }}
     >
       <div
         style={{
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
-          borderRadius: "16px",
-          padding: "32px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          backgroundColor: "transparent",
+          borderRadius: "0",
+          padding: "0",
+          border: "none",
+          position: "relative",
         }}
       >
+        {/* ===== CLOSE (X) BUTTON ===== */}
+        <button
+          type="button"
+          onClick={handleClose}
+          disabled={loading}
+          title="Close"
+          aria-label="Close deposit form"
+          style={{
+            position: "absolute",
+            top: "-4px",
+            right: "-4px",
+            width: "36px",
+            height: "36px",
+            borderRadius: "50%",
+            border: "1px solid var(--border)",
+            background: "transparent",
+            color: "var(--text-muted)",
+            fontSize: "20px",
+            fontWeight: "600",
+            cursor: loading ? "not-allowed" : "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            lineHeight: 1,
+            transition: "all 0.2s",
+            opacity: loading ? 0.5 : 1,
+            zIndex: 10,
+          }}
+          onMouseEnter={(e) => {
+            if (!loading) {
+              e.currentTarget.style.color = "var(--text)";
+              e.currentTarget.style.borderColor = "var(--accent)";
+              e.currentTarget.style.background = "var(--bg-surface-2)";
+            }
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.color = "var(--text-muted)";
+            e.currentTarget.style.borderColor = "var(--border)";
+            e.currentTarget.style.background = "transparent";
+          }}
+        >
+          ✕
+        </button>
+
         <div
           style={{
             display: "flex",
             alignItems: "center",
             gap: "12px",
             marginBottom: "24px",
+            paddingRight: "40px",
           }}
         >
           <span style={{ fontSize: "32px" }}>💰</span>
@@ -548,10 +609,11 @@ const MemberDeposit = () => {
         {settingsLoaded && (
           <div
             style={{
-              backgroundColor: "rgba(59, 130, 246, 0.08)",
-              border: "1px solid rgba(59, 130, 246, 0.2)",
-              borderRadius: "10px",
-              padding: "12px 14px",
+              backgroundColor: "transparent",
+              border: "none",
+              borderBottom: "1px solid var(--border)",
+              borderRadius: "0",
+              padding: "0 0 12px 0",
               marginBottom: "20px",
             }}
           >
@@ -564,25 +626,33 @@ const MemberDeposit = () => {
               }}
             >
               <div>
-                <span style={{ color: "var(--text-muted)" }}>Min per deposit: </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Min per deposit:{" "}
+                </span>
                 <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.min_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>Max per deposit: </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Max per deposit:{" "}
+                </span>
                 <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.max_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>Daily limit: </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Daily limit:{" "}
+                </span>
                 <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {formatCurrency(settings.daily_limit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>Max per day: </span>
+                <span style={{ color: "var(--text-muted)" }}>
+                  Max per day:{" "}
+                </span>
                 <span style={{ color: "var(--text)", fontWeight: "600" }}>
                   {settings.allow_multiple_deposits
                     ? settings.max_daily_deposits
@@ -597,11 +667,11 @@ const MemberDeposit = () => {
         {selectedMember && (
           <div
             style={{
-              backgroundColor: "rgba(16, 185, 129, 0.1)",
-              borderRadius: "12px",
-              padding: "16px",
+              backgroundColor: "transparent",
+              borderRadius: "0",
+              padding: "0 0 16px 0",
               marginBottom: "24px",
-              border: "1px solid rgba(16, 185, 129, 0.2)",
+              borderBottom: "1px solid var(--border)",
             }}
           >
             <div
@@ -612,7 +682,13 @@ const MemberDeposit = () => {
               }}
             >
               <div>
-                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "13px",
+                    margin: 0,
+                  }}
+                >
                   Current Balance
                 </p>
                 <p
@@ -627,7 +703,13 @@ const MemberDeposit = () => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    margin: 0,
+                  }}
+                >
                   Today's Deposits
                 </p>
                 <p
@@ -678,10 +760,11 @@ const MemberDeposit = () => {
                 onChange={handleMemberChange}
                 style={{
                   width: "100%",
-                  padding: "12px 16px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  padding: "12px 0",
+                  borderRadius: "0",
+                  border: "none",
+                  borderBottom: "1px solid var(--border)",
+                  backgroundColor: "transparent",
                   color: "var(--text)",
                   fontSize: "14px",
                   outline: "none",
@@ -715,7 +798,7 @@ const MemberDeposit = () => {
               <span
                 style={{
                   position: "absolute",
-                  left: "16px",
+                  left: "0",
                   top: "50%",
                   transform: "translateY(-50%)",
                   color: "var(--text-dim)",
@@ -732,13 +815,15 @@ const MemberDeposit = () => {
                 placeholder={`Enter amount (min ${settings.min_deposit}, max ${settings.max_deposit})`}
                 style={{
                   width: "100%",
-                  padding: "12px 16px 12px 40px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  padding: "12px 0 12px 22px",
+                  borderRadius: "0",
+                  border: "none",
+                  borderBottom: "1px solid var(--border)",
+                  backgroundColor: "transparent",
                   color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
                 min={settings.min_deposit}
                 max={settings.max_deposit}
@@ -755,7 +840,8 @@ const MemberDeposit = () => {
                   style={{
                     padding: "4px 12px",
                     borderRadius: "4px",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    border: "none",
+                    borderBottom: "1px solid var(--border)",
                     backgroundColor: "transparent",
                     color: "var(--text-muted)",
                     fontSize: "12px",
@@ -788,13 +874,15 @@ const MemberDeposit = () => {
               placeholder="e.g., Monthly savings contribution"
               style={{
                 width: "100%",
-                padding: "12px 16px",
-                borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
+                padding: "12px 0",
+                borderRadius: "0",
+                border: "none",
+                borderBottom: "1px solid var(--border)",
+                backgroundColor: "transparent",
                 color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
+                boxSizing: "border-box",
               }}
             />
           </div>
@@ -822,20 +910,16 @@ const MemberDeposit = () => {
                   justifyContent: "center",
                   padding: "24px 16px",
                   borderRadius: "8px",
-                  border: "2px dashed rgba(255,255,255,0.15)",
-                  backgroundColor: "rgba(255,255,255,0.02)",
+                  border: "2px dashed var(--border)",
+                  backgroundColor: "transparent",
                   cursor: "pointer",
                   transition: "all 0.2s",
                 }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(16,185,129,0.5)";
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(16,185,129,0.05)";
+                  e.currentTarget.style.borderColor = "var(--accent)";
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "rgba(255,255,255,0.15)";
-                  e.currentTarget.style.backgroundColor =
-                    "rgba(255,255,255,0.02)";
+                  e.currentTarget.style.borderColor = "var(--border)";
                 }}
               >
                 <span style={{ fontSize: "28px", marginBottom: "8px" }}>
@@ -873,7 +957,7 @@ const MemberDeposit = () => {
                   padding: "12px",
                   borderRadius: "8px",
                   border: "1px solid rgba(16,185,129,0.3)",
-                  backgroundColor: "rgba(16,185,129,0.08)",
+                  backgroundColor: "transparent",
                 }}
               >
                 <div
@@ -902,7 +986,7 @@ const MemberDeposit = () => {
                           height: "48px",
                           objectFit: "cover",
                           borderRadius: "6px",
-                          border: "1px solid rgba(255,255,255,0.1)",
+                          border: "1px solid var(--border)",
                           flexShrink: 0,
                         }}
                       />
@@ -912,7 +996,7 @@ const MemberDeposit = () => {
                           width: "48px",
                           height: "48px",
                           borderRadius: "6px",
-                          backgroundColor: "rgba(239,68,68,0.15)",
+                          backgroundColor: "transparent",
                           border: "1px solid rgba(239,68,68,0.3)",
                           display: "flex",
                           alignItems: "center",
@@ -937,7 +1021,9 @@ const MemberDeposit = () => {
                       >
                         {slipFile.name}
                       </div>
-                      <div style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                      <div
+                        style={{ color: "var(--text-muted)", fontSize: "11px" }}
+                      >
                         {(slipFile.size / 1024).toFixed(1)} KB •{" "}
                         {slipFile.type
                           .replace("image/", "")
@@ -953,7 +1039,7 @@ const MemberDeposit = () => {
                       padding: "6px 12px",
                       borderRadius: "6px",
                       border: "1px solid rgba(239,68,68,0.3)",
-                      backgroundColor: "rgba(239,68,68,0.15)",
+                      backgroundColor: "transparent",
                       color: "var(--debit)",
                       fontSize: "12px",
                       cursor: "pointer",
@@ -981,7 +1067,7 @@ const MemberDeposit = () => {
                 background: loading
                   ? "var(--text-dim)"
                   : "linear-gradient(to right, #059669, #0d9488)",
-                color: "var(--text)",
+                color: "white",
                 fontSize: "16px",
                 fontWeight: "600",
                 cursor: loading ? "not-allowed" : "pointer",
@@ -999,7 +1085,7 @@ const MemberDeposit = () => {
                 flex: 1,
                 padding: "14px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.15)",
+                border: "1px solid var(--border)",
                 background: "transparent",
                 color: "var(--text)",
                 fontSize: "16px",
@@ -1015,10 +1101,10 @@ const MemberDeposit = () => {
           <div
             style={{
               marginTop: "16px",
-              padding: "12px",
-              backgroundColor: "rgba(59, 130, 246, 0.05)",
-              borderRadius: "8px",
-              border: "1px solid rgba(59, 130, 246, 0.1)",
+              padding: "12px 0",
+              backgroundColor: "transparent",
+              borderRadius: "0",
+              border: "none",
             }}
           >
             <p

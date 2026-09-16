@@ -8,6 +8,7 @@ import { PermissionsProvider } from "./context/PermissionsContext";
 import Layout from "./components/common/Layout";
 import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
+import ForgotPassword from "./pages/auth/ForgotPassword";
 import ProtectedRoute from "./components/common/ProtectedRoute";
 
 // Admin
@@ -24,6 +25,7 @@ import PublicRegister from "./components/admin/PublicRegister";
 import Staff from "./components/admin/Staff";
 import Permissions from "./components/admin/Permissions";
 import Expenses from "./components/admin/Expenses";
+import PasswordResets from "./components/admin/PasswordResets";
 
 // Member
 import MemberDashboard from "./components/member/Dashboard";
@@ -43,6 +45,7 @@ function AppRoutes() {
       {/* PUBLIC */}
       <Route path="/login" element={<Login />} />
       <Route path="/register" element={<Register />} />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register-member" element={<PublicRegister />} />
 
       {/* ============ ADMIN / MANAGER ROUTES ============ */}
@@ -162,6 +165,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Permissions />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/password-resets"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <PasswordResets />
             </Layout>
           </ProtectedRoute>
         }
