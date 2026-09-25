@@ -139,6 +139,28 @@ const Navbar = ({
 
   const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
+  // ============================================================
+  // User avatar helpers
+  // ============================================================
+  const getUserPhoto = () =>
+    user?.passport_photo ||
+    user?.passportPhoto ||
+    user?.photo ||
+    user?.avatar ||
+    "";
+
+  const getUserPhotoUrl = () => {
+    const photo = getUserPhoto();
+    if (!photo) return null;
+    if (photo.startsWith("http")) return photo;
+    return `${API_BASE_URL}/api/uploads/passports/${photo}`;
+  };
+
+  const getUserInitial = () =>
+    (user?.full_name || user?.name || user?.username || "U")
+      .charAt(0)
+      .toUpperCase();
+
   // Fetch shop name
   useEffect(() => {
     const fetchShopName = async () => {
@@ -348,9 +370,8 @@ const Navbar = ({
 
     const rec = new SpeechRecognition();
 
-    // Fast but NOT repeating — final results only, single shot
-    rec.continuous = false; // stop after one phrase
-    rec.interimResults = true; // show live text but don't act on it
+    rec.continuous = false;
+    rec.interimResults = true;
     rec.lang = "en-US";
     rec.maxAlternatives = 5;
 
@@ -366,14 +387,12 @@ const Navbar = ({
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
 
-        // Show live transcript while speaking, but do NOT execute
         const liveText = result[0].transcript;
         if (!result.isFinal) {
           setVoiceTranscript(liveText);
           continue;
         }
 
-        // Only fire on FINAL result — one time only
         let bestText = result[0].transcript;
         let bestScore = -1;
         for (let j = 0; j < result.length; j++) {
@@ -386,7 +405,6 @@ const Navbar = ({
           }
         }
 
-        // Prevent auto-restart after this command
         manualStopRef.current = true;
         try {
           rec.stop();
@@ -415,7 +433,6 @@ const Navbar = ({
     };
 
     rec.onend = () => {
-      // NEVER auto-restart — one click = one command
       setIsVoiceListening(false);
     };
 
@@ -625,6 +642,55 @@ const Navbar = ({
       })}
     </div>
   );
+
+  // ============================================================
+  // Reusable avatar component
+  // ============================================================
+  const renderAvatar = (
+    size = 32,
+    fontSize = 14,
+    border = "2px solid var(--border)",
+  ) => {
+    const photoUrl = getUserPhotoUrl();
+    return (
+      <div
+        style={{
+          width: `${size}px`,
+          height: `${size}px`,
+          borderRadius: "50%",
+          backgroundColor: "var(--bg-surface-3)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          color: "var(--accent-text)",
+          fontWeight: "bold",
+          fontSize: `${fontSize}px`,
+          overflow: "hidden",
+          flexShrink: 0,
+          border,
+          boxShadow: photoUrl ? "0 2px 8px rgba(0,0,0,0.15)" : "none",
+        }}
+      >
+        {photoUrl ? (
+          <img
+            src={photoUrl}
+            alt={user?.full_name || user?.name || "User"}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: "cover",
+            }}
+            onError={(e) => {
+              e.target.style.display = "none";
+              e.target.parentNode.textContent = getUserInitial();
+            }}
+          />
+        ) : (
+          getUserInitial()
+        )}
+      </div>
+    );
+  };
 
   return (
     <>
@@ -858,22 +924,9 @@ const Navbar = ({
                 e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
-              <div
-                style={{
-                  width: "32px",
-                  height: "32px",
-                  borderRadius: "50%",
-                  backgroundColor: "var(--bg-surface-3)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--accent-text)",
-                  fontWeight: "bold",
-                  fontSize: "14px",
-                }}
-              >
-                {user?.full_name?.charAt(0) || user?.name?.charAt(0) || "U"}
-              </div>
+              {/* ✅ Avatar with photo next to username */}
+              {renderAvatar(36, 14, "2px solid var(--accent)")}
+
               <div
                 style={{
                   textAlign: "left",
@@ -928,7 +981,7 @@ const Navbar = ({
                   backgroundColor: "var(--bg-surface)",
                   borderRadius: "12px",
                   border: "1px solid var(--border)",
-                  minWidth: "200px",
+                  minWidth: "220px",
                   padding: "8px",
                   boxShadow: "var(--shadow-lg)",
                   zIndex: 50,
@@ -938,35 +991,53 @@ const Navbar = ({
                   style={{
                     padding: "12px 16px",
                     borderBottom: "1px solid var(--border)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "12px",
                   }}
                 >
-                  <div
-                    style={{
-                      color: "var(--text)",
-                      fontSize: "14px",
-                      fontWeight: "500",
-                    }}
-                  >
-                    {user?.full_name || user?.name || "User"}
-                  </div>
-                  <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-                    {user?.email || ""}
-                  </div>
-                  <div
-                    style={{
-                      marginTop: "4px",
-                      padding: "2px 10px",
-                      borderRadius: "12px",
-                      fontSize: "10px",
-                      fontWeight: "600",
-                      display: "inline-block",
-                      backgroundColor: isAdmin
-                        ? "var(--debit-bg)"
-                        : "var(--accent-bg)",
-                      color: isAdmin ? "var(--debit)" : "var(--accent-text)",
-                    }}
-                  >
-                    {isAdmin ? "Administrator" : "Member"}
+                  {/* ✅ Avatar in dropdown header */}
+                  {renderAvatar(48, 18, "2px solid var(--accent)")}
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: "var(--text)",
+                        fontSize: "14px",
+                        fontWeight: "500",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {user?.full_name || user?.name || "User"}
+                    </div>
+                    <div
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "12px",
+                        whiteSpace: "nowrap",
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                      }}
+                    >
+                      {user?.email || ""}
+                    </div>
+                    <div
+                      style={{
+                        marginTop: "4px",
+                        padding: "2px 10px",
+                        borderRadius: "12px",
+                        fontSize: "10px",
+                        fontWeight: "600",
+                        display: "inline-block",
+                        backgroundColor: isAdmin
+                          ? "var(--debit-bg)"
+                          : "var(--accent-bg)",
+                        color: isAdmin ? "var(--debit)" : "var(--accent-text)",
+                      }}
+                    >
+                      {isAdmin ? "Administrator" : "Member"}
+                    </div>
                   </div>
                 </div>
 
@@ -1134,6 +1205,63 @@ const Navbar = ({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {/* ✅ Mobile user header with photo */}
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "14px",
+                padding: "14px 16px",
+                marginBottom: "16px",
+                borderRadius: "12px",
+                backgroundColor: "var(--bg-surface)",
+                border: "1px solid var(--border)",
+              }}
+            >
+              {renderAvatar(52, 20, "2px solid var(--accent)")}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "15px",
+                    fontWeight: "600",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {user?.full_name || user?.name || "User"}
+                </div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                >
+                  {user?.email || ""}
+                </div>
+                <div
+                  style={{
+                    marginTop: "4px",
+                    padding: "2px 10px",
+                    borderRadius: "12px",
+                    fontSize: "10px",
+                    fontWeight: "600",
+                    display: "inline-block",
+                    backgroundColor: isAdmin
+                      ? "var(--debit-bg)"
+                      : "var(--accent-bg)",
+                    color: isAdmin ? "var(--debit)" : "var(--accent-text)",
+                  }}
+                >
+                  {isAdmin ? "Administrator" : "Member"}
+                </div>
+              </div>
+            </div>
+
             {voiceSupported && (
               <button
                 onClick={toggleVoice}

@@ -6,12 +6,15 @@ const API_BASE_URL = "http://localhost:8000";
 const MemberTransfer = () => {
   const [members, setMembers] = useState([]);
   const [fromMember, setFromMember] = useState("");
-  const [toMember, setToMember] = useState("");
+  const [toAccountNumber, setToAccountNumber] = useState("");
+  const [toMember, setToMember] = useState(null);
+  const [lookupError, setLookupError] = useState("");
   const [amount, setAmount] = useState("");
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [fromBalance, setFromBalance] = useState(0);
   const [user, setUser] = useState(null);
+  const [photoModal, setPhotoModal] = useState(null); // enlarged photo viewer
 
   const isMember = user?.role === "member" || user?.role === "user";
   const isAdmin = user?.role === "admin";
@@ -22,7 +25,6 @@ const MemberTransfer = () => {
       const userData = JSON.parse(storedUser);
       setUser(userData);
 
-      // 🔒 If a member is logged in, lock the sender to themselves
       if (userData.role === "member" || userData.role === "user") {
         setFromMember(userData.id);
         fetchMemberBalance(userData.id);
@@ -75,20 +77,67 @@ const MemberTransfer = () => {
     }
   };
 
-  const handleTransfer = async (e) => {
-    e.preventDefault();
+  // ============================================================
+  // Helpers
+  // ============================================================
+  const getAccountNumber = (m) => m?.accountNumber || m?.account_number || "";
+  const getPassportPhoto = (m) =>
+    m?.passport_photo || m?.passportPhoto || m?.photo || "";
+  const getMemberName = (m) => m?.name || m?.full_name || m?.fullName || "";
 
-    if (!fromMember || !toMember) {
-      toast.error("Please select both members");
+  const getPhotoUrl = (m) => {
+    const photo = getPassportPhoto(m);
+    if (!photo) return null;
+    if (photo.startsWith("http")) return photo;
+    return `${API_BASE_URL}/api/uploads/passports/${photo}`;
+  };
+
+  const handleAccountLookup = (value) => {
+    setToAccountNumber(value);
+    setLookupError("");
+    setToMember(null);
+
+    const cleaned = value.trim();
+    if (!cleaned) return;
+
+    const found = members.find((m) => getAccountNumber(m) === cleaned);
+
+    if (!found) {
+      setLookupError("Account number not found");
       return;
     }
 
-    if (Number(fromMember) === Number(toMember)) {
+    if (Number(found.id) === Number(fromMember)) {
+      setLookupError("You cannot transfer to your own account");
+      return;
+    }
+
+    setToMember(found);
+  };
+
+  const handleTransfer = async (e) => {
+    e.preventDefault();
+
+    if (!fromMember) {
+      toast.error("Please select a sender");
+      return;
+    }
+
+    if (!toAccountNumber.trim()) {
+      toast.error("Please enter the recipient's account number");
+      return;
+    }
+
+    if (!toMember) {
+      toast.error("Please enter a valid recipient account number");
+      return;
+    }
+
+    if (Number(fromMember) === Number(toMember.id)) {
       toast.error("Cannot transfer to the same member");
       return;
     }
 
-    // 🔒 Extra safety: members can only send from their own account
     if (isMember && Number(fromMember) !== Number(user.id)) {
       toast.error("You can only transfer from your own account");
       return;
@@ -100,7 +149,6 @@ const MemberTransfer = () => {
       return;
     }
 
-    // Check if sender has enough balance
     const fromMemberData = members.find(
       (m) => Number(m.id) === Number(fromMember),
     );
@@ -117,22 +165,15 @@ const MemberTransfer = () => {
 
     const transfer = {
       fromMemberId: parseInt(fromMember),
-      toMemberId: parseInt(toMember),
-      fromMemberName: fromMemberData?.name || "Unknown",
-      toMemberName:
-        members.find((m) => Number(m.id) === Number(toMember))?.name ||
-        "Unknown",
-      fromAccountNumber: fromMemberData?.accountNumber || "",
-      toAccountNumber:
-        members.find((m) => Number(m.id) === Number(toMember))?.accountNumber ||
-        "",
+      toMemberId: parseInt(toMember.id),
+      fromMemberName: getMemberName(fromMemberData) || "Unknown",
+      toMemberName: getMemberName(toMember) || "Unknown",
+      fromAccountNumber: getAccountNumber(fromMemberData),
+      toAccountNumber: getAccountNumber(toMember),
       amount: transferAmount,
       date: new Date().toISOString().split("T")[0],
       description:
-        description ||
-        `Transfer to ${
-          members.find((m) => Number(m.id) === Number(toMember))?.name
-        }`,
+        description || `Transfer to ${getMemberName(toMember) || "member"}`,
     };
 
     try {
@@ -155,8 +196,9 @@ const MemberTransfer = () => {
         );
         setAmount("");
         setDescription("");
-        setToMember("");
-        // Refresh balance
+        setToAccountNumber("");
+        setToMember(null);
+        setLookupError("");
         fetchMemberBalance(fromMember);
       } else {
         toast.error(data.error || data.message || "Failed to submit transfer");
@@ -169,7 +211,6 @@ const MemberTransfer = () => {
     }
   };
 
-  // 🔒 For members, hide everyone else from the "From" dropdown
   const senderOptions = isMember
     ? members.filter((m) => Number(m.id) === Number(user?.id))
     : members;
@@ -183,7 +224,6 @@ const MemberTransfer = () => {
         margin: "0 auto",
       }}
     >
-      {/* ✅ Global styles for select dropdown fix */}
       <style>{`
         .member-select {
           width: 100%;
@@ -204,18 +244,11 @@ const MemberTransfer = () => {
           transition: border-color 0.2s;
           box-sizing: border-box;
         }
-        .member-select:focus {
-          border-color: var(--purple);
-        }
+        .member-select:focus { border-color: var(--purple); }
         .member-select option {
           background-color: var(--bg-surface);
           color: white;
           padding: 10px;
-        }
-        .member-select option:checked,
-        .member-select option:hover {
-          background: linear-gradient(var(--purple), var(--purple));
-          color: white;
         }
         .member-select:disabled {
           cursor: not-allowed;
@@ -231,8 +264,8 @@ const MemberTransfer = () => {
           background: rgba(124, 58, 237, 0.08);
         }
         .sender-locked-avatar {
-          width: 38px;
-          height: 38px;
+          width: 44px;
+          height: 44px;
           border-radius: 50%;
           background: rgba(124, 58, 237, 0.25);
           color: var(--purple);
@@ -241,6 +274,175 @@ const MemberTransfer = () => {
           justify-content: center;
           font-weight: bold;
           flex-shrink: 0;
+          overflow: hidden;
+          border: 2px solid rgba(124, 58, 237, 0.35);
+        }
+        .sender-locked-avatar img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .acct-input {
+          width: 100%;
+          padding: 12px 16px;
+          border-radius: 8px;
+          border: 1px solid rgba(255,255,255,0.1);
+          background-color: rgba(255,255,255,0.05);
+          color: var(--text);
+          font-size: 16px;
+          font-family: monospace;
+          letter-spacing: 1px;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.2s;
+        }
+        .acct-input:focus { border-color: var(--purple); }
+        .acct-input.error { border-color: #ef4444; }
+        .acct-input.valid { border-color: #10b981; }
+        .lookup-feedback {
+          margin-top: 8px;
+          font-size: 12px;
+          display: flex;
+          align-items: center;
+          gap: 6px;
+        }
+
+        /* ===== BIG RECIPIENT CARD ===== */
+        .recipient-card {
+          margin-top: 12px;
+          padding: 16px;
+          border-radius: 14px;
+          background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04));
+          border: 1px solid rgba(16, 185, 129, 0.3);
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          animation: fadeSlideIn 0.25s ease;
+        }
+        @keyframes fadeSlideIn {
+          from { opacity: 0; transform: translateY(-4px); }
+          to   { opacity: 1; transform: translateY(0); }
+        }
+        .recipient-photo-wrap {
+          position: relative;
+          flex-shrink: 0;
+        }
+        .recipient-photo {
+          width: 96px;
+          height: 96px;
+          border-radius: 14px;
+          background: rgba(16, 185, 129, 0.25);
+          color: var(--credit);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-weight: bold;
+          font-size: 36px;
+          overflow: hidden;
+          border: 3px solid rgba(16, 185, 129, 0.45);
+          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
+          cursor: pointer;
+          transition: transform 0.2s;
+        }
+        .recipient-photo:hover {
+          transform: scale(1.03);
+        }
+        .recipient-photo img {
+          width: 100%;
+          height: 100%;
+          object-fit: cover;
+        }
+        .recipient-photo-badge {
+          position: absolute;
+          bottom: -6px;
+          right: -6px;
+          width: 28px;
+          height: 28px;
+          border-radius: 50%;
+          background: #10b981;
+          color: white;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 15px;
+          border: 3px solid var(--bg-app);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
+        }
+        .recipient-info {
+          flex: 1;
+          min-width: 0;
+        }
+        .recipient-name {
+          color: var(--text);
+          font-size: 17px;
+          font-weight: 700;
+          white-space: nowrap;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          margin-bottom: 4px;
+        }
+        .recipient-acct {
+          color: var(--text-muted);
+          font-size: 13px;
+          font-family: monospace;
+          letter-spacing: 0.5px;
+        }
+        .recipient-verified {
+          display: inline-flex;
+          align-items: center;
+          gap: 4px;
+          margin-top: 8px;
+          padding: 3px 10px;
+          border-radius: 20px;
+          background: rgba(16, 185, 129, 0.2);
+          color: var(--credit);
+          font-size: 11px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+
+        /* ===== FULL PHOTO MODAL ===== */
+        .photo-modal-overlay {
+          position: fixed;
+          inset: 0;
+          background: rgba(0,0,0,0.85);
+          backdrop-filter: blur(8px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 9999;
+          padding: 24px;
+          animation: fadeIn 0.2s ease;
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; } to { opacity: 1; }
+        }
+        .photo-modal-img {
+          max-width: 90vw;
+          max-height: 85vh;
+          border-radius: 16px;
+          box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+          border: 3px solid rgba(16,185,129,0.5);
+        }
+        .photo-modal-close {
+          position: absolute;
+          top: 20px;
+          right: 20px;
+          width: 44px;
+          height: 44px;
+          border-radius: 50%;
+          border: none;
+          background: rgba(255,255,255,0.15);
+          color: white;
+          font-size: 24px;
+          cursor: pointer;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .photo-modal-close:hover {
+          background: rgba(255,255,255,0.25);
         }
       `}</style>
 
@@ -295,7 +497,13 @@ const MemberTransfer = () => {
               }}
             >
               <div>
-                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "13px",
+                    margin: 0,
+                  }}
+                >
                   {isAdmin ? "Sender Balance" : "Your Balance"}
                 </p>
                 <p
@@ -310,7 +518,13 @@ const MemberTransfer = () => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    margin: 0,
+                  }}
+                >
                   Available for transfer
                 </p>
                 <p
@@ -344,10 +558,13 @@ const MemberTransfer = () => {
             </label>
 
             {isMember ? (
-              // 🔒 Locked display for members — shows only themselves
               <div className="sender-locked">
                 <div className="sender-locked-avatar">
-                  {user?.name?.charAt(0)?.toUpperCase() || "U"}
+                  {getPhotoUrl(user) ? (
+                    <img src={getPhotoUrl(user)} alt="" />
+                  ) : (
+                    user?.name?.charAt(0)?.toUpperCase() || "U"
+                  )}
                 </div>
                 <div style={{ flex: 1, minWidth: 0 }}>
                   <div
@@ -368,7 +585,6 @@ const MemberTransfer = () => {
                 </div>
               </div>
             ) : (
-              // Admin can pick any member as sender
               <select
                 className="member-select"
                 value={fromMember}
@@ -385,7 +601,7 @@ const MemberTransfer = () => {
             )}
           </div>
 
-          {/* To Member */}
+          {/* To Member — by account number */}
           <div style={{ marginBottom: "16px" }}>
             <label
               style={{
@@ -396,23 +612,83 @@ const MemberTransfer = () => {
                 marginBottom: "6px",
               }}
             >
-              To (Recipient)
+              To (Recipient Account Number)
             </label>
-            <select
-              className="member-select"
-              value={toMember}
-              onChange={(e) => setToMember(e.target.value)}
+            <input
+              type="text"
+              inputMode="numeric"
+              value={toAccountNumber}
+              onChange={(e) => {
+                const v = e.target.value.replace(/\D/g, "");
+                handleAccountLookup(v);
+              }}
+              placeholder="Enter recipient's account number"
+              className={`acct-input ${
+                lookupError ? "error" : toMember ? "valid" : ""
+              }`}
+              maxLength="20"
+              autoComplete="off"
               required
-            >
-              <option value="">Select recipient...</option>
-              {members
-                .filter((m) => Number(m.id) !== Number(fromMember))
-                .map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name} - Balance: {formatCurrency(member.balance)}
-                  </option>
-                ))}
-            </select>
+            />
+
+            {lookupError && (
+              <div className="lookup-feedback" style={{ color: "#ef4444" }}>
+                ❌ {lookupError}
+              </div>
+            )}
+
+            {/* ===== BIG RECIPIENT CARD WITH LARGE PHOTO ===== */}
+            {toMember && (
+              <div className="recipient-card">
+                <div className="recipient-photo-wrap">
+                  <div
+                    className="recipient-photo"
+                    onClick={() => {
+                      const url = getPhotoUrl(toMember);
+                      if (url) setPhotoModal(url);
+                    }}
+                    title="Click to enlarge"
+                  >
+                    {getPhotoUrl(toMember) ? (
+                      <img
+                        src={getPhotoUrl(toMember)}
+                        alt={getMemberName(toMember)}
+                        onError={(e) => {
+                          e.target.style.display = "none";
+                          e.target.parentNode.textContent =
+                            getMemberName(toMember)?.charAt(0)?.toUpperCase() ||
+                            "U";
+                        }}
+                      />
+                    ) : (
+                      getMemberName(toMember)?.charAt(0)?.toUpperCase() || "U"
+                    )}
+                  </div>
+                  <div className="recipient-photo-badge">✓</div>
+                </div>
+
+                <div className="recipient-info">
+                  <div className="recipient-name">
+                    {getMemberName(toMember)}
+                  </div>
+                  <div className="recipient-acct">
+                    {getAccountNumber(toMember)}
+                  </div>
+                  <div className="recipient-verified">
+                    ✅ Verified Recipient
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!lookupError && !toMember && toAccountNumber.length > 0 && (
+              <div
+                className="lookup-feedback"
+                style={{ color: "var(--text-muted)" }}
+              >
+                🔎 Searching...
+              </div>
+            )}
           </div>
 
           {/* Amount */}
@@ -519,21 +795,25 @@ const MemberTransfer = () => {
 
           <button
             type="submit"
-            disabled={loading || !fromMember || !toMember}
+            disabled={loading || !fromMember || !toMember || !amount}
             style={{
               width: "100%",
               padding: "14px",
               borderRadius: "8px",
               border: "none",
-              background: loading
-                ? "var(--text-dim)"
-                : "linear-gradient(to right, var(--purple), #6d28d9)",
+              background:
+                loading || !toMember
+                  ? "var(--text-dim)"
+                  : "linear-gradient(to right, var(--purple), #6d28d9)",
               color: "var(--text)",
               fontSize: "16px",
               fontWeight: "600",
-              cursor: loading ? "not-allowed" : "pointer",
+              cursor:
+                loading || !fromMember || !toMember || !amount
+                  ? "not-allowed"
+                  : "pointer",
               transition: "all 0.3s",
-              opacity: loading ? 0.7 : 1,
+              opacity: loading || !toMember ? 0.7 : 1,
             }}
           >
             {loading ? "⏳ Processing..." : "🔄 Submit Transfer"}
@@ -561,6 +841,27 @@ const MemberTransfer = () => {
           </div>
         </form>
       </div>
+
+      {/* ===== FULL-SIZE PHOTO MODAL ===== */}
+      {photoModal && (
+        <div
+          className="photo-modal-overlay"
+          onClick={() => setPhotoModal(null)}
+        >
+          <button
+            className="photo-modal-close"
+            onClick={() => setPhotoModal(null)}
+          >
+            ×
+          </button>
+          <img
+            src={photoModal}
+            alt="Recipient"
+            className="photo-modal-img"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
+      )}
     </div>
   );
 };

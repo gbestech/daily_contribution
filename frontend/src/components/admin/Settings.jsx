@@ -112,8 +112,8 @@ const AdminSettings = () => {
     small_loan_threshold: 5000,
     late_payment_penalty: 10,
     grace_period_days: 7,
-    max_loans_per_member: 3, // NEW: Maximum number of loans per member
-    loan_cooldown_days: 30, // NEW: Days before a member can request another loan
+    max_loans_per_member: 3,
+    loan_cooldown_days: 30,
   });
 
   // Data from database
@@ -134,7 +134,6 @@ const AdminSettings = () => {
     rate: "",
   });
 
-  // Fetch all data
   useEffect(() => {
     fetchAllData();
   }, []);
@@ -285,7 +284,6 @@ const AdminSettings = () => {
     }
   };
 
-  // Helper function to convert days to months and days
   const getDaysToMonthsDisplay = (days) => {
     if (days < 30) {
       return `${days} day${days !== 1 ? "s" : ""}`;
@@ -464,7 +462,7 @@ const AdminSettings = () => {
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -475,8 +473,8 @@ const AdminSettings = () => {
           style={{
             width: "48px",
             height: "48px",
-            border: "4px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00aa69",
+            border: "4px solid var(--border)",
+            borderTopColor: "var(--accent)",
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
           }}
@@ -495,7 +493,7 @@ const AdminSettings = () => {
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
       }}
     >
@@ -515,7 +513,8 @@ const AdminSettings = () => {
         .tabs-container {
           display: flex;
           gap: 4px;
-          background-color: rgba(255,255,255,0.03);
+          background-color: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 12px;
           padding: 4px;
           margin-bottom: 24px;
@@ -535,16 +534,16 @@ const AdminSettings = () => {
           min-width: 80px;
         }
         .tab-btn:hover {
-          color: white;
-          background: rgba(255,255,255,0.05);
+          color: var(--text);
+          background: var(--bg-surface-3);
         }
         .tab-btn.active {
-          background: #00aa69;
-          color: white;
+          background: var(--accent);
+          color: #ffffff;
         }
         .settings-card {
-          background-color: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.05);
+          background-color: var(--bg-surface);
+          border: 1px solid var(--border);
           border-radius: 12px;
           padding: 20px;
           margin-bottom: 20px;
@@ -556,6 +555,7 @@ const AdminSettings = () => {
           display: flex;
           align-items: center;
           gap: 8px;
+          color: var(--text);
         }
         .form-group {
           margin-bottom: 16px;
@@ -571,38 +571,41 @@ const AdminSettings = () => {
           width: 100%;
           padding: 10px 14px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s;
           box-sizing: border-box;
         }
         .form-input:focus {
-          border-color: #00aa69;
+          border-color: var(--accent);
         }
         .form-input::placeholder {
           color: var(--text-dim);
+        }
+        .form-input:disabled {
+          opacity: 0.6;
         }
         .form-select {
           width: 100%;
           padding: 10px 14px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
           cursor: pointer;
           transition: border-color 0.2s;
         }
         .form-select:focus {
-          border-color: #00aa69;
+          border-color: var(--accent);
         }
         .form-select option {
           background: var(--bg-surface);
-          color: white;
+          color: var(--text);
         }
         .form-checkbox {
           display: flex;
@@ -614,12 +617,12 @@ const AdminSettings = () => {
         .form-checkbox input[type="checkbox"] {
           width: 18px;
           height: 18px;
-          accent-color: #00aa69;
+          accent-color: var(--accent);
           cursor: pointer;
         }
         .form-checkbox-label {
           font-size: 14px;
-          color: #e5e7eb;
+          color: var(--text);
         }
         .form-row {
           display: grid;
@@ -630,15 +633,15 @@ const AdminSettings = () => {
           padding: 10px 32px;
           border-radius: 8px;
           border: none;
-          background: #00aa69;
-          color: white;
+          background: var(--accent);
+          color: #ffffff;
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-save:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .btn-save:disabled {
           opacity: 0.5;
@@ -649,56 +652,56 @@ const AdminSettings = () => {
           border-radius: 6px;
           border: none;
           background: var(--debit);
-          color: white;
+          color: #ffffff;
           cursor: pointer;
           font-size: 12px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-suspend:hover {
-          background: #dc2626;
+          opacity: 0.85;
         }
         .btn-reactivate {
           padding: 6px 16px;
           border-radius: 6px;
           border: none;
-          background: #00aa69;
-          color: white;
+          background: var(--accent);
+          color: #ffffff;
           cursor: pointer;
           font-size: 12px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-reactivate:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .btn-add-tier {
           padding: 8px 20px;
           border-radius: 6px;
           border: none;
-          background: #3b82f6;
-          color: white;
+          background: var(--info);
+          color: #ffffff;
           cursor: pointer;
           font-size: 13px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-add-tier:hover {
-          background: #2563eb;
+          opacity: 0.85;
         }
         .btn-remove-tier {
           padding: 4px 12px;
           border-radius: 4px;
           border: none;
           background: var(--debit);
-          color: white;
+          color: #ffffff;
           cursor: pointer;
           font-size: 11px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-remove-tier:hover {
-          background: #dc2626;
+          opacity: 0.85;
         }
         .suspended-table {
           width: 100%;
@@ -712,15 +715,16 @@ const AdminSettings = () => {
           color: var(--text-muted);
           text-transform: uppercase;
           letter-spacing: 0.05em;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid var(--border);
         }
         .suspended-table td {
           padding: 10px 12px;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid var(--border);
           font-size: 13px;
+          color: var(--text);
         }
         .suspended-table tr:hover {
-          background-color: rgba(255,255,255,0.02);
+          background-color: var(--bg-surface-2);
         }
         .badge {
           display: inline-block;
@@ -730,40 +734,40 @@ const AdminSettings = () => {
           font-weight: 500;
         }
         .badge-suspended {
-          background-color: rgba(239, 68, 68, 0.2);
+          background-color: var(--rejected-bg);
           color: var(--debit);
-          border: 1px solid rgba(239, 68, 68, 0.3);
+          border: 1px solid var(--border);
         }
         .badge-active {
-          background-color: rgba(16, 185, 129, 0.2);
+          background-color: var(--approved-bg);
           color: var(--credit);
-          border: 1px solid rgba(16, 185, 129, 0.3);
+          border: 1px solid var(--border);
         }
         .badge-permanent {
-          background-color: rgba(239, 68, 68, 0.2);
+          background-color: var(--rejected-bg);
           color: var(--debit);
-          border: 1px solid rgba(239, 68, 68, 0.3);
+          border: 1px solid var(--border);
         }
         .badge-temporary {
-          background-color: rgba(234, 179, 8, 0.2);
+          background-color: var(--pending-bg);
           color: var(--warning);
-          border: 1px solid rgba(234, 179, 8, 0.3);
+          border: 1px solid var(--border);
         }
         .search-input {
           width: 100%;
           max-width: 300px;
           padding: 8px 14px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 13px;
           outline: none;
           transition: border-color 0.2s;
           box-sizing: border-box;
         }
         .search-input:focus {
-          border-color: #00aa69;
+          border-color: var(--accent);
         }
         .search-input::placeholder {
           color: var(--text-dim);
@@ -771,7 +775,7 @@ const AdminSettings = () => {
         .modal-overlay {
           position: fixed;
           inset: 0;
-          background-color: rgba(0,0,0,0.7);
+          background-color: var(--bg-overlay);
           backdrop-filter: blur(4px);
           display: flex;
           align-items: center;
@@ -787,7 +791,8 @@ const AdminSettings = () => {
           width: 100%;
           max-height: 90vh;
           overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
+          color: var(--text);
         }
         .modal-header {
           display: flex;
@@ -798,6 +803,7 @@ const AdminSettings = () => {
         .modal-title {
           font-size: 18px;
           font-weight: bold;
+          color: var(--text);
         }
         .modal-close {
           background: none;
@@ -808,22 +814,22 @@ const AdminSettings = () => {
           font-size: 24px;
         }
         .modal-close:hover {
-          color: white;
+          color: var(--text);
         }
         .btn-cancel {
           flex: 1;
           padding: 10px;
           border-radius: 8px;
-          border: none;
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--text);
           cursor: pointer;
           font-size: 13px;
           font-weight: 500;
           transition: all 0.2s;
         }
         .btn-cancel:hover {
-          background: rgba(255,255,255,0.1);
+          background: var(--bg-surface-2);
         }
         .btn-confirm {
           flex: 1;
@@ -837,25 +843,25 @@ const AdminSettings = () => {
         }
         .btn-confirm-danger {
           background: var(--debit);
-          color: white;
+          color: #ffffff;
         }
         .btn-confirm-danger:hover {
-          background: #dc2626;
+          opacity: 0.85;
         }
         .btn-confirm-success {
-          background: #00aa69;
-          color: white;
+          background: var(--accent);
+          color: #ffffff;
         }
         .btn-confirm-success:hover {
-          background: #008854;
+          background: var(--accent-hover);
         }
         .textarea-input {
           width: 100%;
           padding: 10px 12px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
           transition: border-color 0.2s;
@@ -875,17 +881,18 @@ const AdminSettings = () => {
           justify-content: space-between;
           align-items: center;
           padding: 8px 12px;
-          background: rgba(255,255,255,0.05);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 6px;
           margin-bottom: 6px;
         }
         .tier-item span {
           font-size: 13px;
-          color: #e5e7eb;
+          color: var(--text);
         }
         .info-box {
-          background: rgba(59, 130, 246, 0.1);
-          border: 1px solid rgba(59, 130, 246, 0.2);
+          background: var(--accent-bg);
+          border: 1px solid var(--border);
           border-radius: 8px;
           padding: 12px 16px;
           margin-bottom: 16px;
@@ -893,14 +900,14 @@ const AdminSettings = () => {
         .info-box p {
           margin: 0;
           font-size: 13px;
-          color: #93c5fd;
+          color: var(--text);
         }
         .info-box strong {
-          color: white;
+          color: var(--text);
         }
         .rule-box {
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid rgba(16, 185, 129, 0.2);
+          background: var(--approved-bg);
+          border: 1px solid var(--border);
           border-radius: 8px;
           padding: 16px;
           margin-top: 16px;
@@ -921,7 +928,8 @@ const AdminSettings = () => {
         .rule-example {
           margin-top: 12px;
           padding: 12px;
-          background: rgba(16, 185, 129, 0.08);
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
           border-radius: 6px;
         }
         .rule-example p {
@@ -933,15 +941,15 @@ const AdminSettings = () => {
           color: var(--credit);
         }
         .loan-restriction-box {
-          background: rgba(139, 92, 246, 0.1);
-          border: 1px solid rgba(139, 92, 246, 0.2);
+          background: var(--accent-bg);
+          border: 1px solid var(--border);
           border-radius: 8px;
           padding: 16px;
           margin-top: 16px;
         }
         .loan-restriction-box h4 {
           font-size: 13px;
-          color: var(--purple);
+          color: var(--accent-text);
           margin: 0 0 8px 0;
         }
         .loan-restriction-box p {
@@ -950,7 +958,7 @@ const AdminSettings = () => {
           margin: 0;
         }
         .loan-restriction-box strong {
-          color: var(--purple);
+          color: var(--accent-text);
         }
         .days-display {
           color: var(--info);
@@ -984,7 +992,13 @@ const AdminSettings = () => {
             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
               ⚙️ Settings
             </h2>
-            <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
+            <p
+              style={{
+                fontSize: "14px",
+                color: "var(--text-muted)",
+                marginTop: "4px",
+              }}
+            >
               Configure application settings and manage accounts
             </p>
           </div>
@@ -1153,7 +1167,7 @@ const AdminSettings = () => {
                 style={{
                   marginBottom: "20px",
                   paddingBottom: "16px",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  borderBottom: "1px solid var(--border)",
                 }}
               >
                 <h4
@@ -1299,7 +1313,7 @@ const AdminSettings = () => {
                 style={{
                   marginBottom: "20px",
                   paddingBottom: "16px",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  borderBottom: "1px solid var(--border)",
                 }}
               >
                 <h4
@@ -1423,18 +1437,18 @@ const AdminSettings = () => {
                 </div>
               </div>
 
-              {/* Loan Restrictions Section - NEW */}
+              {/* Loan Restrictions Section */}
               <div
                 style={{
                   marginBottom: "20px",
                   paddingBottom: "16px",
-                  borderBottom: "1px solid rgba(255,255,255,0.05)",
+                  borderBottom: "1px solid var(--border)",
                 }}
               >
                 <h4
                   style={{
                     fontSize: "14px",
-                    color: "var(--purple)",
+                    color: "var(--accent-text)",
                     marginBottom: "12px",
                   }}
                 >
@@ -1458,7 +1472,6 @@ const AdminSettings = () => {
                           })
                         }
                         min="1"
-                        style={{ borderColor: "rgba(139, 92, 246, 0.3)" }}
                       />
                       <p
                         style={{
@@ -1487,7 +1500,6 @@ const AdminSettings = () => {
                           })
                         }
                         min="0"
-                        style={{ borderColor: "rgba(139, 92, 246, 0.3)" }}
                       />
                       <p
                         style={{
@@ -1514,14 +1526,21 @@ const AdminSettings = () => {
                     style={{
                       marginTop: "12px",
                       padding: "12px",
-                      backgroundColor: "rgba(139, 92, 246, 0.08)",
+                      backgroundColor: "var(--bg-surface-2)",
                       borderRadius: "6px",
+                      border: "1px solid var(--border)",
                     }}
                   >
                     <p
-                      style={{ fontSize: "12px", color: "var(--text-muted)", margin: 0 }}
+                      style={{
+                        fontSize: "12px",
+                        color: "var(--text-muted)",
+                        margin: 0,
+                      }}
                     >
-                      <strong style={{ color: "var(--purple)" }}>Example:</strong>
+                      <strong style={{ color: "var(--accent-text)" }}>
+                        Example:
+                      </strong>
                       <br />
                       If a member has taken{" "}
                       <strong style={{ color: "var(--text)" }}>
@@ -1558,9 +1577,12 @@ const AdminSettings = () => {
                     <strong style={{ color: "var(--credit)" }}>Example:</strong>
                     <br />
                     If a member has{" "}
-                    <strong style={{ color: "var(--text)" }}>₦100,000</strong> in
-                    savings, they can borrow up to{" "}
-                    <strong style={{ color: "var(--credit)" }}>₦50,000</strong> (50%).
+                    <strong style={{ color: "var(--text)" }}>
+                      ₦100,000
+                    </strong>{" "}
+                    in savings, they can borrow up to{" "}
+                    <strong style={{ color: "var(--credit)" }}>₦50,000</strong>{" "}
+                    (50%).
                   </p>
                   <p style={{ marginTop: "4px" }}>
                     <strong style={{ color: "var(--info)" }}>Formula:</strong>
@@ -1983,7 +2005,12 @@ const AdminSettings = () => {
                           marginBottom: "10px",
                         }}
                       >
-                        <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+                        <span
+                          style={{
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
                           Commission Tiers
                         </span>
                         <button
@@ -2513,11 +2540,18 @@ const AdminSettings = () => {
                       .map((member) => (
                         <tr key={member.id}>
                           <td style={{ fontWeight: "500" }}>{member.name}</td>
-                          <td style={{ color: "var(--text-muted)" }}>{member.email}</td>
+                          <td style={{ color: "var(--text-muted)" }}>
+                            {member.email}
+                          </td>
                           <td style={{ color: "var(--text-muted)" }}>
                             {member.phone || "N/A"}
                           </td>
-                          <td style={{ color: "var(--credit)", fontWeight: "600" }}>
+                          <td
+                            style={{
+                              color: "var(--credit)",
+                              fontWeight: "600",
+                            }}
+                          >
                             {formatNaira(member.balance)}
                           </td>
                           <td>
@@ -2571,7 +2605,9 @@ const AdminSettings = () => {
                     {filteredSuspended.map((account) => (
                       <tr key={account.id}>
                         <td style={{ fontWeight: "500" }}>{account.name}</td>
-                        <td style={{ color: "var(--text-muted)" }}>{account.email}</td>
+                        <td style={{ color: "var(--text-muted)" }}>
+                          {account.email}
+                        </td>
                         <td style={{ color: "var(--debit)", fontSize: "12px" }}>
                           {account.reason}
                         </td>
@@ -2580,7 +2616,10 @@ const AdminSettings = () => {
                         </td>
                         <td
                           style={{
-                            color: account.balance < 0 ? "var(--debit)" : "var(--credit)",
+                            color:
+                              account.balance < 0
+                                ? "var(--debit)"
+                                : "var(--credit)",
                             fontWeight: "600",
                           }}
                         >
@@ -2684,7 +2723,7 @@ const AdminSettings = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button
@@ -2728,7 +2767,7 @@ const AdminSettings = () => {
             <div
               style={{
                 paddingBottom: "16px",
-                borderBottom: "1px solid rgba(255,255,255,0.05)",
+                borderBottom: "1px solid var(--border)",
                 marginBottom: "16px",
               }}
             >
@@ -2782,7 +2821,7 @@ const AdminSettings = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button
@@ -2829,7 +2868,11 @@ const AdminSettings = () => {
                 Reactivate {selectedMember.name}'s account?
               </p>
               <p
-                style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                  marginTop: "4px",
+                }}
               >
                 This will restore access to the account.
               </p>
@@ -2847,7 +2890,7 @@ const AdminSettings = () => {
                 gap: "8px",
                 marginTop: "16px",
                 paddingTop: "16px",
-                borderTop: "1px solid rgba(255,255,255,0.05)",
+                borderTop: "1px solid var(--border)",
               }}
             >
               <button

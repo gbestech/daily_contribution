@@ -163,12 +163,12 @@ const Layout = ({ children }) => {
       icon: "⚙️",
       permission: "manage_settings",
     },
-    {
-      path: "/admin/profile",
-      label: "Profile",
-      icon: "👤",
-      permission: "view_dashboard",
-    },
+    // {
+    //   path: "/admin/profile",
+    //   label: "Profilessssssssssssss",
+    //   icon: "👤",
+    //   permission: "view_dashboard",
+    // },
   ];
 
   const memberNavItems = [
