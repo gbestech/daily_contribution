@@ -27,7 +27,7 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
 
-  // ===== VOICE STATE (mirrors Broadsheet) =====
+  // ===== VOICE STATE =====
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceFeedback, setVoiceFeedback] = useState("");
@@ -741,7 +741,7 @@ const AdminDashboard = () => {
   };
 
   const handleEditMember = (member) => {
-    setSelectedMember(member);
+    setSelectedMember({ ...member });
     setShowEditModal(true);
   };
 
@@ -759,7 +759,9 @@ const AdminDashboard = () => {
       const data = await response.json();
       if (response.ok) {
         const updatedMembers = members.map((member) =>
-          member.id === selectedMember.id ? data.member : member,
+          member.id === selectedMember.id
+            ? data.member || selectedMember
+            : member,
         );
         setMembers(updatedMembers);
         setShowEditModal(false);
@@ -801,7 +803,7 @@ const AdminDashboard = () => {
   };
 
   // ============================================================
-  // ===== VOICE RECOGNITION (mirrors Broadsheet pattern) =====
+  // ===== VOICE RECOGNITION =====
   // ============================================================
 
   const showVoiceFeedback = useCallback((msg) => {
@@ -849,7 +851,6 @@ const AdminDashboard = () => {
       const text = rawText.toLowerCase().trim();
       setVoiceTranscript(rawText);
 
-      // ---- TAB NAVIGATION ----
       if (text.includes("pending loan")) {
         switchTab("pending_loans");
         return;
@@ -871,7 +872,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- ACTIONS ----
       if (text.includes("refresh") || text.includes("reload")) {
         showVoiceFeedback("🔄 Refreshing data...");
         speak("Refreshing data");
@@ -924,7 +924,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- STATS ----
       if (
         text.includes("how many members") ||
         text.includes("total members") ||
@@ -951,7 +950,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- HELP ----
       if (text.includes("help") || text.includes("what can i say")) {
         const helpMsg =
           "You can say: open members, open transactions, open expenses, new transaction, new transfer, new expense, refresh data, search for a name, how many members, total balance, or close.";
@@ -960,7 +958,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- SEARCH (explicit) ----
       const searchMatch = text.match(
         /^(search|find|look for|lookup)( for)?\s+(.+)$/,
       );
@@ -980,7 +977,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // ---- FALLBACK: treat short phrases as a name search ----
       if (text.split(/\s+/).length <= 4) {
         setSearchTerm(text);
         setActiveTab("members");
@@ -1003,13 +999,11 @@ const AdminDashboard = () => {
     ],
   );
 
-  // Keep handler in a ref (avoids stale closures)
   const processCommandRef = useRef(processVoiceCommand);
   useEffect(() => {
     processCommandRef.current = processVoiceCommand;
   }, [processVoiceCommand]);
 
-  // Setup SpeechRecognition once
   useEffect(() => {
     const SpeechRecognition =
       window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -1088,7 +1082,6 @@ const AdminDashboard = () => {
     }
   }, [isListening, voiceSupported]);
 
-  // Ctrl + M shortcut
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.ctrlKey && e.key.toLowerCase() === "m") {
@@ -1352,7 +1345,6 @@ const AdminDashboard = () => {
         }
         .btn-reject:hover { background-color: #dc2626; }
 
-        /* ===== VOICE MIC BUTTON (matches Broadsheet) ===== */
         .ad-mic-btn {
           padding: 10px 16px;
           border-radius: 8px;
@@ -1479,7 +1471,6 @@ const AdminDashboard = () => {
             🔄 Refresh
           </button>
 
-          {/* 🎙️ Voice button */}
           <button
             type="button"
             onClick={() => {
@@ -2606,6 +2597,497 @@ const AdminDashboard = () => {
         </div>
       )}
 
+      {/* ===== CREATE MEMBER MODAL ===== */}
+      {showCreateModal && (
+        <div
+          className="modal-overlay"
+          onClick={() => setShowCreateModal(false)}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">➕ Add New Member</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowCreateModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleCreateMember}>
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter full name"
+                  value={newMember.name}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, name: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  placeholder="Enter email"
+                  value={newMember.email}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, email: e.target.value })
+                  }
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  placeholder="Enter phone"
+                  value={newMember.phone}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, phone: e.target.value })
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Membership Type</label>
+                <select
+                  className="form-select"
+                  value={newMember.membershipType}
+                  onChange={(e) =>
+                    setNewMember({
+                      ...newMember,
+                      membershipType: e.target.value,
+                    })
+                  }
+                >
+                  <option value="Standard">Standard</option>
+                  <option value="Premium">Premium</option>
+                  <option value="VIP">VIP</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Initial Balance (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  placeholder="0.00"
+                  value={newMember.balance}
+                  onChange={(e) =>
+                    setNewMember({ ...newMember, balance: e.target.value })
+                  }
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="modal-buttons">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => setShowCreateModal(false)}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-submit">
+                  Create Member
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== VIEW MEMBER MODAL ===== */}
+      {showViewModal && selectedMember && (
+        <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">👁️ Member Details</h3>
+              <button
+                className="modal-close"
+                onClick={() => setShowViewModal(false)}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "16px",
+                marginBottom: "20px",
+                paddingBottom: "20px",
+                borderBottom: "1px solid var(--border)",
+              }}
+            >
+              <div
+                style={{
+                  width: "64px",
+                  height: "64px",
+                  borderRadius: "50%",
+                  backgroundColor: "rgba(16, 185, 129, 0.2)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "var(--credit)",
+                  fontSize: "24px",
+                  fontWeight: "bold",
+                }}
+              >
+                {selectedMember.name?.charAt(0) || "U"}
+              </div>
+              <div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "18px",
+                    fontWeight: "600",
+                  }}
+                >
+                  {selectedMember.name}
+                </div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "13px",
+                    marginTop: "2px",
+                  }}
+                >
+                  {selectedMember.membershipType || "Standard"} Member
+                </div>
+              </div>
+            </div>
+
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: "1fr 1fr",
+                gap: "16px",
+              }}
+            >
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Email
+                </div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                    wordBreak: "break-all",
+                  }}
+                >
+                  {selectedMember.email || "—"}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Phone
+                </div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  {selectedMember.phone || "—"}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Account Number
+                </div>
+                <div
+                  style={{
+                    color: "var(--info)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                    fontFamily: "monospace",
+                  }}
+                >
+                  {selectedMember.accountNumber || "—"}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Status
+                </div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                    textTransform: "capitalize",
+                  }}
+                >
+                  {selectedMember.status || "Active"}
+                </div>
+              </div>
+
+              <div style={{ gridColumn: "1 / -1" }}>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Balance
+                </div>
+                <div
+                  style={{
+                    color: "var(--credit)",
+                    fontSize: "22px",
+                    fontWeight: "700",
+                    marginTop: "4px",
+                  }}
+                >
+                  {formatCurrency(selectedMember.balance)}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Join Date
+                </div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  {selectedMember.joinDate || "—"}
+                </div>
+              </div>
+
+              <div>
+                <div
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "11px",
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px",
+                  }}
+                >
+                  Membership Type
+                </div>
+                <div
+                  style={{
+                    color: "var(--text)",
+                    fontSize: "14px",
+                    marginTop: "4px",
+                  }}
+                >
+                  {selectedMember.membershipType || "Standard"}
+                </div>
+              </div>
+            </div>
+
+            <div className="modal-buttons" style={{ marginTop: "24px" }}>
+              <button
+                type="button"
+                className="btn-cancel"
+                onClick={() => setShowViewModal(false)}
+              >
+                Close
+              </button>
+              <button
+                type="button"
+                className="btn-submit"
+                onClick={() => {
+                  setShowViewModal(false);
+                  setTimeout(() => handleEditMember(selectedMember), 150);
+                }}
+              >
+                ✏️ Edit This Member
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ===== EDIT MEMBER MODAL ===== */}
+      {showEditModal && selectedMember && (
+        <div
+          className="modal-overlay"
+          onClick={() => {
+            setShowEditModal(false);
+            setSelectedMember(null);
+          }}
+        >
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3 className="modal-title">✏️ Edit Member</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowEditModal(false);
+                  setSelectedMember(null);
+                }}
+              >
+                ✕
+              </button>
+            </div>
+            <form onSubmit={handleUpdateMember}>
+              <div className="form-group">
+                <label className="form-label">Full Name</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={selectedMember.name || ""}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      name: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Email</label>
+                <input
+                  type="email"
+                  className="form-input"
+                  value={selectedMember.email || ""}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      email: e.target.value,
+                    })
+                  }
+                  required
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Phone</label>
+                <input
+                  type="tel"
+                  className="form-input"
+                  value={selectedMember.phone || ""}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      phone: e.target.value,
+                    })
+                  }
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Membership Type</label>
+                <select
+                  className="form-select"
+                  value={selectedMember.membershipType || "Standard"}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      membershipType: e.target.value,
+                    })
+                  }
+                >
+                  <option value="Standard">Standard</option>
+                  <option value="Premium">Premium</option>
+                  <option value="VIP">VIP</option>
+                </select>
+              </div>
+              <div className="form-group">
+                <label className="form-label">Balance (₦)</label>
+                <input
+                  type="number"
+                  className="form-input"
+                  value={selectedMember.balance || 0}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      balance: parseFloat(e.target.value) || 0,
+                    })
+                  }
+                  min="0"
+                  step="0.01"
+                />
+              </div>
+              <div className="form-group">
+                <label className="form-label">Status</label>
+                <select
+                  className="form-select"
+                  value={selectedMember.status || "Active"}
+                  onChange={(e) =>
+                    setSelectedMember({
+                      ...selectedMember,
+                      status: e.target.value,
+                    })
+                  }
+                >
+                  <option value="Active">Active</option>
+                  <option value="Inactive">Inactive</option>
+                  <option value="Suspended">Suspended</option>
+                </select>
+              </div>
+              <div className="modal-buttons">
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={() => {
+                    setShowEditModal(false);
+                    setSelectedMember(null);
+                  }}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-submit">
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* Transaction Modal */}
       {showTransactionModal && (
         <div
@@ -3040,3 +3522,5 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
+//$ php -S localhost:8000 -t .
+

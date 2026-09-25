@@ -1,7 +1,8 @@
 // src/components/admin/Members.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -36,6 +37,13 @@ const AdminMembers = ({ publicMode = false }) => {
     memberId: "",
     role: "member",
   });
+
+  // ===== Bulk upload state =====
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+  const fileInputRef = useRef(null);
 
   const generateAccountNumber = () => {
     const prefix = "10";
@@ -291,6 +299,216 @@ Please log in and complete your profile.`;
     } catch {
       toast.error("Failed to assign role");
     }
+  };
+
+  // ============================================================
+  // ===== EXCEL BULK UPLOAD HELPERS =====
+  // ============================================================
+
+  // Download a sample Excel template
+  const downloadTemplate = () => {
+    const templateData = [
+      {
+        "First Name": "John",
+        "Last Name": "Doe",
+        Password: "john1234",
+      },
+      {
+        "First Name": "Jane",
+        "Last Name": "Smith",
+        Password: "jane1234",
+      },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    // Set column widths
+    worksheet["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 18 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
+    XLSX.writeFile(workbook, "members_upload_template.xlsx");
+    toast.success("📥 Template downloaded!");
+  };
+
+  // Handle file selection
+  const handleExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        if (!json.length) {
+          toast.error("Excel file is empty");
+          return;
+        }
+
+        // Normalize headers (case-insensitive lookup)
+        const normalized = json.map((row, idx) => {
+          const get = (key) => {
+            const found = Object.keys(row).find(
+              (k) => k.trim().toLowerCase() === key.toLowerCase(),
+            );
+            return found ? String(row[found]).trim() : "";
+          };
+          return {
+            _row: idx + 2, // Excel row number (header is row 1)
+            firstName: get("First Name"),
+            lastName: get("Last Name"),
+            password: get("Password"),
+          };
+        });
+
+        // Validate rows
+        const validated = normalized.map((r) => {
+          const errors = [];
+          if (!r.firstName) errors.push("First Name required");
+          if (!r.lastName) errors.push("Last Name required");
+          if (!r.password) errors.push("Password required");
+          else if (r.password.length < 6)
+            errors.push("Password must be ≥ 6 characters");
+          return { ...r, errors };
+        });
+
+        setBulkRows(validated);
+        setBulkResults(null);
+        setShowBulkModal(true);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to read Excel file");
+      }
+    };
+    reader.readAsBinaryString(file);
+    // reset input so same file can be re-selected
+    e.target.value = "";
+  };
+
+  // Generate email the same way the form does
+  const generateEmail = (firstName) => {
+    const firstNameLower = firstName.trim().toLowerCase();
+    const randomNum = Math.floor(Math.random() * 90000) + 10000;
+    return `${firstNameLower}${randomNum}@gmail.com`;
+  };
+
+  // Upload all valid rows
+  const handleBulkUpload = async () => {
+    const validRows = bulkRows.filter((r) => r.errors.length === 0);
+    if (!validRows.length) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+
+    setBulkUploading(true);
+    const results = [];
+
+    for (const row of validRows) {
+      try {
+        const fullName = capitalizeWords(
+          `${row.firstName} ${row.lastName}`.trim(),
+        );
+        const email = generateEmail(row.firstName);
+        const accountNumber = generateAccountNumber();
+
+        const payload = {
+          accountNumber,
+          account_number: accountNumber,
+          name: fullName,
+          full_name: fullName,
+          email,
+          phone: "",
+          password: row.password,
+          role: "member",
+          status: "Active",
+          membership_type: "Standard",
+          join_date: new Date().toISOString().split("T")[0],
+          balance: 0,
+          profile_completed: 0,
+        };
+
+        const res = await fetch(`${API_BASE_URL}/api/members.php`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          results.push({
+            row: row._row,
+            name: fullName,
+            email,
+            password: row.password,
+            accountNumber,
+            status: "success",
+          });
+        } else {
+          results.push({
+            row: row._row,
+            name: fullName,
+            email,
+            status: "failed",
+            error: data.message || data.error || "Failed",
+          });
+        }
+      } catch (err) {
+        results.push({
+          row: row._row,
+          name: `${row.firstName} ${row.lastName}`,
+          email: "",
+          status: "failed",
+          error: "Network error",
+        });
+      }
+    }
+
+    setBulkResults(results);
+    setBulkUploading(false);
+
+    const successCount = results.filter((r) => r.status === "success").length;
+    const failCount = results.filter((r) => r.status === "failed").length;
+
+    if (successCount) toast.success(`✅ ${successCount} member(s) created!`);
+    if (failCount) toast.error(`⚠️ ${failCount} row(s) failed`);
+
+    fetchMembers();
+  };
+
+  // Download the bulk upload results
+  const downloadBulkResults = () => {
+    if (!bulkResults?.length) return;
+
+    const data = bulkResults.map((r) => ({
+      Row: r.row,
+      Name: r.name,
+      Email: r.email || "—",
+      Password: r.password || "—",
+      "Account Number": r.accountNumber || "—",
+      Status: r.status === "success" ? "Success" : "Failed",
+      Error: r.error || "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 10 },
+      { wch: 24 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
+    XLSX.writeFile(
+      workbook,
+      `members_upload_results_${new Date().toISOString().split("T")[0]}.xlsx`,
+    );
+    toast.success("📥 Results downloaded!");
   };
 
   const filteredMembers = members.filter(
@@ -767,6 +985,7 @@ Please log in and complete your profile.`;
           border: 1px solid var(--border);
           color: var(--text);
         }
+        .modal-content-lg { max-width: 820px; }
         .modal-header {
           display: flex; justify-content: space-between;
           align-items: center; margin-bottom: 20px;
@@ -807,6 +1026,7 @@ Please log in and complete your profile.`;
           font-size: 14px; font-weight: 500;
         }
         .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-secondary {
           padding: 10px 24px; border-radius: 8px;
           border: 1px solid var(--border);
@@ -819,6 +1039,12 @@ Please log in and complete your profile.`;
           cursor: pointer; font-size: 14px; font-weight: 500;
         }
         .btn-add:hover { opacity: 0.85; }
+        .btn-excel {
+          padding: 10px 20px; border-radius: 8px; border: none;
+          background: #1d6f42; color: white;
+          cursor: pointer; font-size: 14px; font-weight: 500;
+        }
+        .btn-excel:hover { opacity: 0.9; }
         .btn-role {
           padding: 10px 20px; border-radius: 8px; border: none;
           background: var(--accent-bg); color: var(--purple);
@@ -897,6 +1123,33 @@ Please log in and complete your profile.`;
         }
         .am-search::placeholder { color: var(--text-dim); }
         .am-search:focus { border-bottom-color: var(--accent); }
+
+        /* Bulk upload preview table */
+        .bulk-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .bulk-table th {
+          text-align: left;
+          padding: 8px 10px;
+          font-size: 11px;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          border-bottom: 1px solid var(--border);
+          font-weight: 600;
+        }
+        .bulk-table td {
+          padding: 8px 10px;
+          border-bottom: 1px solid var(--border);
+          color: var(--text);
+        }
+        .bulk-table tr.row-error td {
+          background: var(--rejected-bg);
+        }
+        .bulk-table tr.row-ok td {
+          background: transparent;
+        }
       `}</style>
 
       {/* Header */}
@@ -927,6 +1180,20 @@ Please log in and complete your profile.`;
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button onClick={() => setShowRoleModal(true)} className="btn-role">
             🔑 Assign Role
+          </button>
+          {/* Hidden file input for Excel upload */}
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: "none" }}
+            onChange={handleExcelUpload}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-excel"
+          >
+            📤 Bulk Upload (Excel)
           </button>
           <button onClick={() => setShowAddModal(true)} className="btn-add">
             + Add New Member
@@ -1178,6 +1445,80 @@ Please log in and complete your profile.`;
               </p>
             </div>
 
+            {/* ===== Excel buttons ===== */}
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                marginBottom: "16px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                style={{
+                  flex: 1,
+                  minWidth: "150px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface-2)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                📥 Download Template
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  minWidth: "150px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#1d6f42",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                📤 Upload Excel
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "16px",
+                color: "var(--text-muted)",
+                fontSize: "12px",
+              }}
+            >
+              <div
+                style={{
+                  flex: 1,
+                  height: "1px",
+                  background: "var(--border)",
+                }}
+              />
+              <span>OR fill manually</span>
+              <div
+                style={{
+                  flex: 1,
+                  height: "1px",
+                  background: "var(--border)",
+                }}
+              />
+            </div>
+
             <form onSubmit={handleAddMember}>
               <div className="form-group">
                 <label className="form-label">First Name *</label>
@@ -1277,6 +1618,261 @@ Please log in and complete your profile.`;
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* ===== Bulk Upload Preview Modal ===== */}
+      {showBulkModal && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-content-lg">
+            <div className="modal-header">
+              <h3 className="modal-title">📤 Bulk Upload Preview</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkRows([]);
+                  setBulkResults(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {!bulkResults ? (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--accent-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "12px 14px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  Found <strong>{bulkRows.length}</strong> row(s).{" "}
+                  <strong style={{ color: "var(--credit)" }}>
+                    {bulkRows.filter((r) => !r.errors.length).length} valid
+                  </strong>
+                  {bulkRows.filter((r) => r.errors.length).length > 0 && (
+                    <>
+                      ,{" "}
+                      <strong style={{ color: "var(--rejected)" }}>
+                        {bulkRows.filter((r) => r.errors.length).length} with
+                        errors
+                      </strong>{" "}
+                      (will be skipped)
+                    </>
+                  )}
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: "360px",
+                    overflowY: "auto",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <table className="bulk-table">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Password</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkRows.map((r, i) => (
+                        <tr
+                          key={i}
+                          className={r.errors.length ? "row-error" : "row-ok"}
+                        >
+                          <td>{r._row}</td>
+                          <td>{r.firstName || "—"}</td>
+                          <td>{r.lastName || "—"}</td>
+                          <td>{r.password || "—"}</td>
+                          <td>
+                            {r.errors.length ? (
+                              <span
+                                style={{
+                                  color: "var(--rejected)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ⚠️ {r.errors.join(", ")}
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  color: "var(--credit)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ✅ Ready
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginTop: "18px",
+                  }}
+                >
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 1, background: "#1d6f42" }}
+                    disabled={
+                      bulkUploading ||
+                      bulkRows.filter((r) => !r.errors.length).length === 0
+                    }
+                    onClick={handleBulkUpload}
+                  >
+                    {bulkUploading
+                      ? "Uploading..."
+                      : `Upload ${
+                          bulkRows.filter((r) => !r.errors.length).length
+                        } Member(s)`}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setShowBulkModal(false);
+                      setBulkRows([]);
+                      setBulkResults(null);
+                    }}
+                    disabled={bulkUploading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--approved-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "12px 14px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  ✅{" "}
+                  <strong>
+                    {bulkResults.filter((r) => r.status === "success").length}
+                  </strong>{" "}
+                  succeeded,{" "}
+                  <strong style={{ color: "var(--rejected)" }}>
+                    {bulkResults.filter((r) => r.status === "failed").length}
+                  </strong>{" "}
+                  failed.
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: "360px",
+                    overflowY: "auto",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <table className="bulk-table">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>Account No.</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkResults.map((r, i) => (
+                        <tr
+                          key={i}
+                          className={
+                            r.status === "failed" ? "row-error" : "row-ok"
+                          }
+                        >
+                          <td>{r.row}</td>
+                          <td>{r.name}</td>
+                          <td>{r.email || "—"}</td>
+                          <td>{r.password || "—"}</td>
+                          <td>{r.accountNumber || "—"}</td>
+                          <td>
+                            {r.status === "success" ? (
+                              <span
+                                style={{
+                                  color: "var(--credit)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ✅ Success
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  color: "var(--rejected)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ❌ {r.error}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  style={{
+                    display: "flex",
+                    gap: "10px",
+                    marginTop: "18px",
+                  }}
+                >
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 1 }}
+                    onClick={downloadBulkResults}
+                  >
+                    📥 Download Results
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setShowBulkModal(false);
+                      setBulkRows([]);
+                      setBulkResults(null);
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}

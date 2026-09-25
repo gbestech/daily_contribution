@@ -26,6 +26,7 @@ import Staff from "./components/admin/Staff";
 import Permissions from "./components/admin/Permissions";
 import Expenses from "./components/admin/Expenses";
 import PasswordResets from "./components/admin/PasswordResets";
+import ItemManager from "./components/admin/ItemManager";
 
 // Member
 import MemberDashboard from "./components/member/Dashboard";
@@ -35,6 +36,7 @@ import MemberTransfer from "./components/member/Transfer";
 import MemberHistory from "./components/member/History";
 import Borrowing from "./components/member/Borrowing";
 import MemberProfile from "./components/member/MemberProfile";
+import ItemChecklist from "./components/member/ItemChecklist";
 
 function AppRoutes() {
   const { user, isAuthenticated } = useAuth();
@@ -135,6 +137,16 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Expenses />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/admin/items"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ItemManager />
             </Layout>
           </ProtectedRoute>
         }
@@ -267,6 +279,18 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Borrowing />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      <Route
+        path="/member/items"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <ItemChecklist
+                memberId={user?.id || user?.member_id || user?.user_id}
+              />
             </Layout>
           </ProtectedRoute>
         }

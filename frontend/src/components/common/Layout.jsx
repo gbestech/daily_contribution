@@ -134,6 +134,12 @@ const Layout = ({ children }) => {
       permission: "manage_expenses",
     },
     {
+      path: "/admin/items",
+      label: "Items",
+      icon: "🧾",
+      permission: "manage_expenses",
+    },
+    {
       path: "/admin/staff",
       label: "Staff & Roles",
       icon: "🛡️",
@@ -195,6 +201,12 @@ const Layout = ({ children }) => {
       label: "History",
       icon: "📜",
       permission: "view_history",
+    },
+    {
+      path: "/member/items",
+      label: "My Items",
+      icon: "✅",
+      permission: "view_dashboard",
     },
     {
       path: "/member/profile",
