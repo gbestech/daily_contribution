@@ -66,6 +66,108 @@ const extractBalance = (obj) => {
   return undefined;
 };
 
+// ============================================================
+// Savings plan helpers
+// ============================================================
+const DURATION_MONTHS = {
+  "6 months": 6,
+  "1 year": 12,
+  "2 years": 24,
+  "3 years": 36,
+  "4 years": 48,
+};
+
+const PERIODS_PER_MONTH = {
+  Daily: 30,
+  Weekly: 4,
+  Monthly: 1,
+  Random: 1,
+};
+
+const computePlanSummary = (plan, duration, amountPerPeriod) => {
+  if (!plan || !duration) return null;
+  const amt = parseFloat(amountPerPeriod);
+  if (isNaN(amt) || amt <= 0) return null;
+  if (plan === "Random") {
+    return {
+      plan,
+      duration,
+      totalPeriods: null,
+      perPeriod: amt,
+      total: null,
+      periodLabel: "per period",
+      isRandom: true,
+    };
+  }
+  const months = DURATION_MONTHS[duration];
+  const perMonth = PERIODS_PER_MONTH[plan];
+  if (!months || !perMonth) return null;
+
+  const totalPeriods = months * perMonth;
+  const total = amt * totalPeriods;
+
+  return {
+    plan,
+    duration,
+    totalPeriods,
+    perPeriod: amt,
+    total,
+    periodLabel:
+      plan === "Daily"
+        ? "per day"
+        : plan === "Weekly"
+          ? "per week"
+          : "per month",
+    isRandom: false,
+  };
+};
+
+// ============================================================
+// Detect the current theme
+// ============================================================
+const detectTheme = () => {
+  if (typeof document === "undefined") return "dark";
+
+  const html = document.documentElement;
+  const body = document.body;
+
+  const attr =
+    html.getAttribute("data-theme") || body?.getAttribute("data-theme") || "";
+  if (attr.toLowerCase().includes("light")) return "light";
+  if (attr.toLowerCase().includes("dark")) return "dark";
+
+  const cls = `${html.className} ${body?.className || ""}`.toLowerCase();
+  if (cls.includes("light")) return "light";
+  if (cls.includes("dark")) return "dark";
+
+  try {
+    const keys = [
+      "theme",
+      "app-theme",
+      "color-theme",
+      "colorMode",
+      "color-mode",
+      "mui-mode",
+      "chakra-ui-color-mode",
+    ];
+    for (const k of keys) {
+      const v = localStorage.getItem(k);
+      if (v && /light/i.test(v)) return "light";
+      if (v && /dark/i.test(v)) return "dark";
+    }
+  } catch {}
+
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  ) {
+    return "light";
+  }
+
+  return "dark";
+};
+
 const MemberDeposit = ({ onClose }) => {
   const navigate = useNavigate();
   const [members, setMembers] = useState([]);
@@ -77,11 +179,12 @@ const MemberDeposit = ({ onClose }) => {
   const [dailyTotal, setDailyTotal] = useState(0);
   const [dailyCount, setDailyCount] = useState(0);
   const [user, setUser] = useState(null);
+  const [memberPlan, setMemberPlan] = useState(null);
+  const [theme, setTheme] = useState(() => detectTheme());
 
-  // Payment slip state
-  const [slipFile, setSlipFile] = useState(null); // File object
-  const [slipPreview, setSlipPreview] = useState(""); // data URL for image preview
-  const [slipBase64, setSlipBase64] = useState(""); // base64 payload to send
+  const [slipFile, setSlipFile] = useState(null);
+  const [slipPreview, setSlipPreview] = useState("");
+  const [slipBase64, setSlipBase64] = useState("");
   const fileInputRef = useRef(null);
 
   const [settings, setSettings] = useState({
@@ -96,7 +199,66 @@ const MemberDeposit = ({ onClose }) => {
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
   // ============================================================
-  // Handle close — calls onClose if provided, otherwise navigates back
+  // Watch for theme changes
+  // ============================================================
+  useEffect(() => {
+    const update = () => setTheme(detectTheme());
+    update();
+
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+    if (document.body) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class", "data-theme"],
+      });
+    }
+
+    window.addEventListener("storage", update);
+    const interval = setInterval(update, 800);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", update);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // 🆕 Explicit theme colors — background + text always paired
+  const isLight = theme === "light";
+
+  // Text colors
+  const textColor = isLight ? "#0f172a" : "#f1f5f9";
+  const textMuted = isLight ? "#475569" : "#94a3b8";
+  const textDim = isLight ? "#64748b" : "#64748b";
+
+  // 🆕 Field-specific colors — text AND background are explicitly paired
+  const fieldBg = isLight ? "#ffffff" : "#0f172a";
+  const fieldText = isLight ? "#0f172a" : "#f1f5f9";
+  const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
+  const fieldBorder = isLight
+    ? "rgba(15,23,42,0.20)"
+    : "rgba(255,255,255,0.15)";
+  const fieldFocusBorder = "#10b981";
+
+  // Surface / card colors
+  const surfaceColor = isLight ? "#ffffff" : "#1e293b";
+  const surface2Color = isLight ? "#f1f5f9" : "#334155";
+  const borderColor = isLight
+    ? "rgba(15,23,42,0.15)"
+    : "rgba(255,255,255,0.12)";
+
+  const accentColor = "#10b981";
+  const creditColor = isLight ? "#059669" : "#34d399";
+  const warningColor = isLight ? "#d97706" : "#fbbf24";
+  const debitColor = isLight ? "#dc2626" : "#f87171";
+  const purpleColor = isLight ? "#7c3aed" : "#a78bfa";
+
+  // ============================================================
+  // Handle close
   // ============================================================
   const handleClose = () => {
     if (loading) return;
@@ -166,6 +328,7 @@ const MemberDeposit = ({ onClose }) => {
           setSelectedMember(userData.id);
           fetchMemberBalance(userData.id);
           fetchDailyTotal(userData.id);
+          fetchMemberPlan(userData.id);
         }
       } catch (e) {
         console.error("Bad user JSON in localStorage", e);
@@ -227,6 +390,65 @@ const MemberDeposit = ({ onClose }) => {
       }
     } catch (error) {
       console.error("Error fetching members:", error);
+    }
+  };
+
+  // ============================================================
+  // Fetch the savings plan for a specific member
+  // ============================================================
+  const fetchMemberPlan = async (memberId) => {
+    if (!memberId) {
+      setMemberPlan(null);
+      return;
+    }
+    const idNum = parseInt(memberId, 10);
+
+    const fromList = members.find((m) => parseInt(m.id, 10) === idNum);
+    if (fromList) {
+      const plan = computePlanSummary(
+        fromList.savings_plan || fromList.savingsPlan,
+        fromList.duration,
+        fromList.amount,
+      );
+      if (plan) {
+        setMemberPlan(plan);
+        return;
+      }
+    }
+
+    try {
+      let res = await fetch(`${API_BASE_URL}/api/members.php?id=${memberId}`);
+      if (!res.ok) {
+        res = await fetch(`${API_BASE_URL}/api/members.php/${memberId}`);
+      }
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        setMemberPlan(null);
+        return;
+      }
+      const member =
+        data.member ||
+        data.data?.member ||
+        data.data ||
+        (Array.isArray(data.members)
+          ? data.members.find((m) => parseInt(m.id, 10) === idNum)
+          : null);
+      if (member) {
+        const plan = computePlanSummary(
+          member.savings_plan || member.savingsPlan,
+          member.duration,
+          member.amount,
+        );
+        setMemberPlan(plan || null);
+      } else {
+        setMemberPlan(null);
+      }
+    } catch (error) {
+      console.error("Error fetching member plan:", error);
+      setMemberPlan(null);
     }
   };
 
@@ -306,6 +528,9 @@ const MemberDeposit = ({ onClose }) => {
     if (memberId) {
       fetchMemberBalance(memberId);
       fetchDailyTotal(memberId);
+      fetchMemberPlan(memberId);
+    } else {
+      setMemberPlan(null);
     }
   };
 
@@ -320,13 +545,52 @@ const MemberDeposit = ({ onClose }) => {
   };
 
   // ============================================================
+  // Validate the deposit amount against the member's plan
+  // Random plans are skipped entirely.
+  // ============================================================
+  const validateAgainstPlan = (depositAmount) => {
+    if (!memberPlan) return { ok: true };
+    if (memberPlan.isRandom) return { ok: true };
+
+    const expected = parseFloat(memberPlan.perPeriod);
+    if (!Number.isFinite(expected) || expected <= 0) return { ok: true };
+
+    const amt = parseFloat(depositAmount);
+    const diff = amt - expected;
+    const EPS = 0.01;
+
+    if (diff > EPS) {
+      return {
+        ok: false,
+        reason: "greater",
+        expected,
+        message:
+          `❌ Deposit amount is GREATER than your savings plan.\n\n` +
+          `Your plan expects ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
+          `You entered ${formatCurrency(amt)}.`,
+      };
+    }
+    if (diff < -EPS) {
+      return {
+        ok: false,
+        reason: "less",
+        expected,
+        message:
+          `❌ Deposit amount is LESS than your savings plan.\n\n` +
+          `Your plan expects ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
+          `You entered ${formatCurrency(amt)}.`,
+      };
+    }
+    return { ok: true, expected };
+  };
+
+  // ============================================================
   // Payment slip handlers
   // ============================================================
   const handleSlipChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Validate type
     const allowed = [
       "image/jpeg",
       "image/jpg",
@@ -339,7 +603,6 @@ const MemberDeposit = ({ onClose }) => {
       return;
     }
 
-    // Validate size
     if (file.size > MAX_SLIP_SIZE_MB * 1024 * 1024) {
       toast.error(`File is too large (max ${MAX_SLIP_SIZE_MB} MB)`);
       return;
@@ -349,9 +612,8 @@ const MemberDeposit = ({ onClose }) => {
 
     const reader = new FileReader();
     reader.onload = () => {
-      const result = reader.result; // data URL
+      const result = reader.result;
       setSlipBase64(result);
-      // Only show image preview for images, not PDFs
       setSlipPreview(file.type.startsWith("image/") ? result : "");
     };
     reader.onerror = () => toast.error("Failed to read file");
@@ -365,9 +627,6 @@ const MemberDeposit = ({ onClose }) => {
     if (fileInputRef.current) fileInputRef.current.value = "";
   };
 
-  // ============================================================
-  // Cancel — clears form
-  // ============================================================
   const handleCancel = () => {
     if (loading) return;
     setAmount("");
@@ -390,6 +649,13 @@ const MemberDeposit = ({ onClose }) => {
     const depositAmount = toPositiveNumber(amount, NaN);
     if (!Number.isFinite(depositAmount) || depositAmount <= 0) {
       toast.error("Please enter a valid amount");
+      return;
+    }
+
+    const planCheck = validateAgainstPlan(depositAmount);
+    if (!planCheck.ok) {
+      toast.error(planCheck.message, { duration: 6000 });
+      window.alert(planCheck.message);
       return;
     }
 
@@ -451,7 +717,6 @@ const MemberDeposit = ({ onClose }) => {
       date: new Date().toISOString().split("T")[0],
       status: "pending",
       description: description || "Deposit",
-      // Payment slip
       payment_slip: slipBase64 || null,
       payment_slip_name: slipFile?.name || null,
       payment_slip_type: slipFile?.type || null,
@@ -522,13 +787,153 @@ const MemberDeposit = ({ onClose }) => {
     <div
       style={{
         padding: "24px",
-        color: "var(--text)",
+        color: textColor,
         maxWidth: "600px",
         margin: "0 auto",
         background: "transparent",
       }}
     >
+      {/*
+        🆕 CRITICAL FIX:
+        - Inputs now have an EXPLICIT background color (not transparent).
+        - Text color, -webkit-text-fill-color, and placeholder are all forced.
+        - Both colors change together based on the detected theme, so
+          contrast is guaranteed in light and dark mode.
+      */}
+      <style>{`
+        .mdp-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
+        .mdp-wrap * { box-sizing: border-box; }
+
+        .mdp-close-btn {
+          position: absolute; top: -4px; right: -4px;
+          width: 36px; height: 36px; border-radius: 50%;
+          border: 1px solid ${borderColor}; background: transparent;
+          color: ${textMuted}; font-size: 20px; font-weight: 600;
+          display: flex; align-items: center; justify-content: center;
+          line-height: 1; transition: all 0.2s; z-index: 10;
+        }
+        .mdp-close-btn:hover:not(:disabled) {
+          color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color};
+        }
+        .mdp-close-btn:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        .mdp-label {
+          display: block; font-size: 14px; font-weight: 500;
+          color: ${textColor}; margin-bottom: 6px;
+        }
+
+        /* ===== THE FIX: explicit background + text, both forced ===== */
+        .mdp-input,
+        .mdp-select {
+          width: 100%;
+          padding: 12px 14px;
+          border-radius: 8px;
+          border: 1px solid ${fieldBorder};
+          background-color: ${fieldBg} !important;
+          color: ${fieldText} !important;
+          -webkit-text-fill-color: ${fieldText} !important;
+          caret-color: ${accentColor};
+          font-size: 15px;
+          outline: none;
+          font-family: inherit;
+          transition: border-color 0.2s, background-color 0.2s;
+          appearance: none;
+          -webkit-appearance: none;
+        }
+        .mdp-input:focus,
+        .mdp-select:focus {
+          border-color: ${fieldFocusBorder};
+          background-color: ${fieldBg} !important;
+          color: ${fieldText} !important;
+          -webkit-text-fill-color: ${fieldText} !important;
+        }
+        .mdp-input::placeholder {
+          color: ${fieldPlaceholder} !important;
+          -webkit-text-fill-color: ${fieldPlaceholder} !important;
+          opacity: 1;
+        }
+        .mdp-select option {
+          background-color: ${surfaceColor};
+          color: ${fieldText};
+        }
+
+        /* Autofill override */
+        .mdp-input:-webkit-autofill,
+        .mdp-input:-webkit-autofill:hover,
+        .mdp-input:-webkit-autofill:focus,
+        .mdp-select:-webkit-autofill {
+          -webkit-text-fill-color: ${fieldText} !important;
+          -webkit-box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
+          box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+
+        /* Selection highlight */
+        .mdp-input::selection,
+        .mdp-select::selection {
+          background: ${accentColor};
+          color: #ffffff;
+        }
+
+        /* Kill number spinners */
+        .mdp-input[type="number"]::-webkit-outer-spin-button,
+        .mdp-input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none; margin: 0;
+        }
+        .mdp-input[type="number"] { -moz-appearance: textfield; }
+
+        .mdp-quick-btn {
+          padding: 4px 12px; border-radius: 6px;
+          border: 1px solid ${fieldBorder}; background: transparent;
+          color: ${textMuted}; font-size: 12px; cursor: pointer;
+          transition: all 0.15s;
+        }
+        .mdp-quick-btn:hover {
+          color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color};
+        }
+
+        .mdp-slip-drop {
+          display: flex; flex-direction: column;
+          align-items: center; justify-content: center;
+          padding: 24px 16px; border-radius: 8px;
+          border: 2px dashed ${fieldBorder}; background: transparent;
+          cursor: pointer; transition: border-color 0.2s;
+        }
+        .mdp-slip-drop:hover { border-color: ${accentColor}; }
+
+        .mdp-btn-submit {
+          flex: 2; padding: 14px; border-radius: 8px; border: none;
+          color: #ffffff; font-size: 16px; font-weight: 600;
+          transition: opacity 0.2s;
+        }
+        .mdp-btn-submit:not(:disabled) {
+          background: linear-gradient(to right, #059669, #0d9488);
+          cursor: pointer;
+        }
+        .mdp-btn-submit:disabled {
+          background: ${textDim}; cursor: not-allowed; opacity: 0.7;
+        }
+
+        .mdp-btn-cancel {
+          flex: 1; padding: 14px; border-radius: 8px;
+          border: 1px solid ${fieldBorder}; background: transparent;
+          color: ${textColor}; font-size: 16px; font-weight: 600;
+          cursor: pointer; transition: background 0.2s;
+        }
+        .mdp-btn-cancel:hover:not(:disabled) { background: ${surface2Color}; }
+        .mdp-btn-cancel:disabled { cursor: not-allowed; opacity: 0.5; }
+
+        .mdp-remove-btn {
+          padding: 6px 12px; border-radius: 6px;
+          border: 1px solid rgba(239,68,68,0.35); background: transparent;
+          color: ${debitColor}; font-size: 12px; cursor: pointer;
+          font-weight: 500; flex-shrink: 0;
+        }
+        .mdp-remove-btn:hover { background: rgba(239,68,68,0.1); }
+      `}</style>
+
       <div
+        className="mdp-wrap"
         style={{
           backgroundColor: "transparent",
           borderRadius: "0",
@@ -540,43 +945,11 @@ const MemberDeposit = ({ onClose }) => {
         {/* ===== CLOSE (X) BUTTON ===== */}
         <button
           type="button"
+          className="mdp-close-btn"
           onClick={handleClose}
           disabled={loading}
           title="Close"
           aria-label="Close deposit form"
-          style={{
-            position: "absolute",
-            top: "-4px",
-            right: "-4px",
-            width: "36px",
-            height: "36px",
-            borderRadius: "50%",
-            border: "1px solid var(--border)",
-            background: "transparent",
-            color: "var(--text-muted)",
-            fontSize: "20px",
-            fontWeight: "600",
-            cursor: loading ? "not-allowed" : "pointer",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            lineHeight: 1,
-            transition: "all 0.2s",
-            opacity: loading ? 0.5 : 1,
-            zIndex: 10,
-          }}
-          onMouseEnter={(e) => {
-            if (!loading) {
-              e.currentTarget.style.color = "var(--text)";
-              e.currentTarget.style.borderColor = "var(--accent)";
-              e.currentTarget.style.background = "var(--bg-surface-2)";
-            }
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.color = "var(--text-muted)";
-            e.currentTarget.style.borderColor = "var(--border)";
-            e.currentTarget.style.background = "transparent";
-          }}
         >
           ✕
         </button>
@@ -592,10 +965,10 @@ const MemberDeposit = ({ onClose }) => {
         >
           <span style={{ fontSize: "32px" }}>💰</span>
           <div>
-            <h2 style={{ margin: 0, color: "var(--text)" }}>Make a Deposit</h2>
+            <h2 style={{ margin: 0, color: textColor }}>Make a Deposit</h2>
             <p
               style={{
-                color: "var(--text-muted)",
+                color: textMuted,
                 margin: "4px 0 0 0",
                 fontSize: "14px",
               }}
@@ -605,13 +978,127 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         </div>
 
+        {/* Savings plan badge (hidden for Random plans) */}
+        {memberPlan && !memberPlan.isRandom && (
+          <div
+            style={{
+              backgroundColor: "transparent",
+              border: `1px solid ${isLight ? "rgba(5,150,105,0.4)" : "rgba(16,185,129,0.3)"}`,
+              borderRadius: "10px",
+              padding: "12px 16px",
+              marginBottom: "20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: textMuted,
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                💼 Savings Plan
+              </div>
+              <div
+                style={{
+                  color: textColor,
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  marginTop: "2px",
+                }}
+              >
+                {memberPlan.plan} • {memberPlan.duration}
+              </div>
+            </div>
+            <div style={{ textAlign: "right" }}>
+              <div
+                style={{
+                  color: textMuted,
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                Expected {memberPlan.periodLabel}
+              </div>
+              <div
+                style={{
+                  color: creditColor,
+                  fontSize: "18px",
+                  fontWeight: "700",
+                  marginTop: "2px",
+                }}
+              >
+                {formatCurrency(memberPlan.perPeriod)}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Random plan info badge */}
+        {memberPlan && memberPlan.isRandom && (
+          <div
+            style={{
+              backgroundColor: "transparent",
+              border: `1px solid ${isLight ? "rgba(124,58,237,0.4)" : "rgba(139,92,246,0.35)"}`,
+              borderRadius: "10px",
+              padding: "12px 16px",
+              marginBottom: "20px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "12px",
+              flexWrap: "wrap",
+            }}
+          >
+            <div>
+              <div
+                style={{
+                  color: textMuted,
+                  fontSize: "11px",
+                  textTransform: "uppercase",
+                  letterSpacing: "0.5px",
+                }}
+              >
+                💼 Savings Plan
+              </div>
+              <div
+                style={{
+                  color: textColor,
+                  fontSize: "14px",
+                  fontWeight: "600",
+                  marginTop: "2px",
+                }}
+              >
+                Random • {memberPlan.duration}
+              </div>
+            </div>
+            <div
+              style={{
+                color: purpleColor,
+                fontSize: "13px",
+                fontWeight: "600",
+                textAlign: "right",
+              }}
+            >
+              Flexible amount — any value allowed
+            </div>
+          </div>
+        )}
+
         {/* Settings summary */}
         {settingsLoaded && (
           <div
             style={{
               backgroundColor: "transparent",
               border: "none",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: `1px solid ${borderColor}`,
               borderRadius: "0",
               padding: "0 0 12px 0",
               marginBottom: "20px",
@@ -626,34 +1113,26 @@ const MemberDeposit = ({ onClose }) => {
               }}
             >
               <div>
-                <span style={{ color: "var(--text-muted)" }}>
-                  Min per deposit:{" "}
-                </span>
-                <span style={{ color: "var(--text)", fontWeight: "600" }}>
+                <span style={{ color: textMuted }}>Min per deposit: </span>
+                <span style={{ color: textColor, fontWeight: "600" }}>
                   {formatCurrency(settings.min_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>
-                  Max per deposit:{" "}
-                </span>
-                <span style={{ color: "var(--text)", fontWeight: "600" }}>
+                <span style={{ color: textMuted }}>Max per deposit: </span>
+                <span style={{ color: textColor, fontWeight: "600" }}>
                   {formatCurrency(settings.max_deposit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>
-                  Daily limit:{" "}
-                </span>
-                <span style={{ color: "var(--text)", fontWeight: "600" }}>
+                <span style={{ color: textMuted }}>Daily limit: </span>
+                <span style={{ color: textColor, fontWeight: "600" }}>
                   {formatCurrency(settings.daily_limit)}
                 </span>
               </div>
               <div>
-                <span style={{ color: "var(--text-muted)" }}>
-                  Max per day:{" "}
-                </span>
-                <span style={{ color: "var(--text)", fontWeight: "600" }}>
+                <span style={{ color: textMuted }}>Max per day: </span>
+                <span style={{ color: textColor, fontWeight: "600" }}>
                   {settings.allow_multiple_deposits
                     ? settings.max_daily_deposits
                     : 1}
@@ -671,7 +1150,7 @@ const MemberDeposit = ({ onClose }) => {
               borderRadius: "0",
               padding: "0 0 16px 0",
               marginBottom: "24px",
-              borderBottom: "1px solid var(--border)",
+              borderBottom: `1px solid ${borderColor}`,
             }}
           >
             <div
@@ -682,18 +1161,12 @@ const MemberDeposit = ({ onClose }) => {
               }}
             >
               <div>
-                <p
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "13px",
-                    margin: 0,
-                  }}
-                >
+                <p style={{ color: textMuted, fontSize: "13px", margin: 0 }}>
                   Current Balance
                 </p>
                 <p
                   style={{
-                    color: "var(--credit)",
+                    color: creditColor,
                     fontSize: "28px",
                     fontWeight: "bold",
                     margin: "4px 0 0 0",
@@ -703,18 +1176,12 @@ const MemberDeposit = ({ onClose }) => {
                 </p>
               </div>
               <div style={{ textAlign: "right" }}>
-                <p
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "12px",
-                    margin: 0,
-                  }}
-                >
+                <p style={{ color: textMuted, fontSize: "12px", margin: 0 }}>
                   Today's Deposits
                 </p>
                 <p
                   style={{
-                    color: "var(--warning)",
+                    color: warningColor,
                     fontSize: "16px",
                     fontWeight: "600",
                     margin: "4px 0 0 0",
@@ -724,7 +1191,7 @@ const MemberDeposit = ({ onClose }) => {
                 </p>
                 <p
                   style={{
-                    color: "var(--text-muted)",
+                    color: textMuted,
                     fontSize: "11px",
                     margin: "2px 0 0 0",
                   }}
@@ -744,31 +1211,11 @@ const MemberDeposit = ({ onClose }) => {
           {/* Member selection (admin) */}
           {user?.role === "admin" && (
             <div style={{ marginBottom: "16px" }}>
-              <label
-                style={{
-                  display: "block",
-                  fontSize: "14px",
-                  fontWeight: "500",
-                  color: "var(--text)",
-                  marginBottom: "6px",
-                }}
-              >
-                Select Member
-              </label>
+              <label className="mdp-label">Select Member</label>
               <select
+                className="mdp-select"
                 value={selectedMember}
                 onChange={handleMemberChange}
-                style={{
-                  width: "100%",
-                  padding: "12px 0",
-                  borderRadius: "0",
-                  border: "none",
-                  borderBottom: "1px solid var(--border)",
-                  backgroundColor: "transparent",
-                  color: "var(--text)",
-                  fontSize: "14px",
-                  outline: "none",
-                }}
                 required
               >
                 <option value="">Choose a member...</option>
@@ -783,70 +1230,68 @@ const MemberDeposit = ({ onClose }) => {
 
           {/* Amount */}
           <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "500",
-                color: "var(--text)",
-                marginBottom: "6px",
-              }}
-            >
-              Amount (₦)
-            </label>
+            <label className="mdp-label">Amount (₦)</label>
             <div style={{ position: "relative" }}>
               <span
                 style={{
                   position: "absolute",
-                  left: "0",
+                  left: "14px",
                   top: "50%",
                   transform: "translateY(-50%)",
-                  color: "var(--text-dim)",
+                  color: textDim,
                   fontSize: "18px",
                   fontWeight: "bold",
+                  pointerEvents: "none",
                 }}
               >
                 ₦
               </span>
               <input
                 type="number"
+                className="mdp-input"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
                 placeholder={`Enter amount (min ${settings.min_deposit}, max ${settings.max_deposit})`}
-                style={{
-                  width: "100%",
-                  padding: "12px 0 12px 22px",
-                  borderRadius: "0",
-                  border: "none",
-                  borderBottom: "1px solid var(--border)",
-                  backgroundColor: "transparent",
-                  color: "var(--text)",
-                  fontSize: "16px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                }}
+                style={{ paddingLeft: "32px", fontSize: "16px" }}
                 min={settings.min_deposit}
                 max={settings.max_deposit}
                 step="0.01"
                 required
               />
             </div>
+            {memberPlan && !memberPlan.isRandom && (
+              <div
+                style={{
+                  color: textMuted,
+                  fontSize: "12px",
+                  marginTop: "6px",
+                }}
+              >
+                💡 Your plan expects{" "}
+                <strong style={{ color: creditColor }}>
+                  {formatCurrency(memberPlan.perPeriod)}
+                </strong>{" "}
+                {memberPlan.periodLabel}. Deposits must match this amount.
+              </div>
+            )}
+            {memberPlan && memberPlan.isRandom && (
+              <div
+                style={{
+                  color: textMuted,
+                  fontSize: "12px",
+                  marginTop: "6px",
+                }}
+              >
+                💡 Random plan — enter any amount you wish to save.
+              </div>
+            )}
             <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
               {quickAmounts.map((amt) => (
                 <button
                   key={amt}
                   type="button"
+                  className="mdp-quick-btn"
                   onClick={() => setAmount(String(amt))}
-                  style={{
-                    padding: "4px 12px",
-                    borderRadius: "4px",
-                    border: "none",
-                    borderBottom: "1px solid var(--border)",
-                    backgroundColor: "transparent",
-                    color: "var(--text-muted)",
-                    fontSize: "12px",
-                    cursor: "pointer",
-                  }}
                 >
                   {formatCurrency(amt)}
                 </button>
@@ -856,78 +1301,28 @@ const MemberDeposit = ({ onClose }) => {
 
           {/* Description */}
           <div style={{ marginBottom: "16px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "500",
-                color: "var(--text)",
-                marginBottom: "6px",
-              }}
-            >
-              Description (Optional)
-            </label>
+            <label className="mdp-label">Description (Optional)</label>
             <input
               type="text"
+              className="mdp-input"
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g., Monthly savings contribution"
-              style={{
-                width: "100%",
-                padding: "12px 0",
-                borderRadius: "0",
-                border: "none",
-                borderBottom: "1px solid var(--border)",
-                backgroundColor: "transparent",
-                color: "var(--text)",
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-              }}
             />
           </div>
 
           {/* Payment Slip Upload */}
           <div style={{ marginBottom: "24px" }}>
-            <label
-              style={{
-                display: "block",
-                fontSize: "14px",
-                fontWeight: "500",
-                color: "var(--text)",
-                marginBottom: "6px",
-              }}
-            >
-              Payment Slip (Optional)
-            </label>
+            <label className="mdp-label">Payment Slip (Optional)</label>
 
             {!slipFile ? (
-              <label
-                style={{
-                  display: "flex",
-                  flexDirection: "column",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  padding: "24px 16px",
-                  borderRadius: "8px",
-                  border: "2px dashed var(--border)",
-                  backgroundColor: "transparent",
-                  cursor: "pointer",
-                  transition: "all 0.2s",
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.borderColor = "var(--accent)";
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.borderColor = "var(--border)";
-                }}
-              >
+              <label className="mdp-slip-drop">
                 <span style={{ fontSize: "28px", marginBottom: "8px" }}>
                   📎
                 </span>
                 <span
                   style={{
-                    color: "var(--text)",
+                    color: textColor,
                     fontSize: "14px",
                     fontWeight: "500",
                   }}
@@ -936,7 +1331,7 @@ const MemberDeposit = ({ onClose }) => {
                 </span>
                 <span
                   style={{
-                    color: "var(--text-dim)",
+                    color: textDim,
                     fontSize: "12px",
                     marginTop: "4px",
                   }}
@@ -956,7 +1351,7 @@ const MemberDeposit = ({ onClose }) => {
                 style={{
                   padding: "12px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(16,185,129,0.3)",
+                  border: `1px solid ${isLight ? "rgba(5,150,105,0.4)" : "rgba(16,185,129,0.3)"}`,
                   backgroundColor: "transparent",
                 }}
               >
@@ -986,7 +1381,7 @@ const MemberDeposit = ({ onClose }) => {
                           height: "48px",
                           objectFit: "cover",
                           borderRadius: "6px",
-                          border: "1px solid var(--border)",
+                          border: `1px solid ${borderColor}`,
                           flexShrink: 0,
                         }}
                       />
@@ -1011,7 +1406,7 @@ const MemberDeposit = ({ onClose }) => {
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <div
                         style={{
-                          color: "var(--text)",
+                          color: textColor,
                           fontSize: "13px",
                           fontWeight: "500",
                           overflow: "hidden",
@@ -1021,9 +1416,7 @@ const MemberDeposit = ({ onClose }) => {
                       >
                         {slipFile.name}
                       </div>
-                      <div
-                        style={{ color: "var(--text-muted)", fontSize: "11px" }}
-                      >
+                      <div style={{ color: textMuted, fontSize: "11px" }}>
                         {(slipFile.size / 1024).toFixed(1)} KB •{" "}
                         {slipFile.type
                           .replace("image/", "")
@@ -1034,18 +1427,8 @@ const MemberDeposit = ({ onClose }) => {
                   </div>
                   <button
                     type="button"
+                    className="mdp-remove-btn"
                     onClick={removeSlip}
-                    style={{
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      border: "1px solid rgba(239,68,68,0.3)",
-                      backgroundColor: "transparent",
-                      color: "var(--debit)",
-                      fontSize: "12px",
-                      cursor: "pointer",
-                      fontWeight: "500",
-                      flexShrink: 0,
-                    }}
                   >
                     ✖ Remove
                   </button>
@@ -1058,41 +1441,17 @@ const MemberDeposit = ({ onClose }) => {
           <div style={{ display: "flex", gap: "12px" }}>
             <button
               type="submit"
+              className="mdp-btn-submit"
               disabled={loading || !selectedMember}
-              style={{
-                flex: 2,
-                padding: "14px",
-                borderRadius: "8px",
-                border: "none",
-                background: loading
-                  ? "var(--text-dim)"
-                  : "linear-gradient(to right, #059669, #0d9488)",
-                color: "white",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.7 : 1,
-              }}
             >
               {loading ? "⏳ Processing..." : `💰 Submit Deposit`}
             </button>
 
             <button
               type="button"
+              className="mdp-btn-cancel"
               onClick={handleCancel}
               disabled={loading}
-              style={{
-                flex: 1,
-                padding: "14px",
-                borderRadius: "8px",
-                border: "1px solid var(--border)",
-                background: "transparent",
-                color: "var(--text)",
-                fontSize: "16px",
-                fontWeight: "600",
-                cursor: loading ? "not-allowed" : "pointer",
-                opacity: loading ? 0.5 : 1,
-              }}
             >
               ✖ Cancel
             </button>
@@ -1109,7 +1468,7 @@ const MemberDeposit = ({ onClose }) => {
           >
             <p
               style={{
-                color: "var(--text-muted)",
+                color: textMuted,
                 fontSize: "12px",
                 margin: 0,
                 textAlign: "center",

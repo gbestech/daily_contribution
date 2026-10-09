@@ -4,6 +4,9 @@ import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
 
+// Members per page
+const MEMBERS_PER_PAGE = 10;
+
 const AdminDashboard = () => {
   const [adminUsername, setAdminUsername] = useState("Admin");
   const [members, setMembers] = useState([]);
@@ -27,6 +30,9 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
 
+  // ===== PAGINATION =====
+  const [membersPage, setMembersPage] = useState(1);
+
   // ===== VOICE STATE =====
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
@@ -34,6 +40,12 @@ const AdminDashboard = () => {
   const [voiceSupported, setVoiceSupported] = useState(true);
   const recognitionRef = useRef(null);
   const voiceFeedbackTimerRef = useRef(null);
+
+  // ===== TRANSFER LOOKUP STATE =====
+  const [fromAccountInput, setFromAccountInput] = useState("");
+  const [toAccountInput, setToAccountInput] = useState("");
+  const [fromMemberError, setFromMemberError] = useState("");
+  const [toMemberError, setToMemberError] = useState("");
 
   const [transactionData, setTransactionData] = useState({
     memberId: "",
@@ -76,6 +88,87 @@ const AdminDashboard = () => {
     }).format(amount);
   };
 
+  // ===== Reusable Member Avatar =====
+  const MemberAvatar = ({ member, size = 48 }) => {
+    const raw =
+      member?.passport_photo ||
+      member?.image ||
+      member?.avatar ||
+      member?.photo ||
+      member?.profileImage ||
+      member?.profile_image ||
+      "";
+    const imageUrl =
+      raw && !raw.startsWith("http") && !raw.startsWith("data:")
+        ? `${API_BASE_URL}/api/uploads/passports/${raw.replace(/^\/+/, "")}`
+        : raw;
+
+    const initial = (member?.name?.charAt(0) || "U").toUpperCase();
+
+    const palette = [
+      "rgba(16, 185, 129, 0.25)",
+      "rgba(59, 130, 246, 0.25)",
+      "rgba(168, 85, 247, 0.25)",
+      "rgba(234, 179, 8, 0.25)",
+      "rgba(239, 68, 68, 0.25)",
+      "rgba(6, 182, 212, 0.25)",
+    ];
+    const textPalette = [
+      "var(--credit)",
+      "var(--info)",
+      "var(--purple)",
+      "var(--warning)",
+      "var(--debit)",
+      "#22d3ee",
+    ];
+    const idx = member?.id ? Math.abs(Number(member.id)) % palette.length : 0;
+
+    if (imageUrl) {
+      return (
+        <img
+          src={imageUrl}
+          alt={member?.name || "Member"}
+          onError={(e) => {
+            e.currentTarget.style.display = "none";
+            if (e.currentTarget.nextSibling) {
+              e.currentTarget.nextSibling.style.display = "flex";
+            }
+          }}
+          style={{
+            width: size,
+            height: size,
+            borderRadius: "50%",
+            objectFit: "cover",
+            border: "2px solid var(--border)",
+            flexShrink: 0,
+            backgroundColor: "var(--bg-surface-2)",
+          }}
+        />
+      );
+    }
+
+    return (
+      <div
+        style={{
+          width: size,
+          height: size,
+          borderRadius: "50%",
+          backgroundColor: palette[idx],
+          color: textPalette[idx],
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          fontWeight: "700",
+          fontSize: size * 0.42,
+          flexShrink: 0,
+          border: "2px solid var(--border)",
+        }}
+      >
+        {initial}
+      </div>
+    );
+  };
+
   const totalCharges = transactions.reduce((sum, t) => {
     const c = parseFloat(t.charge) || 0;
     return sum + c;
@@ -85,6 +178,23 @@ const AdminDashboard = () => {
     if (e.status === "approved") return sum + (parseFloat(e.amount) || 0);
     return sum;
   }, 0);
+
+  // Fast lookup: accountNumber -> member
+  const memberByAccount = React.useMemo(() => {
+    const map = {};
+    members.forEach((m) => {
+      if (m.accountNumber) map[String(m.accountNumber)] = m;
+    });
+    return map;
+  }, [members]);
+
+  // Resolved members for the current transfer form
+  const fromMemberLookup = transferData.fromMemberId
+    ? members.find((m) => m.id === parseInt(transferData.fromMemberId))
+    : null;
+  const toMemberLookup = transferData.toMemberId
+    ? members.find((m) => m.id === parseInt(transferData.toMemberId))
+    : null;
 
   const testApiConnection = async () => {
     try {
@@ -384,7 +494,7 @@ const AdminDashboard = () => {
     if (selectAll) {
       setSelectedMembers([]);
     } else {
-      const allIds = filteredMembers.map((m) => m.id);
+      const allIds = paginatedMembers.map((m) => m.id);
       setSelectedMembers(allIds);
     }
     setSelectAll(!selectAll);
@@ -522,6 +632,53 @@ const AdminDashboard = () => {
       member.accountNumber?.includes(searchTerm) ||
       member.phone?.includes(searchTerm),
   );
+
+  // ===== PAGINATION COMPUTATION =====
+  const totalMemberPages = Math.max(
+    1,
+    Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE),
+  );
+
+  const currentMembersPage = Math.min(membersPage, totalMemberPages);
+
+  const paginatedMembers = filteredMembers.slice(
+    (currentMembersPage - 1) * MEMBERS_PER_PAGE,
+    currentMembersPage * MEMBERS_PER_PAGE,
+  );
+
+  useEffect(() => {
+    setMembersPage(1);
+  }, [searchTerm]);
+
+  const goToPage = (p) => {
+    const clamped = Math.max(1, Math.min(p, totalMemberPages));
+    setMembersPage(clamped);
+    // Scroll the table into view for better UX
+    if (typeof window !== "undefined") {
+      window.scrollTo({ top: 0, behavior: "smooth" });
+    }
+  };
+
+  // Compact set of page numbers to render
+  const getPageNumbers = () => {
+    const total = totalMemberPages;
+    const current = currentMembersPage;
+    const pages = [];
+
+    if (total <= 7) {
+      for (let i = 1; i <= total; i++) pages.push(i);
+      return pages;
+    }
+
+    pages.push(1);
+    if (current > 3) pages.push("…");
+    const start = Math.max(2, current - 1);
+    const end = Math.min(total - 1, current + 1);
+    for (let i = start; i <= end; i++) pages.push(i);
+    if (current < total - 2) pages.push("…");
+    pages.push(total);
+    return pages;
+  };
 
   const handleCreateMember = async (e) => {
     e.preventDefault();
@@ -724,6 +881,10 @@ const AdminDashboard = () => {
         };
         setTransactions([newTransaction, ...transactions]);
         setShowTransferModal(false);
+        setFromAccountInput("");
+        setToAccountInput("");
+        setFromMemberError("");
+        setToMemberError("");
         setTransferData({
           fromMemberId: "",
           toMemberId: "",
@@ -738,6 +899,20 @@ const AdminDashboard = () => {
     } catch (error) {
       toast.error("Failed to submit transfer. Please try again.");
     }
+  };
+
+  const closeTransferModal = () => {
+    setShowTransferModal(false);
+    setFromAccountInput("");
+    setToAccountInput("");
+    setFromMemberError("");
+    setToMemberError("");
+    setTransferData({
+      fromMemberId: "",
+      toMemberId: "",
+      amount: "",
+      description: "",
+    });
   };
 
   const handleEditMember = (member) => {
@@ -1202,7 +1377,7 @@ const AdminDashboard = () => {
         }
         .modal-content {
           background-color: var(--bg-surface); border-radius: 16px;
-          padding: 32px; max-width: 500px; width: 100%;
+          padding: 32px; max-width: 560px; width: 100%;
           max-height: 90vh; overflow-y: auto;
           border: 1px solid var(--border);
           animation: fadeIn 0.3s ease;
@@ -1420,6 +1595,281 @@ const AdminDashboard = () => {
         .sound-wave span:nth-child(3) { animation-delay: 0.3s; }
         .sound-wave span:nth-child(4) { animation-delay: 0.45s; }
         .sound-wave span:nth-child(5) { animation-delay: 0.6s; }
+
+        /* ===== PAGINATION ===== */
+        .pagination-wrap {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 12px;
+          padding: 16px 0;
+          border-top: 1px solid var(--border);
+          flex-wrap: wrap;
+        }
+        .pagination-info {
+          color: var(--text-muted);
+          font-size: 13px;
+        }
+        .pagination-controls {
+          display: flex;
+          gap: 6px;
+          align-items: center;
+          flex-wrap: wrap;
+        }
+        .page-btn {
+          min-width: 36px;
+          height: 36px;
+          padding: 0 12px;
+          border-radius: 6px;
+          border: 1px solid var(--border);
+          background: transparent;
+          color: var(--text);
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.15s;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 4px;
+        }
+        .page-btn:hover:not(:disabled):not(.active) {
+          background: var(--bg-surface-2);
+        }
+        .page-btn.active {
+          background: var(--accent);
+          border-color: var(--accent);
+          color: white;
+          cursor: default;
+        }
+        .page-btn:disabled {
+          opacity: 0.4;
+          cursor: not-allowed;
+        }
+        .page-btn.nav-btn {
+          padding: 0 16px;
+          font-weight: 700;
+        }
+        .page-ellipsis {
+          padding: 0 6px;
+          color: var(--text-muted);
+          user-select: none;
+        }
+
+        /* ===== MEMBER DETAIL VIEW ===== */
+        .detail-section {
+          border: 1px solid var(--border);
+          border-radius: 12px;
+          padding: 20px;
+          margin-bottom: 20px;
+          background: transparent;
+        }
+        .detail-section-title {
+          font-size: 13px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.8px;
+          color: var(--text-muted);
+          margin-bottom: 16px;
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .detail-grid {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+        }
+        .detail-item {
+          min-width: 0;
+        }
+        .detail-label {
+          color: var(--text-muted);
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 4px;
+        }
+        .detail-value {
+          color: var(--text);
+          font-size: 14px;
+          word-break: break-all;
+        }
+        .detail-value.mono {
+          font-family: monospace;
+        }
+        .detail-highlight {
+          color: var(--credit);
+          font-size: 22px;
+          font-weight: 700;
+          margin-top: 4px;
+        }
+        .detail-highlight.debit {
+          color: var(--debit);
+        }
+        .detail-highlight.warning {
+          color: var(--warning);
+        }
+
+        .mini-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .mini-table th {
+          padding: 8px 10px;
+          text-align: left;
+          font-size: 10px;
+          font-weight: 700;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          border-bottom: 1px solid var(--border);
+          background: transparent;
+          position: static;
+        }
+        .mini-table td {
+          padding: 8px 10px;
+          border-top: 1px solid var(--border);
+          color: var(--text);
+          background: transparent;
+        }
+        .mini-table .amount-credit { color: var(--credit); font-weight: 600; }
+        .mini-table .amount-debit  { color: var(--debit); font-weight: 600; }
+        .mini-table .amount-warning { color: var(--warning); font-weight: 600; }
+        .mini-table .status-badge {
+          font-size: 10px;
+          padding: 2px 8px;
+          border-radius: 10px;
+          display: inline-block;
+          font-weight: 600;
+        }
+        .mini-table .status-approved { background: rgba(16,185,129,0.2); color: var(--credit); }
+        .mini-table .status-pending  { background: rgba(234,179,8,0.2);  color: var(--warning); }
+        .mini-table .status-rejected { background: rgba(239,68,68,0.2);  color: var(--debit); }
+        .mini-table .status-active   { background: rgba(16,185,129,0.2); color: var(--credit); }
+        .mini-table .status-default  { background: rgba(148,163,184,0.2); color: var(--text-muted); }
+
+        .empty-mini {
+          text-align: center;
+          color: var(--text-dim);
+          padding: 20px 0;
+          font-size: 13px;
+        }
+        .summary-pills {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .summary-pill {
+          flex: 1;
+          min-width: 120px;
+          padding: 12px 14px;
+          border-radius: 10px;
+          border: 1px solid var(--border);
+        }
+        .summary-pill .pill-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          color: var(--text-muted);
+        }
+        .summary-pill .pill-value {
+          font-size: 16px;
+          font-weight: 700;
+          margin-top: 4px;
+        }
+
+        /* ===== SAVINGS PLAN CARD ===== */
+        .savings-plan-card {
+          border: 1px solid rgba(16, 185, 129, 0.35);
+          border-radius: 14px;
+          padding: 20px;
+          background: rgba(16, 185, 129, 0.05);
+          margin-bottom: 20px;
+        }
+        .savings-plan-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          margin-bottom: 18px;
+          flex-wrap: wrap;
+          gap: 10px;
+        }
+        .savings-plan-title {
+          font-size: 16px;
+          font-weight: 700;
+          color: var(--text);
+          display: flex;
+          align-items: center;
+          gap: 8px;
+        }
+        .savings-plan-badge {
+          font-size: 11px;
+          font-weight: 700;
+          padding: 4px 12px;
+          border-radius: 20px;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          background: rgba(16, 185, 129, 0.2);
+          color: var(--credit);
+          border: 1px solid rgba(16, 185, 129, 0.4);
+        }
+        .savings-plan-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+          gap: 14px;
+        }
+        .savings-plan-item {
+          padding: 12px 14px;
+          border-radius: 10px;
+          background: rgba(255, 255, 255, 0.02);
+          border: 1px solid var(--border);
+        }
+        .savings-plan-item .sp-label {
+          font-size: 10px;
+          text-transform: uppercase;
+          letter-spacing: 0.6px;
+          color: var(--text-muted);
+          margin-bottom: 6px;
+          display: flex;
+          align-items: center;
+          gap: 4px;
+        }
+        .savings-plan-item .sp-value {
+          font-size: 15px;
+          font-weight: 700;
+          color: var(--text);
+        }
+        .savings-plan-item .sp-value.credit { color: var(--credit); }
+        .savings-plan-item .sp-value.info   { color: var(--info); }
+        .savings-plan-item .sp-value.warning { color: var(--warning); }
+        .savings-plan-item .sp-value.purple  { color: var(--purple); }
+        .savings-plan-progress-wrap {
+          margin-top: 16px;
+          padding-top: 16px;
+          border-top: 1px dashed var(--border);
+        }
+        .savings-plan-progress-label {
+          display: flex;
+          justify-content: space-between;
+          font-size: 12px;
+          color: var(--text-muted);
+          margin-bottom: 8px;
+        }
+        .savings-plan-progress-bar {
+          height: 10px;
+          border-radius: 6px;
+          background: rgba(255, 255, 255, 0.06);
+          overflow: hidden;
+          border: 1px solid var(--border);
+        }
+        .savings-plan-progress-fill {
+          height: 100%;
+          background: linear-gradient(to right, #059669, #22d3ee);
+          border-radius: 6px;
+          transition: width 0.6s ease;
+        }
       `}</style>
 
       {/* Header */}
@@ -1758,13 +2208,19 @@ const AdminDashboard = () => {
       {/* Members Tab */}
       {activeTab === "members" && (
         <>
+          {/* Search + total count */}
           <div
             style={{
               backgroundColor: "transparent",
               borderRadius: "0",
               padding: "0 0 16px 0",
               borderBottom: "1px solid var(--border)",
-              marginBottom: "24px",
+              marginBottom: "16px",
+              display: "flex",
+              justifyContent: "space-between",
+              alignItems: "center",
+              gap: "16px",
+              flexWrap: "wrap",
             }}
           >
             <input
@@ -1773,7 +2229,8 @@ const AdminDashboard = () => {
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               style={{
-                width: "100%",
+                flex: 1,
+                minWidth: "220px",
                 backgroundColor: "transparent",
                 color: "var(--text)",
                 padding: "10px 0",
@@ -1785,9 +2242,28 @@ const AdminDashboard = () => {
                 boxSizing: "border-box",
               }}
             />
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "13px",
+                fontWeight: "600",
+                whiteSpace: "nowrap",
+              }}
+            >
+              👥 Total Users:{" "}
+              <span style={{ color: "var(--text)" }}>{members.length}</span>
+              {searchTerm && (
+                <>
+                  {" · "}Matching:{" "}
+                  <span style={{ color: "var(--text)" }}>
+                    {filteredMembers.length}
+                  </span>
+                </>
+              )}
+            </div>
           </div>
 
-          {filteredMembers.length > 0 && (
+          {selectedMembers.length > 0 && (
             <div
               style={{
                 backgroundColor: "transparent",
@@ -1805,40 +2281,36 @@ const AdminDashboard = () => {
               <span style={{ color: "var(--text-muted)", fontSize: "13px" }}>
                 {selectedMembers.length} selected
               </span>
-              {selectedMembers.length > 0 && (
-                <>
-                  <button
-                    onClick={handleBulkSuspend}
-                    style={{
-                      backgroundColor: "transparent",
-                      color: "var(--warning)",
-                      padding: "6px 16px",
-                      border: "1px solid var(--warning)",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                    }}
-                  >
-                    🚫 Suspend Selected
-                  </button>
-                  <button
-                    onClick={handleBulkDelete}
-                    style={{
-                      backgroundColor: "transparent",
-                      color: "var(--debit)",
-                      padding: "6px 16px",
-                      border: "1px solid var(--debit)",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "13px",
-                      fontWeight: "500",
-                    }}
-                  >
-                    🗑️ Delete Selected
-                  </button>
-                </>
-              )}
+              <button
+                onClick={handleBulkSuspend}
+                style={{
+                  backgroundColor: "transparent",
+                  color: "var(--warning)",
+                  padding: "6px 16px",
+                  border: "1px solid var(--warning)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                🚫 Suspend Selected
+              </button>
+              <button
+                onClick={handleBulkDelete}
+                style={{
+                  backgroundColor: "transparent",
+                  color: "var(--debit)",
+                  padding: "6px 16px",
+                  border: "1px solid var(--debit)",
+                  borderRadius: "6px",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                🗑️ Delete Selected
+              </button>
             </div>
           )}
 
@@ -1857,7 +2329,12 @@ const AdminDashboard = () => {
                     <th style={{ width: "5%" }}>
                       <input
                         type="checkbox"
-                        checked={selectAll}
+                        checked={
+                          paginatedMembers.length > 0 &&
+                          paginatedMembers.every((m) =>
+                            selectedMembers.includes(m.id),
+                          )
+                        }
                         onChange={handleSelectAll}
                         style={{
                           accentColor: "var(--accent)",
@@ -1874,128 +2351,189 @@ const AdminDashboard = () => {
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredMembers.map((member) => (
-                    <tr key={member.id}>
-                      <td style={{ textAlign: "center" }}>
-                        <input
-                          type="checkbox"
-                          checked={selectedMembers.includes(member.id)}
-                          onChange={() => handleSelectMember(member.id)}
-                          style={{
-                            accentColor: "var(--accent)",
-                            cursor: "pointer",
-                          }}
-                        />
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "12px",
-                          }}
-                        >
+                  {paginatedMembers.length > 0 ? (
+                    paginatedMembers.map((member) => (
+                      <tr key={member.id}>
+                        <td style={{ textAlign: "center" }}>
+                          <input
+                            type="checkbox"
+                            checked={selectedMembers.includes(member.id)}
+                            onChange={() => handleSelectMember(member.id)}
+                            style={{
+                              accentColor: "var(--accent)",
+                              cursor: "pointer",
+                            }}
+                          />
+                        </td>
+                        <td>
                           <div
                             style={{
-                              height: "44px",
-                              width: "44px",
-                              borderRadius: "50%",
-                              backgroundColor: "rgba(16, 185, 129, 0.2)",
                               display: "flex",
                               alignItems: "center",
-                              justifyContent: "center",
-                              color: "var(--credit)",
-                              fontSize: "18px",
-                              fontWeight: "bold",
-                              flexShrink: 0,
+                              gap: "12px",
                             }}
                           >
-                            {member.name?.charAt(0) || "U"}
+                            <MemberAvatar member={member} size={44} />
+                            <div
+                              style={{
+                                color: "var(--text)",
+                                fontSize: "14px",
+                                fontWeight: "500",
+                              }}
+                            >
+                              {member.name}
+                            </div>
+                          </div>
+                        </td>
+                        <td>
+                          <div
+                            style={{ color: "var(--text)", fontSize: "13px" }}
+                          >
+                            {member.email}
                           </div>
                           <div
                             style={{
-                              color: "var(--text)",
-                              fontSize: "14px",
-                              fontWeight: "500",
+                              color: "var(--text-muted)",
+                              fontSize: "12px",
                             }}
                           >
-                            {member.name}
+                            {member.phone || "No phone"}
                           </div>
-                        </div>
-                      </td>
-                      <td>
-                        <div style={{ color: "var(--text)", fontSize: "13px" }}>
-                          {member.email}
-                        </div>
-                        <div
+                        </td>
+                        <td>
+                          <span
+                            className={`badge badge-${member.membershipType?.toLowerCase() || "standard"}`}
+                          >
+                            {member.membershipType}
+                          </span>
+                        </td>
+                        <td>
+                          <span
+                            className={`badge badge-${member.status?.toLowerCase() || "active"}`}
+                          >
+                            {member.status}
+                          </span>
+                        </td>
+                        <td
                           style={{
-                            color: "var(--text-muted)",
-                            fontSize: "12px",
+                            textAlign: "right",
+                            color: "var(--credit)",
+                            fontWeight: "600",
+                            fontSize: "15px",
+                            whiteSpace: "nowrap",
                           }}
                         >
-                          {member.phone || "No phone"}
-                        </div>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge badge-${member.membershipType?.toLowerCase() || "standard"}`}
-                        >
-                          {member.membershipType}
-                        </span>
-                      </td>
-                      <td>
-                        <span
-                          className={`badge badge-${member.status?.toLowerCase() || "active"}`}
-                        >
-                          {member.status}
-                        </span>
-                      </td>
+                          {formatCurrency(member.balance)}
+                        </td>
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              gap: "6px",
+                              alignItems: "center",
+                            }}
+                          >
+                            <button
+                              onClick={() => handleViewMember(member)}
+                              className="action-btn action-btn-view"
+                              title="View"
+                            >
+                              👁️
+                            </button>
+                            <button
+                              onClick={() => handleEditMember(member)}
+                              className="action-btn action-btn-edit"
+                              title="Edit"
+                            >
+                              ✏️
+                            </button>
+                            <button
+                              onClick={() => handleDeleteMember(member.id)}
+                              className="action-btn action-btn-delete"
+                              title="Delete"
+                            >
+                              🗑️
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
                       <td
-                        style={{
-                          textAlign: "right",
-                          color: "var(--credit)",
-                          fontWeight: "600",
-                          fontSize: "15px",
-                          whiteSpace: "nowrap",
-                        }}
+                        colSpan="7"
+                        style={{ textAlign: "center", padding: "40px" }}
                       >
-                        {formatCurrency(member.balance)}
-                      </td>
-                      <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            gap: "6px",
-                            alignItems: "center",
-                          }}
-                        >
-                          <button
-                            onClick={() => handleViewMember(member)}
-                            className="action-btn action-btn-view"
-                            title="View"
+                        <div style={{ color: "var(--text-muted)" }}>
+                          <div
+                            style={{ fontSize: "48px", marginBottom: "8px" }}
                           >
-                            👁️
-                          </button>
-                          <button
-                            onClick={() => handleEditMember(member)}
-                            className="action-btn action-btn-edit"
-                            title="Edit"
-                          >
-                            ✏️
-                          </button>
-                          <button
-                            onClick={() => handleDeleteMember(member.id)}
-                            className="action-btn action-btn-delete"
-                            title="Delete"
-                          >
-                            🗑️
-                          </button>
+                            📭
+                          </div>
+                          <p>No members found</p>
                         </div>
                       </td>
                     </tr>
-                  ))}
+                  )}
                 </tbody>
               </table>
+            </div>
+
+            {/* ===== PAGINATION ===== */}
+            <div className="pagination-wrap">
+              <div className="pagination-info">
+                {filteredMembers.length === 0
+                  ? "No members to show"
+                  : `Showing ${
+                      (currentMembersPage - 1) * MEMBERS_PER_PAGE + 1
+                    }–${Math.min(
+                      currentMembersPage * MEMBERS_PER_PAGE,
+                      filteredMembers.length,
+                    )} of ${filteredMembers.length} ${
+                      filteredMembers.length === 1 ? "member" : "members"
+                    }`}
+              </div>
+
+              {totalMemberPages > 1 && (
+                <div className="pagination-controls">
+                  <button
+                    className="page-btn nav-btn"
+                    onClick={() => goToPage(currentMembersPage - 1)}
+                    disabled={currentMembersPage === 1}
+                    title="Previous page"
+                  >
+                    ‹ Prev
+                  </button>
+
+                  {getPageNumbers().map((p, idx) =>
+                    p === "…" ? (
+                      <span key={`ellipsis-${idx}`} className="page-ellipsis">
+                        …
+                      </span>
+                    ) : (
+                      <button
+                        key={p}
+                        className={`page-btn ${
+                          p === currentMembersPage ? "active" : ""
+                        }`}
+                        onClick={() => goToPage(p)}
+                        disabled={p === currentMembersPage}
+                      >
+                        {p}
+                      </button>
+                    ),
+                  )}
+
+                  <button
+                    className="page-btn nav-btn"
+                    onClick={() => goToPage(currentMembersPage + 1)}
+                    disabled={currentMembersPage === totalMemberPages}
+                    title="Next page"
+                  >
+                    Next ›
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         </>
@@ -2068,8 +2606,19 @@ const AdminDashboard = () => {
                           #{loan.id}
                         </td>
                         <td>
-                          <div style={{ color: "var(--text)" }}>
-                            {member ? member.name : "Unknown"}
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                            }}
+                          >
+                            {member && (
+                              <MemberAvatar member={member} size={36} />
+                            )}
+                            <div style={{ color: "var(--text)" }}>
+                              {member ? member.name : "Unknown"}
+                            </div>
                           </div>
                         </td>
                         <td
@@ -2185,8 +2734,21 @@ const AdminDashboard = () => {
                         >
                           #{loan.id}
                         </td>
-                        <td style={{ color: "var(--text)" }}>
-                          {member ? member.name : "Unknown"}
+                        <td>
+                          <div
+                            style={{
+                              display: "flex",
+                              alignItems: "center",
+                              gap: "10px",
+                            }}
+                          >
+                            {member && (
+                              <MemberAvatar member={member} size={36} />
+                            )}
+                            <div style={{ color: "var(--text)" }}>
+                              {member ? member.name : "Unknown"}
+                            </div>
+                          </div>
                         </td>
                         <td
                           style={{ color: "var(--credit)", fontWeight: "600" }}
@@ -2700,256 +3262,593 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== VIEW MEMBER MODAL ===== */}
-      {showViewModal && selectedMember && (
-        <div className="modal-overlay" onClick={() => setShowViewModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <div className="modal-header">
-              <h3 className="modal-title">👁️ Member Details</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowViewModal(false)}
-              >
-                ✕
-              </button>
-            </div>
+      {/* ===== VIEW MEMBER MODAL — FULL DETAILS WITH SAVINGS PLAN ===== */}
+      {showViewModal &&
+        selectedMember &&
+        (() => {
+          const memberTransactions = transactions.filter(
+            (t) =>
+              t.memberId === selectedMember.id ||
+              t.accountNumber === selectedMember.accountNumber,
+          );
+          const memberLoans = loans.filter(
+            (l) => l.user_id === selectedMember.id,
+          );
 
+          const memberTotalDeposits = memberTransactions
+            .filter((t) => t.type === "deposit" && t.status === "approved")
+            .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+
+          const memberTotalWithdrawals = memberTransactions
+            .filter((t) => t.type === "withdrawal" && t.status === "approved")
+            .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+
+          const memberTotalTransfersOut = memberTransactions
+            .filter((t) => t.type === "transfer" && t.status === "approved")
+            .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+
+          const memberTotalCharges = memberTransactions.reduce(
+            (s, t) => s + (parseFloat(t.charge) || 0),
+            0,
+          );
+
+          const activeLoans = memberLoans.filter(
+            (l) => l.status === "approved" || l.status === "active",
+          );
+          const totalLoanBalance = activeLoans.reduce(
+            (s, l) => s + (parseFloat(l.total_payable) || 0),
+            0,
+          );
+          const totalMonthlyLoan = activeLoans.reduce(
+            (s, l) => s + (parseFloat(l.monthly_payment) || 0),
+            0,
+          );
+
+          const savingsBalance =
+            memberTotalDeposits -
+            memberTotalWithdrawals -
+            memberTotalTransfersOut -
+            memberTotalCharges;
+
+          // ===== SAVINGS PLAN DATA =====
+          // Read from member record; fall back to sensible defaults
+          const planType =
+            selectedMember.savingsPlan ||
+            selectedMember.savings_plan ||
+            "Daily";
+          const savingsMethod =
+            selectedMember.savingsMethod ||
+            selectedMember.savings_method ||
+            "Cash";
+          const planDuration =
+            selectedMember.savingsDuration ||
+            selectedMember.savings_duration ||
+            "4 years";
+          const amountPerDay = parseFloat(
+            selectedMember.amountPerDay || selectedMember.amount_per_day || 500,
+          );
+          const numberOfPayments = parseInt(
+            selectedMember.numberOfPayments ||
+              selectedMember.number_of_payments ||
+              1440,
+            10,
+          );
+          const totalToSave = parseFloat(
+            selectedMember.totalToSave ||
+              selectedMember.total_to_save ||
+              amountPerDay * numberOfPayments,
+          );
+          const amountSavedSoFar = parseFloat(
+            selectedMember.amountSaved ||
+              selectedMember.amount_saved ||
+              memberTotalDeposits ||
+              0,
+          );
+          const progressPct =
+            totalToSave > 0
+              ? Math.min(
+                  100,
+                  Math.round((amountSavedSoFar / totalToSave) * 100),
+                )
+              : 0;
+
+          const renderStatusBadge = (status) => {
+            const s = (status || "").toLowerCase();
+            let cls = "status-default";
+            if (s === "approved" || s === "active") cls = "status-approved";
+            else if (s === "pending") cls = "status-pending";
+            else if (s === "rejected" || s === "suspended" || s === "inactive")
+              cls = "status-rejected";
+            return (
+              <span className={`status-badge ${cls}`}>
+                {(status || "N/A").toUpperCase()}
+              </span>
+            );
+          };
+
+          return (
             <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "16px",
-                marginBottom: "20px",
-                paddingBottom: "20px",
-                borderBottom: "1px solid var(--border)",
-              }}
+              className="modal-overlay"
+              onClick={() => setShowViewModal(false)}
             >
               <div
-                style={{
-                  width: "64px",
-                  height: "64px",
-                  borderRadius: "50%",
-                  backgroundColor: "rgba(16, 185, 129, 0.2)",
-                  display: "flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  color: "var(--credit)",
-                  fontSize: "24px",
-                  fontWeight: "bold",
-                }}
+                className="modal-content"
+                onClick={(e) => e.stopPropagation()}
+                style={{ maxWidth: "760px" }}
               >
-                {selectedMember.name?.charAt(0) || "U"}
-              </div>
-              <div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "18px",
-                    fontWeight: "600",
-                  }}
-                >
-                  {selectedMember.name}
+                <div className="modal-header">
+                  <h3 className="modal-title">👁️ Member Full Details</h3>
+                  <button
+                    className="modal-close"
+                    onClick={() => setShowViewModal(false)}
+                  >
+                    ✕
+                  </button>
                 </div>
+
+                {/* Header with avatar */}
                 <div
                   style={{
-                    color: "var(--text-muted)",
-                    fontSize: "13px",
-                    marginTop: "2px",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: "16px",
+                    marginBottom: "20px",
+                    paddingBottom: "20px",
+                    borderBottom: "1px solid var(--border)",
                   }}
                 >
-                  {selectedMember.membershipType || "Standard"} Member
+                  <MemberAvatar member={selectedMember} size={72} />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        color: "var(--text)",
+                        fontSize: "20px",
+                        fontWeight: "700",
+                      }}
+                    >
+                      {selectedMember.name}
+                    </div>
+                    <div
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "13px",
+                        marginTop: "4px",
+                      }}
+                    >
+                      {selectedMember.membershipType || "Standard"} Member ·{" "}
+                      <span
+                        className={`badge badge-${selectedMember.status?.toLowerCase() || "active"}`}
+                        style={{ fontSize: "11px", padding: "2px 10px" }}
+                      >
+                        {selectedMember.status || "Active"}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* ===== SAVINGS PLAN CARD ===== */}
+                <div className="savings-plan-card">
+                  <div className="savings-plan-header">
+                    <div className="savings-plan-title">💼 My Savings Plan</div>
+                    <span className="savings-plan-badge">{planType}</span>
+                  </div>
+
+                  <div className="savings-plan-grid">
+                    <div className="savings-plan-item">
+                      <div className="sp-label">📅 Savings Plan</div>
+                      <div className="sp-value info">{planType}</div>
+                    </div>
+                    <div className="savings-plan-item">
+                      <div className="sp-label">💵 Savings Method</div>
+                      <div className="sp-value purple">{savingsMethod}</div>
+                    </div>
+                    <div className="savings-plan-item">
+                      <div className="sp-label">⏱️ Duration</div>
+                      <div className="sp-value warning">{planDuration}</div>
+                    </div>
+                    <div className="savings-plan-item">
+                      <div className="sp-label">💰 Amount per Day</div>
+                      <div className="sp-value credit">
+                        {formatCurrency(amountPerDay)}
+                      </div>
+                    </div>
+                    <div className="savings-plan-item">
+                      <div className="sp-label">🔢 Number of Payments</div>
+                      <div className="sp-value">
+                        {numberOfPayments.toLocaleString()}
+                      </div>
+                    </div>
+                    <div className="savings-plan-item">
+                      <div className="sp-label">🎯 Total to Save</div>
+                      <div className="sp-value credit">
+                        {formatCurrency(totalToSave)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div className="savings-plan-progress-wrap">
+                    <div className="savings-plan-progress-label">
+                      <span>
+                        Progress: {formatCurrency(amountSavedSoFar)} of{" "}
+                        {formatCurrency(totalToSave)}
+                      </span>
+                      <span
+                        style={{ fontWeight: "700", color: "var(--credit)" }}
+                      >
+                        {progressPct}%
+                      </span>
+                    </div>
+                    <div className="savings-plan-progress-bar">
+                      <div
+                        className="savings-plan-progress-fill"
+                        style={{ width: `${progressPct}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+
+                {/* Personal Information */}
+                <div className="detail-section">
+                  <div className="detail-section-title">
+                    <span>📋</span> Personal Information
+                  </div>
+                  <div className="detail-grid">
+                    <div className="detail-item">
+                      <div className="detail-label">Email</div>
+                      <div className="detail-value">
+                        {selectedMember.email || "—"}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Phone</div>
+                      <div className="detail-value">
+                        {selectedMember.phone || "—"}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Account Number</div>
+                      <div
+                        className="detail-value mono"
+                        style={{ color: "var(--info)" }}
+                      >
+                        {selectedMember.accountNumber || "—"}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Membership Type</div>
+                      <div className="detail-value">
+                        {selectedMember.membershipType || "Standard"}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Join Date</div>
+                      <div className="detail-value">
+                        {selectedMember.joinDate || "—"}
+                      </div>
+                    </div>
+                    <div className="detail-item">
+                      <div className="detail-label">Status</div>
+                      <div
+                        className="detail-value"
+                        style={{ textTransform: "capitalize" }}
+                      >
+                        {selectedMember.status || "Active"}
+                      </div>
+                    </div>
+                    {selectedMember.address && (
+                      <div
+                        className="detail-item"
+                        style={{ gridColumn: "1 / -1" }}
+                      >
+                        <div className="detail-label">Address</div>
+                        <div className="detail-value">
+                          {selectedMember.address}
+                        </div>
+                      </div>
+                    )}
+                    {selectedMember.suspension_reason && (
+                      <div
+                        className="detail-item"
+                        style={{ gridColumn: "1 / -1" }}
+                      >
+                        <div
+                          className="detail-label"
+                          style={{ color: "var(--warning)" }}
+                        >
+                          Suspension Reason
+                        </div>
+                        <div className="detail-value">
+                          {selectedMember.suspension_reason}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                {/* Savings & Balance Summary */}
+                <div className="detail-section">
+                  <div className="detail-section-title">
+                    <span>💰</span> Savings & Balance
+                  </div>
+                  <div style={{ marginBottom: "16px" }}>
+                    <div className="detail-label">Current Balance</div>
+                    <div className="detail-highlight">
+                      {formatCurrency(selectedMember.balance)}
+                    </div>
+                  </div>
+                  <div className="summary-pills">
+                    <div className="summary-pill">
+                      <div className="pill-label">Total Deposits</div>
+                      <div
+                        className="pill-value"
+                        style={{ color: "var(--credit)" }}
+                      >
+                        {formatCurrency(memberTotalDeposits)}
+                      </div>
+                    </div>
+                    <div className="summary-pill">
+                      <div className="pill-label">Total Withdrawals</div>
+                      <div
+                        className="pill-value"
+                        style={{ color: "var(--debit)" }}
+                      >
+                        {formatCurrency(memberTotalWithdrawals)}
+                      </div>
+                    </div>
+                    <div className="summary-pill">
+                      <div className="pill-label">Transfers Out</div>
+                      <div
+                        className="pill-value"
+                        style={{ color: "var(--purple)" }}
+                      >
+                        {formatCurrency(memberTotalTransfersOut)}
+                      </div>
+                    </div>
+                    <div className="summary-pill">
+                      <div className="pill-label">Total Charges</div>
+                      <div
+                        className="pill-value"
+                        style={{ color: "var(--warning)" }}
+                      >
+                        {formatCurrency(memberTotalCharges)}
+                      </div>
+                    </div>
+                  </div>
+                  <div
+                    style={{
+                      marginTop: "14px",
+                      padding: "12px 16px",
+                      border: "1px solid var(--border)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                    }}
+                  >
+                    <span
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "13px",
+                        fontWeight: "600",
+                      }}
+                    >
+                      Net Savings (Deposits − Withdrawals − Transfers − Charges)
+                    </span>
+                    <span
+                      style={{
+                        color:
+                          savingsBalance >= 0
+                            ? "var(--credit)"
+                            : "var(--debit)",
+                        fontSize: "18px",
+                        fontWeight: "700",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
+                      {formatCurrency(savingsBalance)}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Loan Summary */}
+                <div className="detail-section">
+                  <div className="detail-section-title">
+                    <span>🏦</span> Loan Summary
+                  </div>
+                  {memberLoans.length > 0 ? (
+                    <>
+                      <div
+                        className="summary-pills"
+                        style={{ marginBottom: "14px" }}
+                      >
+                        <div className="summary-pill">
+                          <div className="pill-label">Total Loans</div>
+                          <div
+                            className="pill-value"
+                            style={{ color: "var(--info)" }}
+                          >
+                            {memberLoans.length}
+                          </div>
+                        </div>
+                        <div className="summary-pill">
+                          <div className="pill-label">Active Loans</div>
+                          <div
+                            className="pill-value"
+                            style={{ color: "var(--warning)" }}
+                          >
+                            {activeLoans.length}
+                          </div>
+                        </div>
+                        <div className="summary-pill">
+                          <div className="pill-label">Outstanding Balance</div>
+                          <div
+                            className="pill-value"
+                            style={{ color: "var(--debit)" }}
+                          >
+                            {formatCurrency(totalLoanBalance)}
+                          </div>
+                        </div>
+                        <div className="summary-pill">
+                          <div className="pill-label">Monthly Payment</div>
+                          <div
+                            className="pill-value"
+                            style={{ color: "var(--purple)" }}
+                          >
+                            {formatCurrency(totalMonthlyLoan)}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div
+                        style={{
+                          maxHeight: "220px",
+                          overflowY: "auto",
+                          border: "1px solid var(--border)",
+                          borderRadius: "10px",
+                        }}
+                      >
+                        <table className="mini-table">
+                          <thead>
+                            <tr>
+                              <th>ID</th>
+                              <th>Amount</th>
+                              <th>Total Payable</th>
+                              <th>Monthly</th>
+                              <th>Duration</th>
+                              <th>Status</th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {memberLoans.map((loan) => (
+                              <tr key={loan.id}>
+                                <td style={{ fontFamily: "monospace" }}>
+                                  #{loan.id}
+                                </td>
+                                <td className="amount-credit">
+                                  {formatCurrency(loan.amount)}
+                                </td>
+                                <td>{formatCurrency(loan.total_payable)}</td>
+                                <td>{formatCurrency(loan.monthly_payment)}</td>
+                                <td>{loan.duration_months} mo</td>
+                                <td>{renderStatusBadge(loan.status)}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </>
+                  ) : (
+                    <div className="empty-mini">No loans on record</div>
+                  )}
+                </div>
+
+                {/* Transaction History */}
+                <div className="detail-section">
+                  <div className="detail-section-title">
+                    <span>📊</span> Transaction History
+                  </div>
+                  {memberTransactions.length > 0 ? (
+                    <div
+                      style={{
+                        maxHeight: "260px",
+                        overflowY: "auto",
+                        border: "1px solid var(--border)",
+                        borderRadius: "10px",
+                      }}
+                    >
+                      <table className="mini-table">
+                        <thead>
+                          <tr>
+                            <th>ID</th>
+                            <th>Type</th>
+                            <th>Amount</th>
+                            <th>Charge</th>
+                            <th>Net</th>
+                            <th>Status</th>
+                            <th>Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {memberTransactions.map((t) => (
+                            <tr key={t.id}>
+                              <td style={{ fontFamily: "monospace" }}>
+                                #{t.id}
+                              </td>
+                              <td
+                                style={{
+                                  textTransform: "uppercase",
+                                  fontSize: "11px",
+                                }}
+                              >
+                                {t.type}
+                              </td>
+                              <td
+                                className={
+                                  t.type === "deposit"
+                                    ? "amount-credit"
+                                    : t.type === "withdrawal"
+                                      ? "amount-debit"
+                                      : "amount-warning"
+                                }
+                              >
+                                {formatCurrency(t.amount)}
+                              </td>
+                              <td style={{ color: "var(--warning)" }}>
+                                {t.charge > 0
+                                  ? `−${formatCurrency(t.charge)}`
+                                  : "—"}
+                              </td>
+                              <td
+                                style={{
+                                  color: "var(--credit)",
+                                  fontWeight: "600",
+                                }}
+                              >
+                                {formatCurrency(t.net_amount ?? t.amount)}
+                              </td>
+                              <td>{renderStatusBadge(t.status)}</td>
+                              <td
+                                style={{
+                                  color: "var(--text-muted)",
+                                  whiteSpace: "nowrap",
+                                }}
+                              >
+                                {t.date}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  ) : (
+                    <div className="empty-mini">No transactions on record</div>
+                  )}
+                </div>
+
+                <div className="modal-buttons" style={{ marginTop: "8px" }}>
+                  <button
+                    type="button"
+                    className="btn-cancel"
+                    onClick={() => setShowViewModal(false)}
+                  >
+                    Close
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-submit"
+                    onClick={() => {
+                      setShowViewModal(false);
+                      setTimeout(() => handleEditMember(selectedMember), 150);
+                    }}
+                  >
+                    ✏️ Edit This Member
+                  </button>
                 </div>
               </div>
             </div>
-
-            <div
-              style={{
-                display: "grid",
-                gridTemplateColumns: "1fr 1fr",
-                gap: "16px",
-              }}
-            >
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Email
-                </div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {selectedMember.email || "—"}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Phone
-                </div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                  }}
-                >
-                  {selectedMember.phone || "—"}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Account Number
-                </div>
-                <div
-                  style={{
-                    color: "var(--info)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                    fontFamily: "monospace",
-                  }}
-                >
-                  {selectedMember.accountNumber || "—"}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Status
-                </div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                    textTransform: "capitalize",
-                  }}
-                >
-                  {selectedMember.status || "Active"}
-                </div>
-              </div>
-
-              <div style={{ gridColumn: "1 / -1" }}>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Balance
-                </div>
-                <div
-                  style={{
-                    color: "var(--credit)",
-                    fontSize: "22px",
-                    fontWeight: "700",
-                    marginTop: "4px",
-                  }}
-                >
-                  {formatCurrency(selectedMember.balance)}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Join Date
-                </div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                  }}
-                >
-                  {selectedMember.joinDate || "—"}
-                </div>
-              </div>
-
-              <div>
-                <div
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "11px",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.5px",
-                  }}
-                >
-                  Membership Type
-                </div>
-                <div
-                  style={{
-                    color: "var(--text)",
-                    fontSize: "14px",
-                    marginTop: "4px",
-                  }}
-                >
-                  {selectedMember.membershipType || "Standard"}
-                </div>
-              </div>
-            </div>
-
-            <div className="modal-buttons" style={{ marginTop: "24px" }}>
-              <button
-                type="button"
-                className="btn-cancel"
-                onClick={() => setShowViewModal(false)}
-              >
-                Close
-              </button>
-              <button
-                type="button"
-                className="btn-submit"
-                onClick={() => {
-                  setShowViewModal(false);
-                  setTimeout(() => handleEditMember(selectedMember), 150);
-                }}
-              >
-                ✏️ Edit This Member
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
 
       {/* ===== EDIT MEMBER MODAL ===== */}
       {showEditModal && selectedMember && (
@@ -3265,63 +4164,234 @@ const AdminDashboard = () => {
 
       {/* Transfer Modal */}
       {showTransferModal && (
-        <div
-          className="modal-overlay"
-          onClick={() => setShowTransferModal(false)}
-        >
+        <div className="modal-overlay" onClick={closeTransferModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
               <h3 className="modal-title">🔄 Transfer Funds</h3>
-              <button
-                className="modal-close"
-                onClick={() => setShowTransferModal(false)}
-              >
+              <button className="modal-close" onClick={closeTransferModal}>
                 ✕
               </button>
             </div>
             <form onSubmit={handleTransfer}>
               <div className="form-group">
-                <label className="form-label">From Member</label>
-                <select
-                  className="form-select"
-                  value={transferData.fromMemberId}
-                  onChange={(e) =>
-                    setTransferData({
-                      ...transferData,
-                      fromMemberId: e.target.value,
-                    })
-                  }
+                <label className="form-label">
+                  From Member (Account Number)
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter sender's account number..."
+                  value={fromAccountInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setFromAccountInput(val);
+                    const found = memberByAccount[val];
+                    if (found) {
+                      setTransferData({
+                        ...transferData,
+                        fromMemberId: found.id,
+                      });
+                      setFromMemberError("");
+                    } else {
+                      setTransferData({ ...transferData, fromMemberId: "" });
+                      setFromMemberError(
+                        val ? "No member found with that account number" : "",
+                      );
+                    }
+                  }}
                   required
-                >
-                  <option value="">Select sender...</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} (Balance: {formatCurrency(member.balance)})
-                    </option>
-                  ))}
-                </select>
+                />
+                {fromMemberLookup ? (
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      padding: "12px 14px",
+                      border: "1px solid rgba(16, 185, 129, 0.3)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "12px",
+                    }}
+                  >
+                    <MemberAvatar member={fromMemberLookup} size={48} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          color: "var(--text)",
+                          fontWeight: "600",
+                          fontSize: "14px",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {fromMemberLookup.name}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "12px",
+                          marginTop: "2px",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {fromMemberLookup.accountNumber}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "11px",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {fromMemberLookup.phone || "No phone"}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "10px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Balance
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--credit)",
+                          fontWeight: "700",
+                          fontSize: "15px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(fromMemberLookup.balance)}
+                      </div>
+                    </div>
+                  </div>
+                ) : fromMemberError ? (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      color: "var(--debit)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    ⚠️ {fromMemberError}
+                  </div>
+                ) : null}
               </div>
+
               <div className="form-group">
-                <label className="form-label">To Member</label>
-                <select
-                  className="form-select"
-                  value={transferData.toMemberId}
-                  onChange={(e) =>
-                    setTransferData({
-                      ...transferData,
-                      toMemberId: e.target.value,
-                    })
-                  }
+                <label className="form-label">To Member (Account Number)</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  placeholder="Enter recipient's account number..."
+                  value={toAccountInput}
+                  onChange={(e) => {
+                    const val = e.target.value.replace(/\D/g, "");
+                    setToAccountInput(val);
+                    const found = memberByAccount[val];
+                    if (found) {
+                      setTransferData({
+                        ...transferData,
+                        toMemberId: found.id,
+                      });
+                      setToMemberError("");
+                    } else {
+                      setTransferData({ ...transferData, toMemberId: "" });
+                      setToMemberError(
+                        val ? "No member found with that account number" : "",
+                      );
+                    }
+                  }}
                   required
-                >
-                  <option value="">Select recipient...</option>
-                  {members.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name} (Balance: {formatCurrency(member.balance)})
-                    </option>
-                  ))}
-                </select>
+                />
+                {toMemberLookup ? (
+                  <div
+                    style={{
+                      marginTop: "10px",
+                      padding: "12px 14px",
+                      border: "1px solid rgba(139, 92, 246, 0.4)",
+                      borderRadius: "10px",
+                      display: "flex",
+                      alignItems: "center",
+                      gap: "14px",
+                      background: "rgba(139, 92, 246, 0.05)",
+                    }}
+                  >
+                    <MemberAvatar member={toMemberLookup} size={56} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div
+                        style={{
+                          color: "var(--text)",
+                          fontWeight: "700",
+                          fontSize: "15px",
+                          whiteSpace: "nowrap",
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                        }}
+                      >
+                        {toMemberLookup.name}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "12px",
+                          marginTop: "2px",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {toMemberLookup.accountNumber}
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "11px",
+                          marginTop: "2px",
+                        }}
+                      >
+                        {toMemberLookup.phone || "No phone"}
+                      </div>
+                    </div>
+                    <div style={{ textAlign: "right", flexShrink: 0 }}>
+                      <div
+                        style={{
+                          color: "var(--text-muted)",
+                          fontSize: "10px",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px",
+                        }}
+                      >
+                        Balance
+                      </div>
+                      <div
+                        style={{
+                          color: "var(--credit)",
+                          fontWeight: "700",
+                          fontSize: "15px",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(toMemberLookup.balance)}
+                      </div>
+                    </div>
+                  </div>
+                ) : toMemberError ? (
+                  <div
+                    style={{
+                      marginTop: "8px",
+                      color: "var(--debit)",
+                      fontSize: "12px",
+                    }}
+                  >
+                    ⚠️ {toMemberError}
+                  </div>
+                ) : null}
               </div>
+
               <div className="form-group">
                 <label className="form-label">Amount (₦)</label>
                 <input
@@ -3356,11 +4426,27 @@ const AdminDashboard = () => {
                 <button
                   type="button"
                   className="btn-cancel"
-                  onClick={() => setShowTransferModal(false)}
+                  onClick={closeTransferModal}
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-submit">
+                <button
+                  type="submit"
+                  className="btn-submit"
+                  disabled={
+                    !transferData.fromMemberId || !transferData.toMemberId
+                  }
+                  style={{
+                    opacity:
+                      !transferData.fromMemberId || !transferData.toMemberId
+                        ? 0.5
+                        : 1,
+                    cursor:
+                      !transferData.fromMemberId || !transferData.toMemberId
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
                   Submit Transfer
                 </button>
               </div>
@@ -3522,5 +4608,3 @@ const AdminDashboard = () => {
 };
 
 export default AdminDashboard;
-//$ php -S localhost:8000 -t .
-

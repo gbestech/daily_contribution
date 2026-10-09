@@ -4,9 +4,9 @@ import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { usePermission } from "../../context/PermissionsContext";
 
-// Map every protected path to the permission required
+// Permission requirements are ONLY for admin/manager routes.
+// Members do not need a permission set — they just need to be logged in.
 const ROUTE_PERMISSIONS = {
-  // Admin / Manager area
   "/admin": "view_dashboard",
   "/admin/dashboard": "view_dashboard",
   "/admin/broadsheet": "view_broadsheet",
@@ -15,21 +15,11 @@ const ROUTE_PERMISSIONS = {
   "/admin/reports": "view_reports",
   "/admin/users": "create_member",
   "/admin/members": "create_member",
-  "/admin/expenses": "manage_expenses", // ✅ ADDED — the fix
+  "/admin/expenses": "manage_expenses",
   "/admin/staff": "manage_staff",
   "/admin/permissions": "manage_permissions",
   "/admin/settings": "manage_settings",
   "/admin/profile": "view_dashboard",
-
-  // Member area
-  "/member": "view_dashboard",
-  "/member/dashboard": "view_dashboard",
-  "/member/deposit": "create_deposit",
-  "/member/withdraw": "create_withdrawal",
-  "/member/transfer": "create_transfer",
-  "/member/history": "view_history",
-  "/member/borrowing": "view_dashboard",
-  "/member/profile": "view_dashboard",
 };
 
 const ProtectedRoute = ({ children, adminOnly = false }) => {
@@ -37,6 +27,7 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
   const { can, loading } = usePermission();
   const location = useLocation();
 
+  // Wait for permissions context to finish loading
   if (loading) {
     return (
       <div
@@ -59,28 +50,20 @@ const ProtectedRoute = ({ children, adminOnly = false }) => {
     return <Navigate to="/login" replace />;
   }
 
-  // 2. Permission-based check FIRST (works for admin, manager, member)
+  const role = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdminOrManager =
+    role === "admin" || role === "administrator" || role === "manager";
+
+  // 2. Permission check — only applies to admin/manager routes
   const requiredPerm = ROUTE_PERMISSIONS[location.pathname];
-  if (requiredPerm && !can(requiredPerm)) {
-    const role = String(user?.role || "")
-      .trim()
-      .toLowerCase();
-    const home =
-      role === "admin" || role === "administrator" || role === "manager"
-        ? "/admin/dashboard"
-        : "/member/dashboard";
-    return <Navigate to={home} replace />;
+  if (isAdminOrManager && requiredPerm && !can(requiredPerm)) {
+    return <Navigate to="/admin/dashboard" replace />;
   }
 
-  // 3. Legacy adminOnly support — as a *fallback* only.
-  //    If the route is explicitly admin-only AND not covered by
-  //    ROUTE_PERMISSIONS, enforce admin role here.
-  if (
-    adminOnly &&
-    !requiredPerm &&
-    user?.role !== "admin" &&
-    user?.role !== "administrator"
-  ) {
+  // 3. Legacy adminOnly support
+  if (adminOnly && !requiredPerm && !isAdminOrManager) {
     return <Navigate to="/admin/dashboard" replace />;
   }
 

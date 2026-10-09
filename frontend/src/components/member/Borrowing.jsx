@@ -4,6 +4,52 @@ import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
 
+// ============================================================
+// Detect the current theme (light / dark)
+// ============================================================
+const detectTheme = () => {
+  if (typeof document === "undefined") return "dark";
+
+  const html = document.documentElement;
+  const body = document.body;
+
+  const attr =
+    html.getAttribute("data-theme") || body?.getAttribute("data-theme") || "";
+  if (attr.toLowerCase().includes("light")) return "light";
+  if (attr.toLowerCase().includes("dark")) return "dark";
+
+  const cls = `${html.className} ${body?.className || ""}`.toLowerCase();
+  if (cls.includes("light")) return "light";
+  if (cls.includes("dark")) return "dark";
+
+  try {
+    const keys = [
+      "theme",
+      "app-theme",
+      "color-theme",
+      "colorMode",
+      "color-mode",
+      "mui-mode",
+      "chakra-ui-color-mode",
+    ];
+    for (const k of keys) {
+      const v = localStorage.getItem(k);
+      if (v && /light/i.test(v)) return "light";
+      if (v && /dark/i.test(v)) return "dark";
+    }
+  } catch {}
+
+  if (
+    typeof window !== "undefined" &&
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: light)").matches
+  ) {
+    return "light";
+  }
+
+  return "dark";
+};
+
 const Borrowing = () => {
   const [loans, setLoans] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +60,10 @@ const Borrowing = () => {
   const [paymentAmount, setPaymentAmount] = useState("");
   const [borrowAmount, setBorrowAmount] = useState("");
   const [userData, setUserData] = useState(null);
+
+  // 🆕 Theme tracking
+  const [theme, setTheme] = useState(() => detectTheme());
+
   const [loanSettings, setLoanSettings] = useState({
     min_membership_days: 180,
     interest_rate: 5,
@@ -42,10 +92,80 @@ const Borrowing = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
 
-  // Use ref to track if data has been fetched
   const hasFetched = useRef(false);
 
-  // Only fetch data once when component mounts
+  // ============================================================
+  // 🆕 Watch for theme changes
+  // ============================================================
+  useEffect(() => {
+    const update = () => setTheme(detectTheme());
+    update();
+
+    const observer = new MutationObserver(update);
+    observer.observe(document.documentElement, {
+      attributes: true,
+      attributeFilter: ["class", "data-theme"],
+    });
+    if (document.body) {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ["class", "data-theme"],
+      });
+    }
+
+    window.addEventListener("storage", update);
+    const interval = setInterval(update, 800);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("storage", update);
+      clearInterval(interval);
+    };
+  }, []);
+
+  // ============================================================
+  // 🆕 Theme-aware color palette
+  // ============================================================
+  const isLight = theme === "light";
+
+  // Text
+  const textColor = isLight ? "#0f172a" : "#f1f5f9";
+  const textMuted = isLight ? "#475569" : "#94a3b8";
+  const textDim = isLight ? "#64748b" : "#64748b";
+
+  // Input fields — explicit background + text pairing
+  const fieldBg = isLight ? "#ffffff" : "#0f172a";
+  const fieldText = isLight ? "#0f172a" : "#f1f5f9";
+  const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
+  const fieldBorder = isLight
+    ? "rgba(15,23,42,0.20)"
+    : "rgba(255,255,255,0.15)";
+  const fieldFocusBorder = "#10b981";
+
+  // Surfaces
+  const pageBg = isLight ? "#f8fafc" : "#0f172a";
+  const cardBg = isLight ? "#ffffff" : "rgba(255,255,255,0.03)";
+  const cardBorder = isLight ? "rgba(15,23,42,0.10)" : "rgba(255,255,255,0.05)";
+  const cardSurface = isLight ? "#f8fafc" : "rgba(255,255,255,0.05)";
+  const cardSurface2 = isLight ? "#f1f5f9" : "rgba(255,255,255,0.08)";
+  const tableHeaderBg = isLight ? "#f1f5f9" : "rgba(255,255,255,0.05)";
+  const rowBorder = isLight ? "rgba(15,23,42,0.06)" : "rgba(255,255,255,0.05)";
+
+  // Modal
+  const modalBg = isLight ? "#ffffff" : "#1e293b";
+  const modalText = isLight ? "#0f172a" : "#f1f5f9";
+  const modalBorder = isLight
+    ? "rgba(15, 23, 42, 0.10)"
+    : "rgba(255, 255, 255, 0.10)";
+
+  // Accent colors
+  const accentColor = "#10b981";
+  const creditColor = isLight ? "#059669" : "#34d399";
+  const warningColor = isLight ? "#d97706" : "#fbbf24";
+  const debitColor = isLight ? "#dc2626" : "#f87171";
+  const purpleColor = isLight ? "#7c3aed" : "#a78bfa";
+  const infoColor = isLight ? "#2563eb" : "#60a5fa";
+
   useEffect(() => {
     if (!hasFetched.current) {
       hasFetched.current = true;
@@ -53,35 +173,31 @@ const Borrowing = () => {
     }
   }, []);
 
-  // Calculate loan details when amount changes
   useEffect(() => {
     if (borrowAmount && userData) {
       calculateLoanDetails(parseFloat(borrowAmount));
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [borrowAmount, userData, loanSettings]);
 
-  // Format currency with commas and 2 decimal places
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
     const num = parseFloat(amount) || 0;
     return "₦" + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
-  // Format number with commas
   const formatNumber = (amount) => {
     if (!amount && amount !== 0) return "0.00";
     const num = parseFloat(amount) || 0;
     return num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
-  // Combined fetch function
   const fetchAllData = async () => {
     const settings = await fetchLoanSettings();
     await fetchUserData(settings);
     await fetchLoanHistory();
   };
 
-  // Refresh function
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchAllData();
@@ -89,17 +205,14 @@ const Borrowing = () => {
     toast.success("Data refreshed successfully!");
   };
 
-  // Fetch loan settings from API
   const fetchLoanSettings = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/settings.php`);
       if (response.ok) {
         const result = await response.json();
-        console.log("Full API response:", result);
 
         if (result.status === true && result.data && result.data.loan) {
           const settings = result.data.loan;
-          console.log("Loan settings from DB:", settings);
 
           const updatedSettings = {
             min_membership_days:
@@ -128,21 +241,16 @@ const Borrowing = () => {
           };
 
           setLoanSettings(updatedSettings);
-
           setLoanDetails((prev) => ({
             ...prev,
             durationMonths: settings.max_duration_months || 6,
           }));
 
           return updatedSettings;
-        } else {
-          console.warn("No loan settings found in response, using defaults");
-          return null;
         }
-      } else {
-        console.error("Failed to fetch settings, status:", response.status);
         return null;
       }
+      return null;
     } catch (error) {
       console.error("Error fetching loan settings:", error);
       return null;
@@ -176,10 +284,6 @@ const Borrowing = () => {
             const isEligible = diffDays >= minDays;
             const savings = parseFloat(member.balance || member.savings || 0);
             const maxBorrow = savings * 0.5;
-
-            console.log("Membership days:", diffDays);
-            console.log("Required days (from settings):", minDays);
-            console.log("Is eligible:", isEligible);
 
             setLoanDetails((prev) => ({
               ...prev,
@@ -217,7 +321,6 @@ const Borrowing = () => {
 
       if (!response.ok) {
         if (response.status === 404) {
-          console.warn("Loans API not found.");
           setLoans([]);
           setLoading(false);
           return;
@@ -228,14 +331,12 @@ const Borrowing = () => {
       const data = await response.json();
 
       if (data.error) {
-        console.warn("API error:", data.error);
         setLoans([]);
         setLoading(false);
         return;
       }
 
       if (data.loans && Array.isArray(data.loans)) {
-        // Ensure all numeric values are properly parsed
         const loansWithPaid = data.loans.map((loan) => ({
           ...loan,
           total_paid: parseFloat(loan.total_paid) || 0,
@@ -269,8 +370,6 @@ const Borrowing = () => {
     const durationMonths = loanSettings.max_duration_months || 6;
     const monthlyPayment = totalPayable / durationMonths;
 
-    console.log("Interest rate used:", loanSettings.interest_rate, "%");
-
     setLoanDetails((prev) => ({
       ...prev,
       amount: amount,
@@ -282,7 +381,6 @@ const Borrowing = () => {
     }));
   };
 
-  // Handle Loan Payment
   const handlePayment = async (e) => {
     e.preventDefault();
 
@@ -297,7 +395,6 @@ const Borrowing = () => {
       return;
     }
 
-    // Calculate remaining balance
     const totalPaid = parseFloat(selectedLoan.total_paid) || 0;
     const remainingBalance = parseFloat(selectedLoan.total_payable) - totalPaid;
 
@@ -442,33 +539,33 @@ const Borrowing = () => {
   const getStatusBadge = (status) => {
     const statusMap = {
       pending: {
-        bg: "rgba(234, 179, 8, 0.2)",
-        color: "var(--warning)",
+        bg: isLight ? "rgba(217,119,6,0.15)" : "rgba(234, 179, 8, 0.2)",
+        color: warningColor,
         label: "Pending",
       },
       approved: {
-        bg: "rgba(16, 185, 129, 0.2)",
-        color: "var(--credit)",
+        bg: isLight ? "rgba(5,150,105,0.15)" : "rgba(16, 185, 129, 0.2)",
+        color: creditColor,
         label: "Approved",
       },
       rejected: {
-        bg: "rgba(239, 68, 68, 0.2)",
-        color: "var(--debit)",
+        bg: isLight ? "rgba(220,38,38,0.15)" : "rgba(239, 68, 68, 0.2)",
+        color: debitColor,
         label: "Rejected",
       },
       active: {
-        bg: "rgba(59, 130, 246, 0.2)",
-        color: "var(--info)",
+        bg: isLight ? "rgba(37,99,235,0.15)" : "rgba(59, 130, 246, 0.2)",
+        color: infoColor,
         label: "Active",
       },
       completed: {
-        bg: "rgba(16, 185, 129, 0.2)",
-        color: "var(--credit)",
+        bg: isLight ? "rgba(5,150,105,0.15)" : "rgba(16, 185, 129, 0.2)",
+        color: creditColor,
         label: "Completed",
       },
       defaulted: {
-        bg: "rgba(239, 68, 68, 0.2)",
-        color: "var(--debit)",
+        bg: isLight ? "rgba(220,38,38,0.15)" : "rgba(239, 68, 68, 0.2)",
+        color: debitColor,
         label: "Defaulted",
       },
     };
@@ -491,12 +588,11 @@ const Borrowing = () => {
     );
   };
 
-  // Open payment modal
   const openPaymentModal = (loan) => {
     const totalPaid = parseFloat(loan.total_paid) || 0;
     const remaining = parseFloat(loan.total_payable) - totalPaid;
     if (remaining <= 0) {
-      toast.info("This loan is already fully paid!");
+      toast("This loan is already fully paid!", { icon: "ℹ️" });
       return;
     }
     setSelectedLoan(loan);
@@ -504,7 +600,6 @@ const Borrowing = () => {
     setShowPaymentModal(true);
   };
 
-  // Pagination
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
   const currentLoans = loans.slice(indexOfFirstItem, indexOfLastItem);
@@ -523,8 +618,8 @@ const Borrowing = () => {
       <div
         style={{
           padding: "24px",
-          color: "var(--text)",
-          backgroundColor: "#0f172a",
+          color: textColor,
+          backgroundColor: pageBg,
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -535,8 +630,8 @@ const Borrowing = () => {
           style={{
             width: "48px",
             height: "48px",
-            border: "4px solid rgba(255,255,255,0.1)",
-            borderTopColor: "#00aa69",
+            border: `4px solid ${fieldBorder}`,
+            borderTopColor: accentColor,
             borderRadius: "50%",
             animation: "spin 1s linear infinite",
           }}
@@ -552,127 +647,145 @@ const Borrowing = () => {
 
   return (
     <div
+      className="brw-wrap"
       style={{
         padding: "24px",
-        color: "var(--text)",
-        backgroundColor: "#0f172a",
+        color: textColor,
+        backgroundColor: pageBg,
         minHeight: "100vh",
       }}
     >
+      {/* ============================================================ */}
+      {/* 🆕 THEME-AWARE STYLES */}
+      {/* ============================================================ */}
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .brw-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
+        .brw-wrap * { box-sizing: border-box; }
+
+        /* ===== MODAL ===== */
         .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background-color: rgba(0,0,0,0.7);
+          position: fixed; inset: 0;
+          background-color: rgba(0,0,0,0.6);
           backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 999;
-          padding: 16px;
+          display: flex; align-items: center; justify-content: center;
+          z-index: 999; padding: 16px;
         }
         .modal-content {
-          background-color: var(--bg-surface);
+          background-color: ${modalBg};
           border-radius: 16px;
           padding: 32px;
           max-width: 500px;
           width: 100%;
           max-height: 90vh;
           overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid ${modalBorder};
+          color: ${modalText};
+          box-shadow: 0 20px 60px rgba(0,0,0,0.35);
         }
         .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
+          display: flex; justify-content: space-between;
+          align-items: center; margin-bottom: 16px;
         }
         .modal-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: white;
+          font-size: 18px; font-weight: bold;
+          color: ${modalText};
         }
         .modal-close {
-          background: none;
-          border: none;
-          color: var(--text-muted);
-          cursor: pointer;
-          padding: 4px;
-          font-size: 24px;
+          background: none; border: none;
+          color: ${textMuted}; cursor: pointer;
+          padding: 4px; font-size: 24px; line-height: 1;
+          transition: color 0.2s;
         }
-        .modal-close:hover {
-          color: white;
-        }
-        .form-group {
-          margin-bottom: 16px;
-        }
+        .modal-close:hover { color: ${modalText}; }
+
+        /* ===== FORM ===== */
+        .form-group { margin-bottom: 16px; }
         .form-label {
-          display: block;
-          font-size: 14px;
-          font-weight: 500;
-          color: var(--text);
-          margin-bottom: 6px;
+          display: block; font-size: 14px; font-weight: 500;
+          color: ${modalText}; margin-bottom: 6px;
         }
         .form-input {
           width: 100%;
           padding: 10px 14px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+          border: 1px solid ${fieldBorder};
+          background-color: ${fieldBg} !important;
+          color: ${fieldText} !important;
+          -webkit-text-fill-color: ${fieldText} !important;
+          caret-color: ${accentColor};
           font-size: 14px;
           outline: none;
-          transition: border-color 0.2s;
-          box-sizing: border-box;
+          transition: border-color 0.2s, background-color 0.2s;
+          font-family: inherit;
+          appearance: none;
+          -webkit-appearance: none;
         }
         .form-input:focus {
-          border-color: var(--accent);
+          border-color: ${fieldFocusBorder};
+          background-color: ${fieldBg} !important;
+          color: ${fieldText} !important;
+          -webkit-text-fill-color: ${fieldText} !important;
+        }
+        .form-input::placeholder {
+          color: ${fieldPlaceholder} !important;
+          -webkit-text-fill-color: ${fieldPlaceholder} !important;
+          opacity: 1;
         }
         .form-input:disabled {
-          opacity: 0.6;
+          opacity: 0.7;
           cursor: not-allowed;
         }
+        .form-input:-webkit-autofill,
+        .form-input:-webkit-autofill:hover,
+        .form-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: ${fieldText} !important;
+          -webkit-box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
+          box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+        .form-input::selection { background: ${accentColor}; color: #ffffff; }
+        .form-input[type="number"]::-webkit-outer-spin-button,
+        .form-input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none; margin: 0;
+        }
+        .form-input[type="number"] { -moz-appearance: textfield; }
+
+        /* ===== BUTTONS ===== */
         .btn-primary {
           padding: 10px 24px;
           border-radius: 8px;
           border: none;
           background: #00aa69;
-          color: white;
+          color: #ffffff;
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-primary:hover {
-          background: #008854;
-        }
-        .btn-primary:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
+        .btn-primary:hover:not(:disabled) { background: #008854; }
+        .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .btn-secondary {
           padding: 10px 24px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid ${fieldBorder};
           background: transparent;
-          color: white;
+          color: ${modalText};
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-secondary:hover {
-          background: rgba(255,255,255,0.05);
-        }
+        .btn-secondary:hover { background: ${cardSurface2}; }
+
         .btn-pay {
           padding: 6px 16px;
           border-radius: 6px;
           border: none;
-          background: rgba(16, 185, 129, 0.15);
-          color: var(--credit);
+          background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16, 185, 129, 0.15)"};
+          color: ${creditColor};
           cursor: pointer;
           font-size: 12px;
           font-weight: 500;
@@ -680,14 +793,15 @@ const Borrowing = () => {
           margin-right: 4px;
         }
         .btn-pay:hover {
-          background: rgba(16, 185, 129, 0.25);
+          background: ${isLight ? "rgba(5,150,105,0.22)" : "rgba(16, 185, 129, 0.25)"};
         }
+
         .btn-borrow {
           padding: 12px 24px;
           border-radius: 8px;
           border: none;
-          background: rgba(16, 185, 129, 0.15);
-          color: var(--credit);
+          background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16, 185, 129, 0.15)"};
+          color: ${creditColor};
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -696,15 +810,17 @@ const Borrowing = () => {
           align-items: center;
           gap: 8px;
         }
-        .btn-borrow:hover {
-          background: rgba(16, 185, 129, 0.25);
+        .btn-borrow:hover:not(:disabled) {
+          background: ${isLight ? "rgba(5,150,105,0.22)" : "rgba(16, 185, 129, 0.25)"};
         }
+        .btn-borrow:disabled { opacity: 0.5; cursor: not-allowed; }
+
         .btn-refresh {
           padding: 12px 24px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid ${fieldBorder};
           background: transparent;
-          color: var(--text-muted);
+          color: ${textMuted};
           cursor: pointer;
           font-size: 14px;
           font-weight: 500;
@@ -713,58 +829,54 @@ const Borrowing = () => {
           align-items: center;
           gap: 8px;
         }
-        .btn-refresh:hover {
-          background: rgba(255,255,255,0.05);
-          color: white;
+        .btn-refresh:hover:not(:disabled) {
+          background: ${cardSurface2};
+          color: ${textColor};
         }
-        .btn-refresh:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-        .btn-refresh .spinning {
-          animation: spin 1s linear infinite;
-        }
+        .btn-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-refresh .spinning { animation: spin 1s linear infinite; display: inline-block; }
+
         .page-btn {
           padding: 6px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid ${fieldBorder};
           background: transparent;
-          color: var(--text-muted);
+          color: ${textMuted};
           cursor: pointer;
           font-size: 13px;
           transition: all 0.2s;
         }
-        .page-btn:hover:not(:disabled) {
-          background-color: rgba(255,255,255,0.05);
-          color: white;
+        .page-btn:hover:not(:disabled):not(.active) {
+          background-color: ${cardSurface2};
+          color: ${textColor};
         }
         .page-btn.active {
           background-color: #00aa69;
           border-color: #00aa69;
-          color: white;
+          color: #ffffff;
         }
-        .page-btn:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+
+        /* ===== CARDS ===== */
         .summary-card {
-          background: rgba(255,255,255,0.05);
+          background: ${cardSurface};
           border-radius: 12px;
           padding: 16px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid ${cardBorder};
         }
         .summary-label {
           font-size: 12px;
-          color: var(--text-muted);
+          color: ${textMuted};
           text-transform: uppercase;
           letter-spacing: 0.05em;
         }
         .summary-value {
           font-size: 20px;
           font-weight: bold;
-          color: white;
+          color: ${textColor};
           margin-top: 4px;
         }
+
         .eligibility-badge {
           display: inline-block;
           padding: 4px 12px;
@@ -773,49 +885,51 @@ const Borrowing = () => {
           font-weight: 500;
         }
         .eligible {
-          background: rgba(16, 185, 129, 0.2);
-          color: var(--credit);
-          border: 1px solid rgba(16, 185, 129, 0.3);
+          background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16, 185, 129, 0.2)"};
+          color: ${creditColor};
+          border: 1px solid ${isLight ? "rgba(5,150,105,0.3)" : "rgba(16, 185, 129, 0.3)"};
         }
         .not-eligible {
-          background: rgba(239, 68, 68, 0.2);
-          color: var(--debit);
-          border: 1px solid rgba(239, 68, 68, 0.3);
+          background: ${isLight ? "rgba(220,38,38,0.12)" : "rgba(239, 68, 68, 0.2)"};
+          color: ${debitColor};
+          border: 1px solid ${isLight ? "rgba(220,38,38,0.3)" : "rgba(239, 68, 68, 0.3)"};
         }
+
         .loan-detail-row {
           display: flex;
           justify-content: space-between;
           padding: 8px 0;
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid ${rowBorder};
         }
         .loan-detail-label {
-          color: var(--text-muted);
+          color: ${textMuted};
           font-size: 14px;
         }
         .loan-detail-value {
-          color: white;
+          color: ${textColor};
           font-weight: 500;
           font-size: 14px;
         }
         .total-payable-highlight {
-          background: rgba(16, 185, 129, 0.1);
+          background: ${isLight ? "rgba(5,150,105,0.08)" : "rgba(16, 185, 129, 0.1)"};
           border-radius: 6px;
           padding: 8px 12px;
           margin-top: 4px;
-          border: 1px solid rgba(16, 185, 129, 0.2);
+          border: 1px solid ${isLight ? "rgba(5,150,105,0.2)" : "rgba(16, 185, 129, 0.2)"};
         }
         .total-payable-highlight .loan-detail-label {
           font-weight: 600;
-          color: var(--credit);
+          color: ${creditColor};
         }
         .total-payable-highlight .loan-detail-value {
           font-weight: 700;
           font-size: 16px;
-          color: var(--credit);
+          color: ${creditColor};
         }
+
         .max-borrow-info {
-          background: rgba(16, 185, 129, 0.1);
-          border: 1px solid rgba(16, 185, 129, 0.2);
+          background: ${isLight ? "rgba(5,150,105,0.08)" : "rgba(16, 185, 129, 0.1)"};
+          border: 1px solid ${isLight ? "rgba(5,150,105,0.2)" : "rgba(16, 185, 129, 0.2)"};
           border-radius: 8px;
           padding: 12px 16px;
           margin-bottom: 16px;
@@ -823,52 +937,54 @@ const Borrowing = () => {
         .max-borrow-info p {
           margin: 0;
           font-size: 13px;
-          color: var(--credit);
+          color: ${creditColor};
         }
         .max-borrow-info strong {
-          color: white;
+          color: ${textColor};
         }
+
         .remaining-balance {
-          color: var(--credit);
+          color: ${creditColor};
           font-weight: 600;
         }
+
         .payment-info {
-          background: rgba(59, 130, 246, 0.1);
+          background: ${isLight ? "rgba(37,99,235,0.06)" : "rgba(59, 130, 246, 0.1)"};
           padding: 12px;
           border-radius: 8px;
           margin-bottom: 16px;
-          border: 1px solid rgba(59, 130, 246, 0.2);
+          border: 1px solid ${isLight ? "rgba(37,99,235,0.2)" : "rgba(59, 130, 246, 0.2)"};
         }
         .payment-info p {
           margin: 4px 0;
           font-size: 13px;
-          color: var(--text-muted);
+          color: ${textMuted};
         }
         .payment-info strong {
-          color: white;
+          color: ${textColor};
         }
-        .currency-amount {
-          font-variant-numeric: tabular-nums;
-        }
-        /* ✅ COMPLETED ROW STYLING */
+
+        .currency-amount { font-variant-numeric: tabular-nums; }
+
+        /* ===== COMPLETED ROW ===== */
         .loan-row-completed {
-          background-color: rgba(16, 185, 129, 0.08) !important;
-          border-left: 3px solid var(--credit) !important;
+          background-color: ${isLight ? "rgba(5,150,105,0.06)" : "rgba(16, 185, 129, 0.08)"} !important;
+          border-left: 3px solid ${creditColor} !important;
           transition: background-color 0.3s ease;
         }
         .loan-row-completed:hover {
-          background-color: rgba(16, 185, 129, 0.15) !important;
+          background-color: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16, 185, 129, 0.15)"} !important;
         }
         .loan-row-completed td:first-child {
-          border-left: 3px solid var(--credit);
+          border-left: 3px solid ${creditColor};
         }
         .loan-row-completed .remaining-balance {
-          color: var(--credit) !important;
+          color: ${creditColor} !important;
         }
         .loan-row-completed .badge {
-          background-color: rgba(16, 185, 129, 0.2) !important;
-          color: var(--credit) !important;
-          border-color: rgba(16, 185, 129, 0.3) !important;
+          background-color: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16, 185, 129, 0.2)"} !important;
+          color: ${creditColor} !important;
+          border-color: ${isLight ? "rgba(5,150,105,0.3)" : "rgba(16, 185, 129, 0.3)"} !important;
         }
         .loan-row-completed .btn-pay {
           display: none !important;
@@ -887,10 +1003,17 @@ const Borrowing = () => {
         }}
       >
         <div>
-          <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
+          <h2
+            style={{
+              fontSize: "24px",
+              fontWeight: "bold",
+              margin: 0,
+              color: textColor,
+            }}
+          >
             💰 Loan Management
           </h2>
-          <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
+          <p style={{ color: textMuted, margin: "4px 0 0 0" }}>
             Request and manage your loans
           </p>
         </div>
@@ -930,7 +1053,7 @@ const Borrowing = () => {
         </div>
         <div className="summary-card">
           <div className="summary-label">Maximum Borrow (50%)</div>
-          <div className="summary-value" style={{ color: "var(--credit)" }}>
+          <div className="summary-value" style={{ color: creditColor }}>
             {formatCurrency(loanDetails.savings * 0.5)}
           </div>
         </div>
@@ -938,7 +1061,7 @@ const Borrowing = () => {
           <div className="summary-label">Interest Rate</div>
           <div
             className="summary-value"
-            style={{ color: "var(--warning)", fontSize: "18px" }}
+            style={{ color: warningColor, fontSize: "18px" }}
           >
             {loanSettings.interest_rate || 0}%
           </div>
@@ -953,7 +1076,11 @@ const Borrowing = () => {
             </span>
             {!loanDetails.isEligible && (
               <div
-                style={{ fontSize: "11px", color: "var(--debit)", marginTop: "4px" }}
+                style={{
+                  fontSize: "11px",
+                  color: debitColor,
+                  marginTop: "4px",
+                }}
               >
                 Need {loanSettings.min_membership_days || 180} days
               </div>
@@ -965,141 +1092,61 @@ const Borrowing = () => {
       {/* Loan History Table */}
       <div
         style={{
-          backgroundColor: "rgba(255,255,255,0.03)",
+          backgroundColor: cardBg,
           borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.05)",
+          border: `1px solid ${cardBorder}`,
           overflow: "hidden",
         }}
       >
         <div
           style={{
             padding: "16px",
-            borderBottom: "1px solid rgba(255,255,255,0.05)",
+            borderBottom: `1px solid ${cardBorder}`,
             display: "flex",
             justifyContent: "space-between",
             alignItems: "center",
           }}
         >
-          <h3 style={{ margin: 0, fontSize: "16px", color: "var(--text)" }}>
+          <h3 style={{ margin: 0, fontSize: "16px", color: textColor }}>
             📋 Loan History
           </h3>
-          <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
+          <span style={{ fontSize: "13px", color: textMuted }}>
             {loans.length} loan{loans.length !== 1 ? "s" : ""}
           </span>
         </div>
         <div style={{ overflowX: "auto" }}>
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead style={{ backgroundColor: "rgba(255,255,255,0.05)" }}>
+            <thead style={{ backgroundColor: tableHeaderBg }}>
               <tr>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Loan ID
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Amount
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Total Payable
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Paid
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Remaining
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Status
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Date
-                </th>
-                <th
-                  style={{
-                    padding: "12px 16px",
-                    textAlign: "left",
-                    fontSize: "12px",
-                    fontWeight: "600",
-                    color: "var(--text-muted)",
-                    textTransform: "uppercase",
-                    letterSpacing: "0.05em",
-                  }}
-                >
-                  Actions
-                </th>
+                {[
+                  "Loan ID",
+                  "Amount",
+                  "Total Payable",
+                  "Paid",
+                  "Remaining",
+                  "Status",
+                  "Date",
+                  "Actions",
+                ].map((h) => (
+                  <th
+                    key={h}
+                    style={{
+                      padding: "12px 16px",
+                      textAlign: "left",
+                      fontSize: "12px",
+                      fontWeight: "600",
+                      color: textMuted,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.05em",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ))}
               </tr>
             </thead>
             <tbody>
               {currentLoans.map((loan) => {
-                // Ensure all values are numbers
                 const totalPaid = parseFloat(loan.total_paid) || 0;
                 const totalPayable = parseFloat(loan.total_payable) || 0;
                 const amount = parseFloat(loan.amount) || 0;
@@ -1107,8 +1154,6 @@ const Borrowing = () => {
                 const isFullyPaid = remaining <= 0.01;
                 const canPay =
                   loan.status === "approved" || loan.status === "active";
-
-                // ✅ Check if loan is completed
                 const isCompleted = loan.status === "completed" || isFullyPaid;
 
                 return (
@@ -1116,11 +1161,13 @@ const Borrowing = () => {
                     key={loan.id}
                     className={isCompleted ? "loan-row-completed" : ""}
                     style={{
-                      borderTop: "1px solid rgba(255,255,255,0.05)",
+                      borderTop: `1px solid ${rowBorder}`,
                       transition: "background-color 0.3s ease",
                       ...(isCompleted
                         ? {
-                            backgroundColor: "rgba(16, 185, 129, 0.08)",
+                            backgroundColor: isLight
+                              ? "rgba(5,150,105,0.06)"
+                              : "rgba(16, 185, 129, 0.08)",
                           }
                         : {}),
                     }}
@@ -1128,10 +1175,9 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "var(--info)",
+                        color: isCompleted ? creditColor : infoColor,
                         fontFamily: "monospace",
                         fontSize: "14px",
-                        ...(isCompleted ? { color: "var(--credit)" } : {}),
                       }}
                     >
                       {loan.id}
@@ -1139,7 +1185,7 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "var(--credit)",
+                        color: creditColor,
                         fontWeight: "500",
                       }}
                     >
@@ -1148,14 +1194,13 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "var(--text)",
+                        color: isCompleted ? textMuted : textColor,
                         fontWeight: "500",
-                        ...(isCompleted ? { color: "var(--text-muted)" } : {}),
                       }}
                     >
                       {formatCurrency(totalPayable)}
                     </td>
-                    <td style={{ padding: "12px 16px", color: "var(--info)" }}>
+                    <td style={{ padding: "12px 16px", color: infoColor }}>
                       {formatCurrency(totalPaid)}
                     </td>
                     <td style={{ padding: "12px 16px" }}>
@@ -1167,7 +1212,7 @@ const Borrowing = () => {
                           style={{
                             marginLeft: "8px",
                             fontSize: "11px",
-                            color: "var(--credit)",
+                            color: creditColor,
                           }}
                         >
                           ✅ Paid
@@ -1180,7 +1225,7 @@ const Borrowing = () => {
                     <td
                       style={{
                         padding: "12px 16px",
-                        color: "var(--text-muted)",
+                        color: textMuted,
                         fontSize: "13px",
                       }}
                     >
@@ -1196,19 +1241,19 @@ const Borrowing = () => {
                         </button>
                       )}
                       {isFullyPaid && (
-                        <span style={{ fontSize: "12px", color: "var(--credit)" }}>
+                        <span style={{ fontSize: "12px", color: creditColor }}>
                           ✅ Completed
                         </span>
                       )}
                       {!canPay && !isFullyPaid && loan.status === "pending" && (
-                        <span style={{ fontSize: "12px", color: "var(--warning)" }}>
+                        <span style={{ fontSize: "12px", color: warningColor }}>
                           ⏳ Pending
                         </span>
                       )}
                       {!canPay &&
                         !isFullyPaid &&
                         loan.status === "rejected" && (
-                          <span style={{ fontSize: "12px", color: "var(--debit)" }}>
+                          <span style={{ fontSize: "12px", color: debitColor }}>
                             ❌ Rejected
                           </span>
                         )}
@@ -1228,15 +1273,15 @@ const Borrowing = () => {
               justifyContent: "space-between",
               alignItems: "center",
               padding: "16px",
-              borderTop: "1px solid rgba(255,255,255,0.05)",
+              borderTop: `1px solid ${cardBorder}`,
               flexWrap: "wrap",
               gap: "8px",
             }}
           >
-            <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
+            <div style={{ fontSize: "14px", color: textMuted }}>
               Showing {indexOfFirstItem + 1} to{" "}
               {Math.min(indexOfLastItem, loans.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "var(--text)" }}>
+              <span style={{ fontWeight: "600", color: textColor }}>
                 {loans.length}
               </span>{" "}
               loans
@@ -1309,9 +1354,21 @@ const Borrowing = () => {
                   borderRadius: "8px",
                   marginBottom: "16px",
                   backgroundColor: loanDetails.isEligible
-                    ? "rgba(16, 185, 129, 0.1)"
-                    : "rgba(239, 68, 68, 0.1)",
-                  border: `1px solid ${loanDetails.isEligible ? "rgba(16, 185, 129, 0.3)" : "rgba(239, 68, 68, 0.3)"}`,
+                    ? isLight
+                      ? "rgba(5,150,105,0.08)"
+                      : "rgba(16, 185, 129, 0.1)"
+                    : isLight
+                      ? "rgba(220,38,38,0.06)"
+                      : "rgba(239, 68, 68, 0.1)",
+                  border: `1px solid ${
+                    loanDetails.isEligible
+                      ? isLight
+                        ? "rgba(5,150,105,0.3)"
+                        : "rgba(16, 185, 129, 0.3)"
+                      : isLight
+                        ? "rgba(220,38,38,0.3)"
+                        : "rgba(239, 68, 68, 0.3)"
+                  }`,
                 }}
               >
                 <div
@@ -1323,7 +1380,7 @@ const Borrowing = () => {
                   <div>
                     <div
                       style={{
-                        color: "var(--text)",
+                        color: modalText,
                         fontWeight: "500",
                         fontSize: "14px",
                       }}
@@ -1332,7 +1389,7 @@ const Borrowing = () => {
                         ? "You are eligible to borrow!"
                         : "You are not eligible to borrow yet"}
                     </div>
-                    <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
+                    <div style={{ color: textMuted, fontSize: "12px" }}>
                       {loanDetails.isEligible
                         ? `You have been active for ${Math.floor(loanDetails.membershipDays / 30)} months`
                         : `Need to be active for ${Math.ceil((loanSettings.min_membership_days || 180) / 30)} months (${Math.floor(loanDetails.membershipDays / 30)}/${Math.ceil((loanSettings.min_membership_days || 180) / 30)} months)`}
@@ -1347,7 +1404,7 @@ const Borrowing = () => {
                   💰 You can borrow up to <strong>50%</strong> of your savings
                   balance
                 </p>
-                <p style={{ marginTop: "4px", color: "var(--credit)" }}>
+                <p style={{ marginTop: "4px", color: creditColor }}>
                   Maximum:{" "}
                   <strong>{formatCurrency(loanDetails.savings * 0.5)}</strong>
                 </p>
@@ -1368,7 +1425,7 @@ const Borrowing = () => {
                   Amount to Borrow *
                   <span
                     style={{
-                      color: "var(--text-muted)",
+                      color: textMuted,
                       fontSize: "12px",
                       marginLeft: "8px",
                     }}
@@ -1391,7 +1448,7 @@ const Borrowing = () => {
                   <div
                     style={{
                       fontSize: "12px",
-                      color: "var(--text-muted)",
+                      color: textMuted,
                       marginTop: "4px",
                     }}
                   >
@@ -1405,15 +1462,16 @@ const Borrowing = () => {
               {borrowAmount && parseFloat(borrowAmount) > 0 && (
                 <div
                   style={{
-                    backgroundColor: "rgba(255,255,255,0.05)",
+                    backgroundColor: cardSurface,
                     borderRadius: "8px",
                     padding: "16px",
                     marginBottom: "16px",
+                    border: `1px solid ${cardBorder}`,
                   }}
                 >
                   <div
                     style={{
-                      color: "var(--text)",
+                      color: modalText,
                       fontWeight: "500",
                       marginBottom: "12px",
                     }}
@@ -1432,7 +1490,7 @@ const Borrowing = () => {
                     </span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "var(--warning)" }}
+                      style={{ color: warningColor }}
                     >
                       {formatCurrency(loanDetails.interest)}
                     </span>
@@ -1441,7 +1499,7 @@ const Borrowing = () => {
                     <span className="loan-detail-label">Total Payable</span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "var(--credit)" }}
+                      style={{ color: creditColor }}
                     >
                       {formatCurrency(loanDetails.totalPayable)}
                     </span>
@@ -1456,7 +1514,7 @@ const Borrowing = () => {
                     </span>
                     <span
                       className="loan-detail-value"
-                      style={{ color: "var(--info)" }}
+                      style={{ color: infoColor }}
                     >
                       {formatCurrency(loanDetails.monthlyPayment)}
                     </span>
@@ -1481,7 +1539,7 @@ const Borrowing = () => {
                     <div
                       style={{
                         fontSize: "11px",
-                        color: "var(--text-muted)",
+                        color: textMuted,
                         marginTop: "4px",
                       }}
                     >
@@ -1551,13 +1609,13 @@ const Borrowing = () => {
                 </p>
                 <p>
                   Total Paid:{" "}
-                  <strong style={{ color: "var(--info)" }}>
+                  <strong style={{ color: infoColor }}>
                     {formatCurrency(selectedLoan.total_paid || 0)}
                   </strong>
                 </p>
                 <p>
                   Remaining Balance:{" "}
-                  <strong style={{ color: "var(--credit)" }}>
+                  <strong style={{ color: creditColor }}>
                     {formatCurrency(
                       parseFloat(selectedLoan.total_payable) -
                         parseFloat(selectedLoan.total_paid || 0),
@@ -1585,7 +1643,7 @@ const Borrowing = () => {
                 <div
                   style={{
                     fontSize: "12px",
-                    color: "var(--text-muted)",
+                    color: textMuted,
                     marginTop: "4px",
                   }}
                 >

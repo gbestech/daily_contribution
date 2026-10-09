@@ -133,7 +133,6 @@ Please log in and complete your profile.`;
       .catch(() => toast.error("Copy failed"));
   };
 
-  // ✅ Send credentials to login page so they auto-fill
   const goToLoginWithCredentials = () => {
     const creds = {
       email: createdCredentials.email,
@@ -146,181 +145,30 @@ Please log in and complete your profile.`;
   };
 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
-        padding: "20px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      }}
-    >
-      <style>{`
-        .pub-card {
-          width: 100%;
-          max-width: 440px;
-          background: rgba(255, 255, 255, 0.04);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 20px;
-          padding: 36px 30px 28px;
-          box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
-          position: relative;
-          overflow: hidden;
-          color: white;
-        }
-        .pub-card::before {
-          content: "";
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
-        }
-        .pub-logo {
-          width: 64px; height: 64px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #059669, #0d9488);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 28px; color: white;
-          margin: 0 auto 14px;
-          box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
-        }
-        .pub-title {
-          font-size: 22px; font-weight: 700;
-          color: white; text-align: center;
-          margin: 0 0 4px 0; letter-spacing: -0.3px;
-        }
-        .pub-subtitle {
-          font-size: 13px; color: var(--text-muted);
-          text-align: center; margin: 0 0 22px 0;
-        }
-        .pub-info {
-          background: rgba(59, 130, 246, 0.08);
-          border: 1px solid rgba(59, 130, 246, 0.2);
-          border-radius: 10px;
-          padding: 12px 14px;
-          margin-bottom: 20px;
-          font-size: 12px;
-          color: #93c5fd;
-          line-height: 1.5;
-        }
-        .pub-group { margin-bottom: 14px; }
-        .pub-label {
-          display: block; font-size: 12px;
-          font-weight: 600; color: var(--text);
-          margin-bottom: 6px;
-          letter-spacing: 0.3px; text-transform: uppercase;
-        }
-        .pub-input {
-          width: 100%;
-          padding: 12px 14px;
-          font-size: 14px; color: white;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          outline: none;
-          box-sizing: border-box;
-          transition: all 0.2s;
-        }
-        .pub-input::placeholder { color: var(--text-dim); }
-        .pub-input:focus {
-          border-color: var(--accent);
-          background: rgba(16, 185, 129, 0.06);
-          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
-        }
-        .pub-email-note {
-          background: rgba(16, 185, 129, 0.08);
-          border: 1px solid rgba(16, 185, 129, 0.2);
-          border-radius: 8px;
-          padding: 10px 14px;
-          margin-bottom: 14px;
-          font-size: 12px;
-          color: var(--credit);
-          word-break: break-all;
-        }
-        .pub-submit {
-          width: 100%; padding: 13px;
-          border: none; border-radius: 10px;
-          font-size: 15px; font-weight: 600;
-          color: white; cursor: pointer;
-          background: linear-gradient(135deg, #059669, #0d9488);
-          box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.5);
-          transition: all 0.2s;
-          margin-top: 6px;
-        }
-        .pub-submit:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
-        }
-        .pub-submit:disabled {
-          opacity: 0.6; cursor: not-allowed;
-        }
-        .pub-footer {
-          text-align: center;
-          margin-top: 20px;
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-        .pub-footer a {
-          color: var(--credit);
-          text-decoration: none;
-          font-weight: 600;
-        }
-        .pub-footer a:hover { text-decoration: underline; }
-        .pub-note {
-          text-align: center;
-          font-size: 10px;
-          color: var(--text-dim);
-          margin-top: 18px;
-        }
-        .cred-row {
-          display: flex; justify-content: space-between;
-          align-items: center; gap: 8px;
-          padding: 10px 12px; border-radius: 8px;
-          background: rgba(255,255,255,0.05);
-          border: 1px solid rgba(255,255,255,0.08);
-          margin-bottom: 8px;
-        }
-        .cred-label {
-          font-size: 11px; color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px; margin-bottom: 2px;
-        }
-        .cred-value {
-          font-size: 14px; color: white;
-          font-weight: 600;
-          font-family: monospace;
-          word-break: break-all;
-        }
-        .cred-copy {
-          background: rgba(59, 130, 246, 0.15);
-          color: var(--info);
-          border: 1px solid rgba(59, 130, 246, 0.25);
-          padding: 6px 12px; border-radius: 6px;
-          cursor: pointer; font-size: 12px;
-          font-weight: 500; white-space: nowrap;
-        }
-        .cred-copy:hover { background: rgba(59, 130, 246, 0.25); }
-      `}</style>
+    <div className="reg-page">
+      <style>{css}</style>
 
-      <div className="pub-card">
-        <div className="pub-logo">🏦</div>
-        <h1 className="pub-title">Create Account</h1>
-        <p className="pub-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
+      {/* Background image overlay */}
+      <div className="reg-bg" aria-hidden="true" />
 
-        <div className="pub-info">
+      <div className="reg-card">
+        <div className="reg-header">
+          <div className="reg-logo">🏦</div>
+          <h1 className="reg-title">Create Account</h1>
+          <p className="reg-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
+        </div>
+
+        <div className="reg-info">
           💡 Enter your details below. You'll receive your account number after
           registration and can log in to complete your profile.
         </div>
 
         <form onSubmit={handleSubmit}>
-          <div className="pub-group">
-            <label className="pub-label">First Name *</label>
+          <div className="field-group">
+            <label className="field-label">First Name *</label>
             <input
               type="text"
-              className="pub-input"
+              className="field-input"
               value={newMember.firstName}
               onChange={(e) =>
                 setNewMember({
@@ -334,11 +182,11 @@ Please log in and complete your profile.`;
             />
           </div>
 
-          <div className="pub-group">
-            <label className="pub-label">Last Name *</label>
+          <div className="field-group">
+            <label className="field-label">Last Name *</label>
             <input
               type="text"
-              className="pub-input"
+              className="field-input"
               value={newMember.lastName}
               onChange={(e) =>
                 setNewMember({
@@ -352,11 +200,11 @@ Please log in and complete your profile.`;
             />
           </div>
 
-          <div className="pub-group">
-            <label className="pub-label">Password *</label>
+          <div className="field-group">
+            <label className="field-label">Password *</label>
             <input
               type="password"
-              className="pub-input"
+              className="field-input"
               value={newMember.password}
               onChange={(e) =>
                 setNewMember({ ...newMember, password: e.target.value })
@@ -368,81 +216,43 @@ Please log in and complete your profile.`;
             />
           </div>
 
-          <div className="pub-email-note">
+          <div className="reg-email-note">
             📧 Your login email will be:{" "}
-            <strong style={{ color: "var(--text)" }}>{newMember.email || "—"}</strong>
+            <strong>{newMember.email || "—"}</strong>
           </div>
 
-          <button type="submit" className="pub-submit" disabled={loading}>
+          <button type="submit" className="submit-btn" disabled={loading}>
             {loading ? "Creating account..." : "Create Account"}
           </button>
         </form>
 
-        <div className="pub-footer">
-          Already have an account? <Link to="/login">Sign in here</Link>
+        <div className="divider">Already a member?</div>
+
+        <div className="footer-row">
+          <Link to="/login" className="footer-link">
+            Sign in here
+          </Link>
         </div>
 
-        <div className="pub-note">
+        <div className="footer-note">
           © {new Date().getFullYear()} AR-RIYAADAH SAVINGS HUB. All rights
           reserved.
         </div>
       </div>
 
+      {/* Credentials Modal */}
       {showCredentialsModal && createdCredentials && (
-        <div
-          style={{
-            position: "fixed",
-            inset: 0,
-            background: "rgba(0,0,0,0.75)",
-            backdropFilter: "blur(6px)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            zIndex: 1000,
-            padding: "16px",
-          }}
-        >
-          <div
-            style={{
-              background: "var(--bg-surface)",
-              borderRadius: "14px",
-              padding: "28px",
-              maxWidth: "460px",
-              width: "100%",
-              maxHeight: "90vh",
-              overflowY: "auto",
-              border: "1px solid rgba(255,255,255,0.1)",
-              color: "var(--text)",
-            }}
-          >
-            <h3
-              style={{
-                fontSize: "18px",
-                fontWeight: "bold",
-                margin: "0 0 16px 0",
-              }}
-            >
-              🎉 Account Created!
-            </h3>
+        <div className="modal-overlay">
+          <div className="modal-card">
+            <h3 className="modal-title">🎉 Account Created!</h3>
 
-            <div
-              style={{
-                background: "rgba(16, 185, 129, 0.1)",
-                border: "1px solid rgba(16, 185, 129, 0.25)",
-                borderRadius: "8px",
-                padding: "12px 14px",
-                marginBottom: "16px",
-                fontSize: "13px",
-                color: "#6ee7b7",
-                lineHeight: 1.5,
-              }}
-            >
+            <div className="modal-warning">
               ⚠️ <strong>Save these credentials</strong>. You'll need them to
               log in.
             </div>
 
             <div className="cred-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="cred-body">
                 <div className="cred-label">📧 Email</div>
                 <div className="cred-value">{createdCredentials.email}</div>
               </div>
@@ -457,7 +267,7 @@ Please log in and complete your profile.`;
             </div>
 
             <div className="cred-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="cred-body">
                 <div className="cred-label">🔑 Password</div>
                 <div className="cred-value">{createdCredentials.password}</div>
               </div>
@@ -472,7 +282,7 @@ Please log in and complete your profile.`;
             </div>
 
             <div className="cred-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
+              <div className="cred-body">
                 <div className="cred-label">💳 Account Number</div>
                 <div className="cred-value">
                   {createdCredentials.accountNumber}
@@ -491,36 +301,13 @@ Please log in and complete your profile.`;
               </button>
             </div>
 
-            <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-              <button
-                onClick={copyAll}
-                style={{
-                  flex: 1,
-                  padding: "10px 20px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "linear-gradient(to right, var(--purple), #6d28d9)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                }}
-              >
+            <div className="modal-actions">
+              <button onClick={copyAll} className="modal-btn modal-btn-blue">
                 📋 Copy All
               </button>
               <button
                 onClick={goToLoginWithCredentials}
-                style={{
-                  flex: 1,
-                  padding: "10px 20px",
-                  borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  background: "transparent",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: "500",
-                }}
+                className="modal-btn modal-btn-green"
               >
                 ✅ Go to Login
               </button>
@@ -531,5 +318,348 @@ Please log in and complete your profile.`;
     </div>
   );
 };
+
+/* ----------------------------------------------------------------
+   CSS — flat style matching Login / Broadsheet / Profile /
+   Permissions. Background image + subtle tint. No cards, no
+   gradients, no blue focus rings.
+----------------------------------------------------------------- */
+const css = `
+  .reg-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: transparent;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: var(--text, #0f172a);
+    overflow: hidden;
+  }
+
+  /* ---------- Background image layer ---------- */
+  .reg-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url("/backgrounds/login-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+  .reg-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.55),
+      rgba(15, 23, 42, 0.35)
+    );
+    backdrop-filter: blur(2px);
+  }
+
+  @media (prefers-color-scheme: light) {
+    .reg-bg::after {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.55),
+        rgba(255, 255, 255, 0.35)
+      );
+    }
+  }
+
+  /* ---------- Card ---------- */
+  .reg-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 360px;
+    background: color-mix(in srgb, var(--bg-surface, #ffffff) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 14px;
+    padding: 32px 26px 26px;
+    box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.4);
+  }
+
+  /* ---------- Header ---------- */
+  .reg-header {
+    text-align: center;
+    margin-bottom: 22px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .reg-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--accent, #059669);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #fff;
+    margin: 0 auto 12px;
+  }
+
+  .reg-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text, #0f172a);
+    margin: 0 0 6px 0;
+    letter-spacing: -0.3px;
+  }
+
+  .reg-subtitle {
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    margin: 0;
+  }
+
+  /* ---------- Info note (flat) ---------- */
+  .reg-info {
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    line-height: 1.5;
+    padding: 0 0 14px 0;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  /* ---------- Fields (flat, underlined) ---------- */
+  .field-group { margin-bottom: 18px; }
+
+  .field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .field-input {
+    width: 100%;
+    padding: 9px 0;
+    font-size: 13px;
+    color: var(--text, #0f172a);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    border-radius: 0;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .field-input::placeholder { color: var(--text-muted, #94a3b8); }
+  .field-input:focus,
+  .field-input:focus-visible {
+    border-bottom-color: var(--accent, #10b981);
+    outline: none;
+    box-shadow: none;
+  }
+
+  /* ---------- Email note (flat) ---------- */
+  .reg-email-note {
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 18px;
+    padding-bottom: 10px;
+    border-bottom: 1px dashed var(--border, #e2e8f0);
+    word-break: break-all;
+  }
+  .reg-email-note strong { color: var(--text, #0f172a); }
+
+  /* ---------- Submit button ---------- */
+  .submit-btn {
+    width: 100%;
+    padding: 11px;
+    border: 1px solid color-mix(in srgb, var(--accent, #059669) 45%, transparent);
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent, #059669);
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s;
+    outline: none;
+    margin-top: 6px;
+  }
+  .submit-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent, #059669) 10%, transparent);
+  }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .submit-btn:focus,
+  .submit-btn:focus-visible { outline: none; }
+
+  /* ---------- Divider ---------- */
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0 16px;
+    color: var(--text-muted, #94a3b8);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .divider::before,
+  .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border, #e2e8f0);
+  }
+
+  /* ---------- Footer ---------- */
+  .footer-row {
+    text-align: center;
+    font-size: 12.5px;
+  }
+  .footer-link {
+    color: var(--accent, #10b981);
+    font-weight: 600;
+    text-decoration: none;
+  }
+  .footer-link:hover { text-decoration: underline; }
+
+  .footer-note {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+
+  /* ---------- Modal ---------- */
+  .modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    padding: 16px;
+  }
+
+  .modal-card {
+    background: var(--bg-surface, #ffffff);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 14px;
+    padding: 26px;
+    max-width: 420px;
+    width: 100%;
+    max-height: 90vh;
+    overflow-y: auto;
+    color: var(--text, #0f172a);
+  }
+
+  .modal-title {
+    font-size: 18px;
+    font-weight: 700;
+    margin: 0 0 14px 0;
+    color: var(--text, #0f172a);
+  }
+
+  .modal-warning {
+    font-size: 12.5px;
+    color: var(--warning, #f59e0b);
+    line-height: 1.5;
+    padding-bottom: 12px;
+    margin-bottom: 14px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+  .modal-warning strong { color: var(--text, #0f172a); }
+
+  .cred-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+  .cred-body { flex: 1; min-width: 0; }
+  .cred-label {
+    font-size: 10.5px;
+    color: var(--text-muted, #64748b);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 2px;
+  }
+  .cred-value {
+    font-size: 13.5px;
+    color: var(--text, #0f172a);
+    font-weight: 600;
+    font-family: ui-monospace, SFMono-Regular, monospace;
+    word-break: break-all;
+  }
+
+  .cred-copy {
+    background: transparent;
+    color: var(--info, #3b82f6);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
+    transition: background 0.15s;
+    outline: none;
+  }
+  .cred-copy:hover { background: rgba(59, 130, 246, 0.08); }
+  .cred-copy:focus,
+  .cred-copy:focus-visible { outline: none; }
+
+  .modal-actions {
+    display: flex;
+    gap: 10px;
+    margin-top: 18px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+
+  .modal-btn {
+    flex: 1;
+    padding: 10px 16px;
+    border-radius: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s;
+    outline: none;
+  }
+  .modal-btn:focus,
+  .modal-btn:focus-visible { outline: none; }
+  .modal-btn-blue {
+    color: var(--info, #3b82f6);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+  }
+  .modal-btn-blue:hover { background: rgba(59, 130, 246, 0.08); }
+  .modal-btn-green {
+    color: var(--accent, #059669);
+    border: 1px solid color-mix(in srgb, var(--accent, #059669) 40%, transparent);
+  }
+  .modal-btn-green:hover {
+    background: color-mix(in srgb, var(--accent, #059669) 10%, transparent);
+  }
+
+  /* ---------- Responsive ---------- */
+  @media (max-width: 640px) {
+    .reg-card { padding: 26px 20px 22px; }
+    .reg-title { font-size: 18px; }
+  }
+`;
 
 export default PublicRegister;

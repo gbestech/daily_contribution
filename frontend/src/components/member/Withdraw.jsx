@@ -83,7 +83,6 @@ const MemberWithdraw = () => {
       return;
     }
 
-    // Check if member has enough balance
     if (withdrawAmount > memberBalance) {
       toast.error(
         `Insufficient balance! Available: ${formatCurrency(memberBalance)}`,
@@ -91,7 +90,6 @@ const MemberWithdraw = () => {
       return;
     }
 
-    // Minimum withdrawal check
     const MIN_WITHDRAWAL = 500;
     if (withdrawAmount < MIN_WITHDRAWAL) {
       toast.error(`Minimum withdrawal is ${formatCurrency(MIN_WITHDRAWAL)}`);
@@ -130,7 +128,6 @@ const MemberWithdraw = () => {
         );
         setAmount("");
         setDescription("");
-        // Refresh balance
         fetchMemberBalance(selectedMember);
       } else {
         toast.error(
@@ -156,10 +153,10 @@ const MemberWithdraw = () => {
     >
       <div
         style={{
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          backgroundColor: "var(--bg-surface)",
           borderRadius: "16px",
           padding: "32px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: "1px solid var(--border)",
         }}
       >
         <div
@@ -188,11 +185,11 @@ const MemberWithdraw = () => {
         {selectedMember && (
           <div
             style={{
-              backgroundColor: "rgba(16, 185, 129, 0.1)",
+              backgroundColor: "var(--approved-bg)",
               borderRadius: "12px",
               padding: "16px",
               marginBottom: "24px",
-              border: "1px solid rgba(16, 185, 129, 0.2)",
+              border: "1px solid var(--border)",
             }}
           >
             <div
@@ -203,7 +200,13 @@ const MemberWithdraw = () => {
               }}
             >
               <div>
-                <p style={{ color: "var(--text-muted)", fontSize: "13px", margin: 0 }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "13px",
+                    margin: 0,
+                  }}
+                >
                   Available Balance
                 </p>
                 <p
@@ -217,8 +220,14 @@ const MemberWithdraw = () => {
                   {formatCurrency(memberBalance)}
                 </p>
               </div>
-              <div style={{ textAlign: "right" }}>
-                <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+              {/* <div style={{ textAlign: "right" }}>
+                <p
+                  style={{
+                    color: "var(--text-muted)",
+                    fontSize: "12px",
+                    margin: 0,
+                  }}
+                >
                   Min. Withdrawal
                 </p>
                 <p
@@ -231,7 +240,7 @@ const MemberWithdraw = () => {
                 >
                   ₦500
                 </p>
-              </div>
+              </div> */}
             </div>
           </div>
         )}
@@ -257,8 +266,8 @@ const MemberWithdraw = () => {
                   width: "100%",
                   padding: "12px 16px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-surface-2)",
                   color: "var(--text)",
                   fontSize: "14px",
                   outline: "none",
@@ -310,11 +319,12 @@ const MemberWithdraw = () => {
                   width: "100%",
                   padding: "12px 16px 12px 40px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-surface-2)",
                   color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
+                  boxSizing: "border-box",
                 }}
                 min="0.01"
                 step="0.01"
@@ -330,7 +340,7 @@ const MemberWithdraw = () => {
                 style={{
                   padding: "4px 12px",
                   borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid var(--border)",
                   backgroundColor: "transparent",
                   color: "var(--text-muted)",
                   fontSize: "12px",
@@ -347,7 +357,7 @@ const MemberWithdraw = () => {
                 style={{
                   padding: "4px 12px",
                   borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid var(--border)",
                   backgroundColor: "transparent",
                   color: "var(--text-muted)",
                   fontSize: "12px",
@@ -364,7 +374,7 @@ const MemberWithdraw = () => {
                 style={{
                   padding: "4px 12px",
                   borderRadius: "4px",
-                  border: "1px solid rgba(255,255,255,0.1)",
+                  border: "1px solid var(--border)",
                   backgroundColor: "transparent",
                   color: "var(--text-muted)",
                   fontSize: "12px",
@@ -397,11 +407,12 @@ const MemberWithdraw = () => {
                 width: "100%",
                 padding: "12px 16px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--bg-surface-2)",
                 color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
+                boxSizing: "border-box",
               }}
             />
           </div>
@@ -417,7 +428,7 @@ const MemberWithdraw = () => {
               background: loading
                 ? "var(--text-dim)"
                 : "linear-gradient(to right, var(--debit), #dc2626)",
-              color: "var(--text)",
+              color: "#ffffff",
               fontSize: "16px",
               fontWeight: "600",
               cursor: loading ? "not-allowed" : "pointer",
@@ -432,9 +443,9 @@ const MemberWithdraw = () => {
             style={{
               marginTop: "16px",
               padding: "12px",
-              backgroundColor: "rgba(239, 68, 68, 0.05)",
+              backgroundColor: "var(--rejected-bg)",
               borderRadius: "8px",
-              border: "1px solid rgba(239, 68, 68, 0.1)",
+              border: "1px solid var(--border)",
             }}
           >
             <p

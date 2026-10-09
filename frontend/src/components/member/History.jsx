@@ -60,7 +60,6 @@ const MemberHistory = () => {
     });
   };
 
-  // Stable member lookup (useCallback so it can be safely used in effects)
   const getMemberName = useCallback(
     (memberId) => {
       if (!memberId) return "Unknown";
@@ -102,7 +101,6 @@ const MemberHistory = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      // Fetch members
       const membersResponse = await fetch(`${API_BASE_URL}/api/members.php`);
       const membersData = await membersResponse.json();
       let membersList = [];
@@ -111,7 +109,6 @@ const MemberHistory = () => {
         setMembers(membersList);
       }
 
-      // Fetch transactions
       const transactionsResponse = await fetch(
         `${API_BASE_URL}/api/transactions.php`,
       );
@@ -122,7 +119,6 @@ const MemberHistory = () => {
         allTransactions = transactionsData.transactions;
       }
 
-      // If user is a member, filter their transactions
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const userData = JSON.parse(storedUser);
@@ -133,7 +129,6 @@ const MemberHistory = () => {
         }
       }
 
-      // Sort by date (newest first) as default
       allTransactions.sort(
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
@@ -162,7 +157,6 @@ const MemberHistory = () => {
   useEffect(() => {
     let filtered = [...transactions];
 
-    // Search (with member name fallback)
     if (searchTerm.trim()) {
       const term = searchTerm.toLowerCase().trim();
       filtered = filtered.filter((t) => {
@@ -182,17 +176,14 @@ const MemberHistory = () => {
       });
     }
 
-    // Type filter
     if (filterType !== "all") {
       filtered = filtered.filter((t) => t.type === filterType);
     }
 
-    // Status filter
     if (filterStatus !== "all") {
       filtered = filtered.filter((t) => t.status === filterStatus);
     }
 
-    // Date range filter (proper Date comparison)
     if (dateRange.start) {
       const start = new Date(dateRange.start);
       start.setHours(0, 0, 0, 0);
@@ -212,7 +203,6 @@ const MemberHistory = () => {
       });
     }
 
-    // Sorting
     filtered.sort((a, b) => {
       let compareA, compareB;
       if (sortBy === "amount") {
@@ -262,15 +252,15 @@ const MemberHistory = () => {
   const getStatusBadge = (status) => {
     const styles = {
       pending: {
-        backgroundColor: "rgba(234, 179, 8, 0.2)",
+        backgroundColor: "var(--pending-bg)",
         color: "var(--warning)",
       },
       approved: {
-        backgroundColor: "rgba(16, 185, 129, 0.2)",
+        backgroundColor: "var(--approved-bg)",
         color: "var(--credit)",
       },
       rejected: {
-        backgroundColor: "rgba(239, 68, 68, 0.2)",
+        backgroundColor: "var(--rejected-bg)",
         color: "var(--debit)",
       },
     };
@@ -294,22 +284,22 @@ const MemberHistory = () => {
   const getTypeBadge = (type) => {
     const styles = {
       deposit: {
-        backgroundColor: "rgba(16, 185, 129, 0.2)",
+        backgroundColor: "var(--approved-bg)",
         color: "var(--credit)",
         icon: "💰",
       },
       withdrawal: {
-        backgroundColor: "rgba(239, 68, 68, 0.2)",
+        backgroundColor: "var(--rejected-bg)",
         color: "var(--debit)",
         icon: "💸",
       },
       transfer: {
-        backgroundColor: "rgba(139, 92, 246, 0.2)",
-        color: "var(--purple)",
+        backgroundColor: "var(--accent-bg)",
+        color: "var(--accent-text)",
         icon: "🔄",
       },
       contribution: {
-        backgroundColor: "rgba(59, 130, 246, 0.2)",
+        backgroundColor: "var(--info-bg, var(--accent-bg))",
         color: "var(--info)",
         icon: "🤝",
       },
@@ -347,7 +337,9 @@ const MemberHistory = () => {
 
   if (loading) {
     return (
-      <div style={{ padding: "24px", color: "var(--text)", textAlign: "center" }}>
+      <div
+        style={{ padding: "24px", color: "var(--text)", textAlign: "center" }}
+      >
         <div style={{ fontSize: "20px" }}>⏳ Loading transactions...</div>
       </div>
     );
@@ -369,17 +361,17 @@ const MemberHistory = () => {
         }
         .fade-in { animation: fadeIn 0.3s ease; }
         .stat-card {
-          background-color: rgba(255, 255, 255, 0.05);
+          background-color: var(--bg-surface);
           backdrop-filter: blur(10px);
           border-radius: 12px;
           padding: 20px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--border);
           transition: all 0.3s;
         }
         .stat-card:hover {
           transform: translateY(-2px);
-          border-color: rgba(255, 255, 255, 0.2);
-          box-shadow: 0 8px 25px rgba(0, 0, 0, 0.3);
+          border-color: var(--accent);
+          box-shadow: var(--shadow-md);
         }
         .table-container {
           overflow-x: auto;
@@ -388,13 +380,13 @@ const MemberHistory = () => {
         }
         .table-container::-webkit-scrollbar { width: 6px; height: 6px; }
         .table-container::-webkit-scrollbar-track {
-          background: rgba(255,255,255,0.05); border-radius: 3px;
+          background: var(--bg-surface-2); border-radius: 3px;
         }
         .table-container::-webkit-scrollbar-thumb {
-          background: rgba(255,255,255,0.2); border-radius: 3px;
+          background: var(--border); border-radius: 3px;
         }
         .table-container::-webkit-scrollbar-thumb:hover {
-          background: rgba(255,255,255,0.3);
+          background: var(--text-dim);
         }
         table { width: 100%; border-collapse: collapse; }
         th {
@@ -403,7 +395,7 @@ const MemberHistory = () => {
           font-size: 12px;
           font-weight: 600;
           color: var(--text-muted);
-          background-color: rgba(255, 255, 255, 0.08);
+          background-color: var(--bg-surface-2);
           position: sticky;
           top: 0;
           z-index: 10;
@@ -411,54 +403,56 @@ const MemberHistory = () => {
           cursor: pointer;
           user-select: none;
         }
-        th:hover { color: white; }
+        th:hover { color: var(--text); }
         td {
           padding: 14px 16px;
-          border-top: 1px solid rgba(255, 255, 255, 0.05);
+          border-top: 1px solid var(--border);
+          color: var(--text);
         }
         tr { transition: background-color 0.2s; }
-        tr:hover { background-color: rgba(255, 255, 255, 0.03); }
+        tr:hover { background-color: var(--bg-surface-2); }
         .page-btn {
           padding: 6px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255,255,255,0.1);
+          border: 1px solid var(--border);
           background: transparent;
-          color: white;
+          color: var(--text);
           cursor: pointer;
           transition: all 0.2s;
           font-size: 14px;
         }
-        .page-btn:hover { background-color: rgba(255,255,255,0.05); }
+        .page-btn:hover { background-color: var(--bg-surface-2); }
         .page-btn.active {
-          background-color: rgba(16, 185, 129, 0.2);
+          background-color: var(--approved-bg);
           border-color: var(--accent);
           color: var(--credit);
         }
         .filter-input {
-          background-color: rgba(255, 255, 255, 0.1);
-          color: white;
+          background-color: var(--bg-surface-2);
+          color: var(--text);
           padding: 8px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--border);
           outline: none;
           font-size: 14px;
           transition: border-color 0.2s;
         }
         .filter-input:focus { border-color: var(--accent); }
+        .filter-input::placeholder { color: var(--text-dim); }
         .filter-select {
-          background-color: rgba(255, 255, 255, 0.1);
-          color: white;
+          background-color: var(--bg-surface-2);
+          color: var(--text);
           padding: 8px 12px;
           border-radius: 6px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
+          border: 1px solid var(--border);
           outline: none;
           font-size: 14px;
           cursor: pointer;
         }
-        .filter-select option { background-color: var(--bg-surface); color: white; }
+        .filter-select option { background-color: var(--bg-surface); color: var(--text); }
         .filter-input::-webkit-calendar-picker-indicator {
-          filter: invert(1);
           cursor: pointer;
+          opacity: 0.6;
         }
       `}</style>
 
@@ -487,44 +481,36 @@ const MemberHistory = () => {
           <button
             onClick={fetchData}
             style={{
-              backgroundColor: "rgba(59, 130, 246, 0.15)",
+              backgroundColor: "var(--accent-bg)",
               color: "var(--info)",
               padding: "8px 16px",
-              border: "1px solid rgba(59, 130, 246, 0.2)",
+              border: "1px solid var(--border)",
               borderRadius: "6px",
               cursor: "pointer",
               fontSize: "14px",
               fontWeight: "500",
               transition: "all 0.2s",
             }}
-            onMouseEnter={(e) =>
-              (e.target.style.backgroundColor = "rgba(59, 130, 246, 0.25)")
-            }
-            onMouseLeave={(e) =>
-              (e.target.style.backgroundColor = "rgba(59, 130, 246, 0.15)")
-            }
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
             🔄 Refresh
           </button>
           <button
             onClick={resetFilters}
             style={{
-              backgroundColor: "rgba(239, 68, 68, 0.15)",
+              backgroundColor: "var(--rejected-bg)",
               color: "var(--debit)",
               padding: "8px 16px",
-              border: "1px solid rgba(239, 68, 68, 0.2)",
+              border: "1px solid var(--border)",
               borderRadius: "6px",
               cursor: "pointer",
               fontSize: "14px",
               fontWeight: "500",
               transition: "all 0.2s",
             }}
-            onMouseEnter={(e) =>
-              (e.target.style.backgroundColor = "rgba(239, 68, 68, 0.25)")
-            }
-            onMouseLeave={(e) =>
-              (e.target.style.backgroundColor = "rgba(239, 68, 68, 0.15)")
-            }
+            onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.8")}
+            onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
           >
             🔄 Reset Filters
           </button>
@@ -541,7 +527,9 @@ const MemberHistory = () => {
         }}
       >
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             💰 Total Deposits
           </p>
           <p
@@ -556,7 +544,9 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             💸 Total Withdrawals
           </p>
           <p
@@ -571,12 +561,14 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             🔄 Total Transfers
           </p>
           <p
             style={{
-              color: "var(--purple)",
+              color: "var(--accent-text)",
               fontSize: "20px",
               fontWeight: "bold",
               margin: "4px 0 0 0",
@@ -586,7 +578,9 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             ⏳ Pending
           </p>
           <p
@@ -601,7 +595,9 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             ✅ Approved
           </p>
           <p
@@ -616,7 +612,9 @@ const MemberHistory = () => {
           </p>
         </div>
         <div className="stat-card">
-          <p style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}>
+          <p
+            style={{ color: "var(--text-muted)", fontSize: "12px", margin: 0 }}
+          >
             ❌ Rejected
           </p>
           <p
@@ -635,10 +633,10 @@ const MemberHistory = () => {
       {/* Filters */}
       <div
         style={{
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          backgroundColor: "var(--bg-surface)",
           borderRadius: "12px",
           padding: "20px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: "1px solid var(--border)",
           marginBottom: "24px",
         }}
       >
@@ -716,7 +714,13 @@ const MemberHistory = () => {
           </select>
         </div>
 
-        <div style={{ marginTop: "12px", color: "var(--text-muted)", fontSize: "13px" }}>
+        <div
+          style={{
+            marginTop: "12px",
+            color: "var(--text-muted)",
+            fontSize: "13px",
+          }}
+        >
           {filteredTransactions.length} transaction(s) found
         </div>
       </div>
@@ -724,9 +728,9 @@ const MemberHistory = () => {
       {/* Transactions Table */}
       <div
         style={{
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          backgroundColor: "var(--bg-surface)",
           borderRadius: "12px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: "1px solid var(--border)",
           overflow: "hidden",
         }}
       >
@@ -785,7 +789,9 @@ const MemberHistory = () => {
                           getMemberName(transaction.memberId)}
                       </div>
                       {transaction.accountNumber && (
-                        <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
+                        <div
+                          style={{ fontSize: "12px", color: "var(--text-dim)" }}
+                        >
                           Acc: {transaction.accountNumber}
                         </div>
                       )}
@@ -804,7 +810,9 @@ const MemberHistory = () => {
                       {transaction.type === "withdrawal" ? "-" : ""}
                       {formatCurrency(transaction.amount)}
                     </td>
-                    <td style={{ color: "var(--text-muted)", fontSize: "13px" }}>
+                    <td
+                      style={{ color: "var(--text-muted)", fontSize: "13px" }}
+                    >
                       {formatDate(transaction.date)}
                     </td>
                     <td>{getStatusBadge(transaction.status)}</td>
@@ -823,7 +831,7 @@ const MemberHistory = () => {
           <div
             style={{
               padding: "16px 20px",
-              borderTop: "1px solid rgba(255, 255, 255, 0.05)",
+              borderTop: "1px solid var(--border)",
               display: "flex",
               justifyContent: "space-between",
               alignItems: "center",
@@ -940,22 +948,18 @@ const MemberHistory = () => {
             toast.success("📥 Transaction history exported!");
           }}
           style={{
-            backgroundColor: "rgba(16, 185, 129, 0.15)",
+            backgroundColor: "var(--approved-bg)",
             color: "var(--credit)",
             padding: "8px 16px",
-            border: "1px solid rgba(16, 185, 129, 0.2)",
+            border: "1px solid var(--border)",
             borderRadius: "6px",
             cursor: "pointer",
             fontSize: "14px",
             fontWeight: "500",
             transition: "all 0.2s",
           }}
-          onMouseEnter={(e) =>
-            (e.target.style.backgroundColor = "rgba(16, 185, 129, 0.25)")
-          }
-          onMouseLeave={(e) =>
-            (e.target.style.backgroundColor = "rgba(16, 185, 129, 0.15)")
-          }
+          onMouseEnter={(e) => (e.currentTarget.style.opacity = "0.85")}
+          onMouseLeave={(e) => (e.currentTarget.style.opacity = "1")}
         >
           📥 Export CSV
         </button>

@@ -24,20 +24,12 @@ const Login = () => {
   useEffect(() => {
     fetchAppSettings();
 
-    // ✅ Prefill credentials if user came from register page
     const state = location.state;
     if (state?.email || state?.password) {
       setFormData({
         email: state.email || "",
         password: state.password || "",
       });
-
-      if (state.justRegistered) {
-        toast.success(
-          "🎉 Account created! Your details are pre-filled — just click Sign In.",
-          { duration: 5000 },
-        );
-      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -84,312 +76,133 @@ const Login = () => {
     return false;
   };
 
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    setLoading(true);
 
-    const inputValue = formData.email.trim();
-    const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
 
-    if (isPhoneInput && !validatePhoneNumber(inputValue)) {
-      toast.error(
-        "Please enter a valid 11-digit phone number starting with 0 (e.g., 08012345678) or with country code +234",
-      );
-      setLoading(false);
-      return;
-    }
+const handleSubmit = async (e) => {
+  e.preventDefault();
+  setLoading(true);
 
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/login.php`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          email: formData.email,
-          password: formData.password,
-        }),
-      });
+  const inputValue = formData.email.trim();
+  const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
 
-      const data = await response.json();
+  if (isPhoneInput && !validatePhoneNumber(inputValue)) {
+    toast.error(
+      "Please enter a valid 11-digit phone number starting with 0 (e.g., 08012345678) or with country code +234",
+    );
+    setLoading(false);
+    return;
+  }
 
-      if (data.status === true) {
-        const { user } = data;
+  try {
+    const response = await fetch(`${API_BASE_URL}/api/login.php`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        email: formData.email,
+        password: formData.password,
+      }),
+    });
 
-        const cleanUser = {
-          id: user.id,
-          username: user.username || user.name,
-          name: user.name || user.username,
-          full_name: user.full_name || user.name || user.username,
-          email: user.email,
-          role: user.role || "member",
-          phone: user.phone || "",
-          address: user.address || "",
-          is_active: user.is_active !== undefined ? user.is_active : true,
-          balance: user.balance || 0,
-          accountNumber: user.accountNumber || user.account_number || "N/A",
-          account_number: user.account_number || user.accountNumber || "N/A",
-          membership_number:
-            user.membership_number || user.account_number || "N/A",
-          membershipType:
-            user.membershipType || user.membership_type || "Standard",
-          membership_type:
-            user.membership_type || user.membershipType || "Standard",
-          joinDate:
-            user.joinDate ||
-            user.join_date ||
-            new Date().toISOString().split("T")[0],
-          join_date:
-            user.join_date ||
-            user.joinDate ||
-            new Date().toISOString().split("T")[0],
-          status: user.status || "Active",
-          profile_completed: user.profile_completed || 0,
-          passport_photo: user.passport_photo || null,
-          created_at: user.created_at || new Date().toISOString(),
-          updated_at: user.updated_at || new Date().toISOString(),
-        };
+    const data = await response.json();
 
-        const token = data.token || `token_${Date.now()}`;
+    if (data.status === true) {
+      const { user } = data;
 
-        localStorage.setItem("token", token);
-        localStorage.setItem("user", JSON.stringify(cleanUser));
+      const cleanUser = {
+        id: user.id,
+        username: user.username || user.name,
+        name: user.name || user.username,
+        full_name: user.full_name || user.name || user.username,
+        email: user.email,
+        role: user.role || "member",
+        phone: user.phone || "",
+        address: user.address || "",
+        is_active: user.is_active !== undefined ? user.is_active : true,
+        balance: user.balance || 0,
+        accountNumber: user.accountNumber || user.account_number || "N/A",
+        account_number: user.account_number || user.accountNumber || "N/A",
+        membership_number:
+          user.membership_number || user.account_number || "N/A",
+        membershipType:
+          user.membershipType || user.membership_type || "Standard",
+        membership_type:
+          user.membership_type || user.membershipType || "Standard",
+        joinDate:
+          user.joinDate ||
+          user.join_date ||
+          new Date().toISOString().split("T")[0],
+        join_date:
+          user.join_date ||
+          user.joinDate ||
+          new Date().toISOString().split("T")[0],
+        status: user.status || "Active",
+        profile_completed: user.profile_completed || 0,
+        passport_photo: user.passport_photo || null,
+        created_at: user.created_at || new Date().toISOString(),
+        updated_at: user.updated_at || new Date().toISOString(),
+      };
 
-        login(cleanUser, token);
-        toast.success(`Welcome ${cleanUser.full_name || "back"}! 🎉`);
+      const token = data.token || `token_${Date.now()}`;
 
+      localStorage.setItem("token", token);
+      localStorage.setItem("user", JSON.stringify(cleanUser));
+
+      login(cleanUser, token);
+      toast.success(`Welcome ${cleanUser.full_name || "back"}! 🎉`);
+
+      setTimeout(() => {
         const isAdmin =
           cleanUser.role === "admin" || cleanUser.role === "administrator";
 
-        setTimeout(() => {
-          if (isAdmin) {
-            navigate("/admin");
-          } else if (!cleanUser.profile_completed) {
-            navigate("/complete-profile");
-          } else {
-            navigate("/member");
-          }
-        }, 300);
-      } else {
-        toast.error(data.error || data.message || "Login failed");
-      }
-    } catch (error) {
-      console.error("Login error:", error);
-      if (error.code === "ERR_NETWORK") {
-        toast.error(
-          "Cannot connect to server. Please check if PHP server is running on port 8000.",
-        );
-      } else {
-        toast.error("Login failed. Please try again.");
-      }
-    } finally {
-      setLoading(false);
-    }
-  };
+        const completed =
+          cleanUser.profile_completed === 1 ||
+          cleanUser.profile_completed === "1" ||
+          cleanUser.profile_completed === true;
 
+        if (isAdmin) {
+          navigate("/admin/dashboard");
+        } else if (!completed) {
+          // First-time member → complete profile
+          navigate("/member/profile");
+        } else {
+          // Returning member → dashboard
+          navigate("/member/dashboard");
+        }
+      }, 300);
+    } else {
+      toast.error(data.error || data.message || "Login failed");
+    }
+  } catch (error) {
+    console.error("Login error:", error);
+    if (error.code === "ERR_NETWORK") {
+      toast.error(
+        "Cannot connect to server. Please check if PHP server is running on port 8000.",
+      );
+    } else {
+      toast.error("Login failed. Please try again.");
+    }
+  } finally {
+    setLoading(false);
+  }
+};
+ 
+ 
   return (
-    <div
-      style={{
-        minHeight: "100vh",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "radial-gradient(circle at top, var(--bg-surface) 0%, #0f172a 60%)",
-        padding: "20px",
-        fontFamily: "system-ui, -apple-system, sans-serif",
-      }}
-    >
-      <style>{`
-        .login-card {
-          width: 100%;
-          max-width: 400px;
-          background: rgba(255, 255, 255, 0.04);
-          backdrop-filter: blur(12px);
-          border: 1px solid rgba(255, 255, 255, 0.08);
-          border-radius: 20px;
-          padding: 36px 30px 28px;
-          box-shadow: 0 24px 60px -20px rgba(0, 0, 0, 0.6);
-          position: relative;
-          overflow: hidden;
-        }
-        .login-card::before {
-          content: "";
-          position: absolute;
-          top: 0; left: 0; right: 0;
-          height: 3px;
-          background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
-        }
-        .login-logo {
-          width: 64px; height: 64px;
-          border-radius: 50%;
-          background: linear-gradient(135deg, #059669, #0d9488);
-          display: flex; align-items: center; justify-content: center;
-          font-size: 28px; color: white;
-          margin: 0 auto 14px;
-          box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
-        }
-        .login-title {
-          font-size: 22px;
-          font-weight: 700;
-          color: white;
-          text-align: center;
-          margin: 0 0 4px 0;
-          letter-spacing: -0.3px;
-        }
-        .login-subtitle {
-          font-size: 13px;
-          color: var(--text-muted);
-          text-align: center;
-          margin: 0 0 26px 0;
-        }
-        .field-group { margin-bottom: 16px; }
-        .field-label {
-          display: block;
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text);
-          margin-bottom: 6px;
-          letter-spacing: 0.3px;
-          text-transform: uppercase;
-        }
-        .field-wrap { position: relative; }
-        .field-icon {
-          position: absolute;
-          left: 14px;
-          top: 50%;
-          transform: translateY(-50%);
-          font-size: 15px;
-          color: var(--text-dim);
-          pointer-events: none;
-        }
-        .field-input {
-          width: 100%;
-          padding: 12px 14px 12px 42px;
-          font-size: 14px;
-          color: white;
-          background: rgba(255, 255, 255, 0.05);
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          border-radius: 10px;
-          outline: none;
-          box-sizing: border-box;
-          transition: all 0.2s;
-        }
-        .field-input::placeholder { color: var(--text-dim); }
-        .field-input:focus {
-          border-color: var(--accent);
-          background: rgba(16, 185, 129, 0.06);
-          box-shadow: 0 0 0 3px rgba(16, 185, 129, 0.12);
-        }
-        .field-input.pw { padding-right: 44px; }
-        .pw-toggle {
-          position: absolute;
-          right: 12px;
-          top: 50%;
-          transform: translateY(-50%);
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 15px;
-          color: var(--text-muted);
-          padding: 4px;
-          line-height: 1;
-        }
-        .pw-toggle:hover { color: white; }
-        .row {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 20px;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .remember {
-          display: flex;
-          align-items: center;
-          gap: 6px;
-          font-size: 12px;
-          color: var(--text);
-          cursor: pointer;
-        }
-        .remember input {
-          accent-color: var(--accent);
-          width: 14px;
-          height: 14px;
-          cursor: pointer;
-        }
-        .forgot-link {
-          font-size: 12px;
-          color: var(--credit);
-          text-decoration: none;
-          font-weight: 500;
-        }
-        .forgot-link:hover { text-decoration: underline; }
-        .submit-btn {
-          width: 100%;
-          padding: 13px;
-          border: none;
-          border-radius: 10px;
-          font-size: 15px;
-          font-weight: 600;
-          color: white;
-          cursor: pointer;
-          background: linear-gradient(135deg, #059669, #0d9488);
-          box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.5);
-          transition: all 0.2s;
-        }
-        .submit-btn:hover:not(:disabled) {
-          transform: translateY(-1px);
-          box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
-        }
-        .submit-btn:active:not(:disabled) {
-          transform: translateY(0);
-        }
-        .submit-btn:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-        .divider {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin: 22px 0 18px;
-          color: var(--text-dim);
-          font-size: 11px;
-          text-transform: uppercase;
-          letter-spacing: 1px;
-        }
-        .divider::before,
-        .divider::after {
-          content: "";
-          flex: 1;
-          height: 1px;
-          background: rgba(255, 255, 255, 0.08);
-        }
-        .register-row {
-          text-align: center;
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-        .register-link {
-          color: var(--credit);
-          font-weight: 600;
-          text-decoration: none;
-          margin-left: 4px;
-        }
-        .register-link:hover { text-decoration: underline; }
-        .footer-note {
-          text-align: center;
-          font-size: 10px;
-          color: var(--text-dim);
-          margin-top: 20px;
-        }
-      `}</style>
+    <div className="login-page">
+      <style>{css}</style>
+
+      {/* Background image overlay */}
+      <div className="login-bg" aria-hidden="true" />
 
       <div className="login-card">
-        <div className="login-logo">{appSettings.logo}</div>
-        <h1 className="login-title">{appSettings.appName}</h1>
-        <p className="login-subtitle">Sign in to your account</p>
+        <div className="login-header">
+          <div className="login-logo">{appSettings.logo}</div>
+          <h1 className="login-title">{appSettings.appName}</h1>
+          <p className="login-subtitle">Sign in to your account</p>
+        </div>
 
         <form onSubmit={handleSubmit}>
           <div className="field-group">
@@ -466,5 +279,259 @@ const Login = () => {
     </div>
   );
 };
+
+const css = `
+  .login-page {
+    position: relative;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+    background: transparent;
+    font-family: system-ui, -apple-system, sans-serif;
+    color: var(--text, #0f172a);
+    overflow: hidden;
+  }
+
+  /* ---------- Background image layer ---------- */
+  .login-bg {
+    position: fixed;
+    inset: 0;
+    z-index: 0;
+    background-image: url("/backgrounds/login-bg.jpg");
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+  .login-bg::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(
+      135deg,
+      rgba(15, 23, 42, 0.55),
+      rgba(15, 23, 42, 0.35)
+    );
+    backdrop-filter: blur(2px);
+  }
+
+  /* Light-mode overlay — lighter tint */
+  @media (prefers-color-scheme: light) {
+    .login-bg::after {
+      background: linear-gradient(
+        135deg,
+        rgba(255, 255, 255, 0.55),
+        rgba(255, 255, 255, 0.35)
+      );
+    }
+  }
+
+  /* ---------- Card sits above the background ---------- */
+  .login-card {
+    position: relative;
+    z-index: 1;
+    width: 100%;
+    max-width: 340px;
+    background: color-mix(in srgb, var(--bg-surface, #ffffff) 88%, transparent);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border, #e2e8f0);
+    border-radius: 14px;
+    padding: 32px 26px 26px;
+    box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.4);
+  }
+
+  .login-header {
+    text-align: center;
+    margin-bottom: 24px;
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+  }
+
+  .login-logo {
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    background: var(--accent, #059669);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 24px;
+    color: #fff;
+    margin: 0 auto 12px;
+  }
+
+  .login-title {
+    font-size: 20px;
+    font-weight: 700;
+    color: var(--text, #0f172a);
+    margin: 0 0 6px 0;
+    letter-spacing: -0.3px;
+  }
+
+  .login-subtitle {
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    margin: 0;
+  }
+
+  .field-group { margin-bottom: 20px; }
+
+  .field-label {
+    display: block;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-muted, #64748b);
+    margin-bottom: 4px;
+    letter-spacing: 0.3px;
+    text-transform: uppercase;
+  }
+
+  .field-wrap { position: relative; }
+
+  .field-icon {
+    position: absolute;
+    left: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    font-size: 13px;
+    color: var(--text-muted, #94a3b8);
+    pointer-events: none;
+  }
+
+  .field-input {
+    width: 100%;
+    padding: 9px 0 9px 22px;
+    font-size: 13px;
+    color: var(--text, #0f172a);
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--border, #e2e8f0);
+    border-radius: 0;
+    outline: none;
+    box-sizing: border-box;
+    transition: border-color 0.15s;
+    font-family: inherit;
+  }
+  .field-input::placeholder { color: var(--text-muted, #94a3b8); }
+  .field-input:focus,
+  .field-input:focus-visible {
+    border-bottom-color: var(--accent, #10b981);
+    outline: none;
+    box-shadow: none;
+  }
+  .field-input.pw { padding-right: 30px; }
+
+  .pw-toggle {
+    position: absolute;
+    right: 0;
+    top: 50%;
+    transform: translateY(-50%);
+    background: none;
+    border: none;
+    cursor: pointer;
+    font-size: 13px;
+    color: var(--text-muted, #64748b);
+    padding: 4px 0 4px 8px;
+    line-height: 1;
+    outline: none;
+  }
+  .pw-toggle:hover { color: var(--text, #0f172a); }
+  .pw-toggle:focus,
+  .pw-toggle:focus-visible { outline: none; }
+
+  .row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 22px;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .remember {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text, #0f172a);
+    cursor: pointer;
+  }
+  .remember input {
+    accent-color: var(--accent, #10b981);
+    width: 13px;
+    height: 13px;
+    cursor: pointer;
+  }
+
+  .forgot-link {
+    font-size: 11.5px;
+    color: var(--accent, #10b981);
+    text-decoration: none;
+    font-weight: 500;
+  }
+  .forgot-link:hover { text-decoration: underline; }
+
+  .submit-btn {
+    width: 100%;
+    padding: 11px;
+    border: 1px solid color-mix(in srgb, var(--accent, #059669) 45%, transparent);
+    border-radius: 8px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--accent, #059669);
+    cursor: pointer;
+    background: transparent;
+    transition: background 0.15s;
+    outline: none;
+  }
+  .submit-btn:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--accent, #059669) 10%, transparent);
+  }
+  .submit-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .submit-btn:focus,
+  .submit-btn:focus-visible { outline: none; }
+
+  .divider {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 22px 0 16px;
+    color: var(--text-muted, #94a3b8);
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+  }
+  .divider::before,
+  .divider::after {
+    content: "";
+    flex: 1;
+    height: 1px;
+    background: var(--border, #e2e8f0);
+  }
+
+  .register-row {
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-muted, #64748b);
+  }
+  .register-link {
+    color: var(--accent, #10b981);
+    font-weight: 600;
+    text-decoration: none;
+    margin-left: 4px;
+  }
+  .register-link:hover { text-decoration: underline; }
+
+  .footer-note {
+    text-align: center;
+    font-size: 10px;
+    color: var(--text-muted, #94a3b8);
+    margin-top: 20px;
+    padding-top: 14px;
+    border-top: 1px solid var(--border, #e2e8f0);
+  }
+`;
 
 export default Login;

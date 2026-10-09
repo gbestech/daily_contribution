@@ -14,7 +14,7 @@ const MemberTransfer = () => {
   const [loading, setLoading] = useState(false);
   const [fromBalance, setFromBalance] = useState(0);
   const [user, setUser] = useState(null);
-  const [photoModal, setPhotoModal] = useState(null); // enlarged photo viewer
+  const [photoModal, setPhotoModal] = useState(null);
 
   const isMember = user?.role === "member" || user?.role === "user";
   const isAdmin = user?.role === "admin";
@@ -229,25 +229,25 @@ const MemberTransfer = () => {
           width: 100%;
           padding: 12px 40px 12px 16px;
           border-radius: 8px;
-          border: 1px solid rgba(255, 255, 255, 0.1);
-          background-color: rgba(255, 255, 255, 0.05);
-          color: white;
+          border: 1px solid var(--border);
+          background-color: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
           cursor: pointer;
           appearance: none;
           -webkit-appearance: none;
           -moz-appearance: none;
-          background-image: url("data:image/svg+xml;utf8,<svg fill='white' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
+          background-image: url("data:image/svg+xml;utf8,<svg fill='%23888' height='20' viewBox='0 0 24 24' width='20' xmlns='http://www.w3.org/2000/svg'><path d='M7 10l5 5 5-5z'/></svg>");
           background-repeat: no-repeat;
           background-position: right 10px center;
           transition: border-color 0.2s;
           box-sizing: border-box;
         }
-        .member-select:focus { border-color: var(--purple); }
+        .member-select:focus { border-color: var(--accent); }
         .member-select option {
           background-color: var(--bg-surface);
-          color: white;
+          color: var(--text);
           padding: 10px;
         }
         .member-select:disabled {
@@ -260,22 +260,22 @@ const MemberTransfer = () => {
           gap: 12px;
           padding: 12px 16px;
           border-radius: 8px;
-          border: 1px solid rgba(124, 58, 237, 0.3);
-          background: rgba(124, 58, 237, 0.08);
+          border: 1px solid var(--border);
+          background: var(--accent-bg);
         }
         .sender-locked-avatar {
           width: 44px;
           height: 44px;
           border-radius: 50%;
-          background: rgba(124, 58, 237, 0.25);
-          color: var(--purple);
+          background: var(--accent-bg);
+          color: var(--accent-text);
           display: flex;
           align-items: center;
           justify-content: center;
           font-weight: bold;
           flex-shrink: 0;
           overflow: hidden;
-          border: 2px solid rgba(124, 58, 237, 0.35);
+          border: 2px solid var(--accent);
         }
         .sender-locked-avatar img {
           width: 100%;
@@ -286,8 +286,8 @@ const MemberTransfer = () => {
           width: 100%;
           padding: 12px 16px;
           border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background-color: rgba(255,255,255,0.05);
+          border: 1px solid var(--border);
+          background-color: var(--bg-surface-2);
           color: var(--text);
           font-size: 16px;
           font-family: monospace;
@@ -296,9 +296,9 @@ const MemberTransfer = () => {
           box-sizing: border-box;
           transition: border-color 0.2s;
         }
-        .acct-input:focus { border-color: var(--purple); }
-        .acct-input.error { border-color: #ef4444; }
-        .acct-input.valid { border-color: #10b981; }
+        .acct-input:focus { border-color: var(--accent); }
+        .acct-input.error { border-color: var(--debit); }
+        .acct-input.valid { border-color: var(--credit); }
         .lookup-feedback {
           margin-top: 8px;
           font-size: 12px;
@@ -312,8 +312,8 @@ const MemberTransfer = () => {
           margin-top: 12px;
           padding: 16px;
           border-radius: 14px;
-          background: linear-gradient(135deg, rgba(16,185,129,0.12), rgba(16,185,129,0.04));
-          border: 1px solid rgba(16, 185, 129, 0.3);
+          background: var(--approved-bg);
+          border: 1px solid var(--border);
           display: flex;
           align-items: center;
           gap: 16px;
@@ -331,7 +331,7 @@ const MemberTransfer = () => {
           width: 96px;
           height: 96px;
           border-radius: 14px;
-          background: rgba(16, 185, 129, 0.25);
+          background: var(--approved-bg);
           color: var(--credit);
           display: flex;
           align-items: center;
@@ -339,8 +339,8 @@ const MemberTransfer = () => {
           font-weight: bold;
           font-size: 36px;
           overflow: hidden;
-          border: 3px solid rgba(16, 185, 129, 0.45);
-          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.25);
+          border: 3px solid var(--credit);
+          box-shadow: 0 6px 20px rgba(16, 185, 129, 0.2);
           cursor: pointer;
           transition: transform 0.2s;
         }
@@ -359,14 +359,14 @@ const MemberTransfer = () => {
           width: 28px;
           height: 28px;
           border-radius: 50%;
-          background: #10b981;
+          background: var(--credit);
           color: white;
           display: flex;
           align-items: center;
           justify-content: center;
           font-size: 15px;
           border: 3px solid var(--bg-app);
-          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.5);
+          box-shadow: 0 2px 8px rgba(16, 185, 129, 0.4);
         }
         .recipient-info {
           flex: 1;
@@ -394,7 +394,8 @@ const MemberTransfer = () => {
           margin-top: 8px;
           padding: 3px 10px;
           border-radius: 20px;
-          background: rgba(16, 185, 129, 0.2);
+          background: var(--approved-bg);
+          border: 1px solid var(--border);
           color: var(--credit);
           font-size: 11px;
           font-weight: 700;
@@ -406,7 +407,7 @@ const MemberTransfer = () => {
         .photo-modal-overlay {
           position: fixed;
           inset: 0;
-          background: rgba(0,0,0,0.85);
+          background: var(--bg-overlay);
           backdrop-filter: blur(8px);
           display: flex;
           align-items: center;
@@ -422,8 +423,8 @@ const MemberTransfer = () => {
           max-width: 90vw;
           max-height: 85vh;
           border-radius: 16px;
-          box-shadow: 0 20px 60px rgba(0,0,0,0.6);
-          border: 3px solid rgba(16,185,129,0.5);
+          box-shadow: var(--shadow-lg);
+          border: 3px solid var(--credit);
         }
         .photo-modal-close {
           position: absolute;
@@ -432,9 +433,9 @@ const MemberTransfer = () => {
           width: 44px;
           height: 44px;
           border-radius: 50%;
-          border: none;
-          background: rgba(255,255,255,0.15);
-          color: white;
+          border: 1px solid var(--border);
+          background: var(--bg-surface);
+          color: var(--text);
           font-size: 24px;
           cursor: pointer;
           display: flex;
@@ -442,16 +443,16 @@ const MemberTransfer = () => {
           justify-content: center;
         }
         .photo-modal-close:hover {
-          background: rgba(255,255,255,0.25);
+          background: var(--bg-surface-2);
         }
       `}</style>
 
       <div
         style={{
-          backgroundColor: "rgba(255, 255, 255, 0.05)",
+          backgroundColor: "var(--bg-surface)",
           borderRadius: "16px",
           padding: "32px",
-          border: "1px solid rgba(255, 255, 255, 0.1)",
+          border: "1px solid var(--border)",
         }}
       >
         <div
@@ -482,11 +483,11 @@ const MemberTransfer = () => {
         {fromMember && (
           <div
             style={{
-              backgroundColor: "rgba(16, 185, 129, 0.1)",
+              backgroundColor: "var(--approved-bg)",
               borderRadius: "12px",
               padding: "16px",
               marginBottom: "24px",
-              border: "1px solid rgba(16, 185, 129, 0.2)",
+              border: "1px solid var(--border)",
             }}
           >
             <div
@@ -632,7 +633,10 @@ const MemberTransfer = () => {
             />
 
             {lookupError && (
-              <div className="lookup-feedback" style={{ color: "#ef4444" }}>
+              <div
+                className="lookup-feedback"
+                style={{ color: "var(--debit)" }}
+              >
                 ❌ {lookupError}
               </div>
             )}
@@ -727,8 +731,8 @@ const MemberTransfer = () => {
                   width: "100%",
                   padding: "12px 16px 12px 40px",
                   borderRadius: "8px",
-                  border: "1px solid rgba(255,255,255,0.1)",
-                  backgroundColor: "rgba(255,255,255,0.05)",
+                  border: "1px solid var(--border)",
+                  backgroundColor: "var(--bg-surface-2)",
                   color: "var(--text)",
                   fontSize: "16px",
                   outline: "none",
@@ -748,7 +752,7 @@ const MemberTransfer = () => {
                   style={{
                     padding: "4px 12px",
                     borderRadius: "4px",
-                    border: "1px solid rgba(255,255,255,0.1)",
+                    border: "1px solid var(--border)",
                     backgroundColor: "transparent",
                     color: "var(--text-muted)",
                     fontSize: "12px",
@@ -783,8 +787,8 @@ const MemberTransfer = () => {
                 width: "100%",
                 padding: "12px 16px",
                 borderRadius: "8px",
-                border: "1px solid rgba(255,255,255,0.1)",
-                backgroundColor: "rgba(255,255,255,0.05)",
+                border: "1px solid var(--border)",
+                backgroundColor: "var(--bg-surface-2)",
                 color: "var(--text)",
                 fontSize: "14px",
                 outline: "none",
@@ -804,8 +808,8 @@ const MemberTransfer = () => {
               background:
                 loading || !toMember
                   ? "var(--text-dim)"
-                  : "linear-gradient(to right, var(--purple), #6d28d9)",
-              color: "var(--text)",
+                  : "linear-gradient(to right, var(--accent), var(--accent-hover))",
+              color: "#ffffff",
               fontSize: "16px",
               fontWeight: "600",
               cursor:
@@ -823,9 +827,9 @@ const MemberTransfer = () => {
             style={{
               marginTop: "16px",
               padding: "12px",
-              backgroundColor: "rgba(234, 179, 8, 0.05)",
+              backgroundColor: "var(--pending-bg)",
               borderRadius: "8px",
-              border: "1px solid rgba(234, 179, 8, 0.1)",
+              border: "1px solid var(--border)",
             }}
           >
             <p
