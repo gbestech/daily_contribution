@@ -1,5 +1,5 @@
 // src/components/member/Dashboard.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
@@ -7,6 +7,22 @@ import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
+
+// 🆕 Role helpers
+const ROLE_META = {
+  admin: { icon: "👑", label: "Admin", color: "#dc2626" },
+  administrator: { icon: "👑", label: "Admin", color: "#dc2626" },
+  manager: { icon: "📊", label: "Manager", color: "#2563eb" },
+  branch_manager: { icon: "📊", label: "Manager", color: "#2563eb" },
+  member: { icon: "👤", label: "Member", color: "#059669" },
+};
+
+const getRoleMeta = (role) => {
+  const r = String(role || "member")
+    .trim()
+    .toLowerCase();
+  return ROLE_META[r] || { icon: "👤", label: r || "Member", color: "#059669" };
+};
 
 const getRejectionReason = (t) => {
   if (!t || typeof t !== "object") return null;
@@ -148,24 +164,40 @@ const detectTheme = () => {
   return "dark";
 };
 
+const getPassportUrl = (m) => {
+  if (!m) return null;
+  const photo =
+    m.passport_photo || m.passportPhoto || m.photo || m.avatar || null;
+  if (!photo) return null;
+  if (/^https?:\/\//i.test(photo)) return photo;
+  return `${API_BASE_URL}/api/uploads/passports/${photo}`;
+};
+
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
-  // Kept for admin use — members never consult this
-  const { activeBranchId } = useBranch();
+  // 🆕 SAME source the Navbar uses — this is what makes the branch name appear
+  const { activeBranch, activeBranchId } = useBranch();
 
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [branchRefreshing, setBranchRefreshing] = useState(false);
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [balance, setBalance] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
+
+  // 🆕 Fallback branch info if the context is empty
+  const [branchInfo, setBranchInfo] = useState(null);
+
+  // 🆕 Custom dropdown open state for the transfer recipient picker
+  const [recipientOpen, setRecipientOpen] = useState(false);
+  const recipientRef = useRef(null);
 
   const [theme, setTheme] = useState(() => detectTheme());
 
@@ -185,9 +217,23 @@ const Dashboard = () => {
     description: "",
   });
 
-  // ============================================================
+  // Role
+  const roleRaw = userProfile?.role || user?.role || "member";
+  const roleMeta = getRoleMeta(roleRaw);
+  const isAdmin = ["admin", "administrator"].includes(
+    String(roleRaw).toLowerCase(),
+  );
+
+  // 🆕 member's own branch id
+  const myBranchId =
+    userProfile?.branch_id ??
+    userProfile?.branchId ??
+    user?.branch_id ??
+    user?.branchId ??
+    activeBranchId ??
+    null;
+
   // Watch for theme changes
-  // ============================================================
   useEffect(() => {
     const update = () => setTheme(detectTheme());
     update();
@@ -212,6 +258,17 @@ const Dashboard = () => {
       window.removeEventListener("storage", update);
       clearInterval(interval);
     };
+  }, []);
+
+  // Click-outside for recipient dropdown
+  useEffect(() => {
+    const handler = (e) => {
+      if (recipientRef.current && !recipientRef.current.contains(e.target)) {
+        setRecipientOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   const isLight = theme === "light";
@@ -247,6 +304,48 @@ const Dashboard = () => {
   const purpleColor = isLight ? "#7c3aed" : "#a78bfa";
   const infoColor = isLight ? "#2563eb" : "#60a5fa";
 
+  // ============================================================
+  // Branch info fetch — fallback if useBranch() has no name
+  // ============================================================
+  const fetchBranchInfo = async (branchId) => {
+    if (!branchId) return;
+    try {
+      const res = await apiFetch(`/api/get-branch.php?id=${branchId}`);
+      const data = await res.json();
+      const b = data?.branch || data?.data || null;
+      if (b) setBranchInfo(b);
+    } catch (err) {
+      console.warn("[Dashboard] branch info fetch failed:", err);
+    }
+  };
+
+  // 🆕 Refresh button handler for the Branch card
+  const refreshBranchCard = async () => {
+    setBranchRefreshing(true);
+    try {
+      // Re-fetch the member (their branch_id may have changed)
+      const prof = await fetchUserProfile();
+      const bid =
+        prof?.branch_id ??
+        prof?.branchId ??
+        user?.branch_id ??
+        user?.branchId ??
+        activeBranchId ??
+        null;
+      if (bid) {
+        await fetchBranchInfo(bid);
+        // Also refresh recipients since the branch may have changed
+        await fetchMembers();
+      }
+      toast.success("🔄 Branch refreshed");
+    } catch (err) {
+      console.error("[Dashboard] branch refresh failed:", err);
+      toast.error("Failed to refresh branch");
+    } finally {
+      setBranchRefreshing(false);
+    }
+  };
+
   const fetchUserProfile = async () => {
     try {
       const response = await apiFetch("/api/members.php");
@@ -258,6 +357,18 @@ const Dashboard = () => {
         if (currentUser) {
           setUserProfile(currentUser);
           setBalance(currentUser.balance || 0);
+
+          const bid =
+            currentUser.branch_id ??
+            currentUser.branchId ??
+            user?.branch_id ??
+            null;
+          const haveName =
+            (activeBranch?.name && String(activeBranch.name).trim() !== "") ||
+            (branchInfo?.name && String(branchInfo.name).trim() !== "");
+          if (bid && !haveName) {
+            fetchBranchInfo(bid);
+          }
           return currentUser;
         }
       }
@@ -270,10 +381,21 @@ const Dashboard = () => {
 
   const fetchMembers = async () => {
     try {
-      const response = await apiFetch("/api/members.php");
+      const bid =
+        myBranchId ||
+        userProfile?.branch_id ||
+        user?.branch_id ||
+        user?.branchId ||
+        activeBranchId ||
+        null;
+
+      const url = bid
+        ? `/api/members.php?branch_id=${bid}`
+        : "/api/members.php";
+
+      const response = await apiFetch(url);
       const data = await response.json();
       if (data.members) {
-        // Exclude self
         const filtered = data.members.filter(
           (m) => String(m.id) !== String(user?.id),
         );
@@ -325,6 +447,13 @@ const Dashboard = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id, activeBranchId]);
+
+  useEffect(() => {
+    if (myBranchId) {
+      fetchMembers();
+      // eslint-disable-next-line react-hooks/exhaustive-deps
+    }
+  }, [myBranchId]);
 
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
@@ -428,6 +557,7 @@ const Dashboard = () => {
         date: new Date().toISOString().split("T")[0],
         status: "pending",
         description: depositData.description || "Deposit request",
+        ...(myBranchId ? { branch_id: myBranchId } : {}),
       };
 
       const response = await apiFetch("/api/transactions.php", {
@@ -504,6 +634,7 @@ const Dashboard = () => {
         date: new Date().toISOString().split("T")[0],
         status: "pending",
         description: withdrawData.description || "Withdrawal request",
+        ...(myBranchId ? { branch_id: myBranchId } : {}),
       };
 
       const response = await apiFetch("/api/transactions.php", {
@@ -565,7 +696,7 @@ const Dashboard = () => {
     }
 
     const toMember = members.find(
-      (m) => m.id === parseInt(transferData.toMemberId),
+      (m) => String(m.id) === String(transferData.toMemberId),
     );
     if (!toMember) {
       toast.error("Recipient not found");
@@ -597,6 +728,7 @@ const Dashboard = () => {
         description:
           transferData.description ||
           `Transfer to ${toMember.name || toMember.full_name}`,
+        ...(myBranchId ? { branch_id: myBranchId } : {}),
       };
 
       const response = await apiFetch("/api/transfers.php", {
@@ -695,6 +827,28 @@ const Dashboard = () => {
   const savingsMethod =
     userProfile?.savings_method || user?.savings_method || "";
   const itemName = userProfile?.item_name || "";
+
+  // ============================================================
+  // 🆕 Branch display — SAME source as Navbar (useBranch context)
+  // ============================================================
+  const branchName =
+    (activeBranch?.name && String(activeBranch.name).trim()) ||
+    (branchInfo?.name && String(branchInfo.name).trim()) ||
+    userProfile?.branch_name ||
+    user?.branch_name ||
+    (myBranchId ? `Branch #${myBranchId}` : "—");
+
+  const branchCode =
+    (activeBranch?.code && String(activeBranch.code).trim()) ||
+    (branchInfo?.code && String(branchInfo.code).trim()) ||
+    userProfile?.branch_code ||
+    user?.branch_code ||
+    "—";
+
+  const selectedRecipient =
+    members.find((m) => String(m.id) === String(transferData.toMemberId)) ||
+    null;
+  const selectedRecipientPhoto = getPassportUrl(selectedRecipient);
 
   return (
     <div
@@ -831,6 +985,98 @@ const Dashboard = () => {
           animation: spin 1s linear infinite;
         }
 
+        .branch-mini-refresh {
+          background: transparent;
+          border: 1px solid ${fieldBorder};
+          color: ${textMuted};
+          width: 26px; height: 26px;
+          border-radius: 6px;
+          display: inline-flex; align-items: center; justify-content: center;
+          cursor: pointer;
+          font-size: 12px;
+          padding: 0;
+          transition: all 0.15s;
+          flex-shrink: 0;
+        }
+        .branch-mini-refresh:hover:not(:disabled) {
+          color: ${creditColor};
+          border-color: ${creditColor};
+        }
+        .branch-mini-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
+        .branch-mini-refresh .spin { display: inline-block; animation: spin 1s linear infinite; }
+
+        .recipient-wrap { position: relative; }
+        .recipient-trigger {
+          width: 100%;
+          display: flex; align-items: center; gap: 10px;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid ${fieldBorder};
+          background-color: ${fieldBg};
+          color: ${fieldText};
+          font-size: 14px;
+          cursor: pointer;
+          text-align: left;
+          transition: border-color 0.2s;
+          font-family: inherit;
+        }
+        .recipient-trigger:hover { border-color: ${fieldFocusBorder}; }
+        .recipient-trigger .caret {
+          margin-left: auto; color: ${textMuted}; font-size: 12px;
+        }
+        .recipient-menu {
+          position: absolute;
+          top: calc(100% + 4px);
+          left: 0; right: 0;
+          max-height: 280px;
+          overflow-y: auto;
+          background-color: ${modalBg};
+          border: 1px solid ${modalBorder};
+          border-radius: 10px;
+          box-shadow: 0 12px 32px rgba(0,0,0,0.35);
+          z-index: 10;
+          padding: 6px;
+        }
+        .recipient-item {
+          display: flex; align-items: center; gap: 10px;
+          padding: 8px 10px;
+          border-radius: 6px;
+          cursor: pointer;
+          color: ${modalText};
+          transition: background-color 0.15s;
+        }
+        .recipient-item:hover { background-color: ${cardSurface2}; }
+        .recipient-item.active { background-color: ${cardSurface2}; }
+        .recipient-avatar {
+          width: 34px; height: 34px;
+          border-radius: 50%;
+          background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16,185,129,0.2)"};
+          color: ${creditColor};
+          display: flex; align-items: center; justify-content: center;
+          font-weight: 700;
+          font-size: 13px;
+          flex-shrink: 0;
+          overflow: hidden;
+          border: 1px solid ${fieldBorder};
+        }
+        .recipient-avatar img {
+          width: 100%; height: 100%; object-fit: cover;
+        }
+        .recipient-body { flex: 1; min-width: 0; }
+        .recipient-name {
+          font-size: 13.5px; font-weight: 600;
+          color: ${modalText};
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .recipient-meta {
+          font-size: 11px; color: ${textMuted};
+          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+        }
+        .recipient-empty {
+          padding: 14px; text-align: center;
+          color: ${textMuted}; font-size: 13px;
+        }
+
         .plan-summary {
           background-color: ${cardSurface};
           border: 1px solid ${cardBorder};
@@ -919,8 +1165,38 @@ const Dashboard = () => {
             <h1 style={{ color: textColor, fontSize: "24px", margin: 0 }}>
               Welcome back, {displayName}! 👋
             </h1>
-            <p style={{ color: textMuted, margin: "4px 0 0 0" }}>
-              {isAdmin ? "👑 Admin Dashboard" : "👤 Member Dashboard"}
+
+            <p
+              style={{
+                color: textMuted,
+                margin: "6px 0 0 0",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                flexWrap: "wrap",
+              }}
+            >
+              <span
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: "6px",
+                  padding: "3px 10px",
+                  borderRadius: "20px",
+                  fontSize: "12px",
+                  fontWeight: "700",
+                  backgroundColor: isLight
+                    ? `${roleMeta.color}22`
+                    : `${roleMeta.color}33`,
+                  color: roleMeta.color,
+                  border: `1px solid ${roleMeta.color}55`,
+                  textTransform: "uppercase",
+                  letterSpacing: "0.4px",
+                }}
+              >
+                {roleMeta.icon} {roleMeta.label}
+              </span>
+              <span>{isAdmin ? "Admin Dashboard" : "Member Dashboard"}</span>
             </p>
           </div>
           <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -987,6 +1263,83 @@ const Dashboard = () => {
             marginBottom: "24px",
           }}
         >
+          {/* 🆕 Branch card with its own refresh button */}
+          <div
+            style={{
+              backgroundColor: cardSurface,
+              borderRadius: "12px",
+              padding: "20px",
+              border: `1px solid ${cardBorder}`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  padding: "10px",
+                  borderRadius: "10px",
+                  backgroundColor: isLight
+                    ? "rgba(16,185,129,0.15)"
+                    : "rgba(16, 185, 129, 0.2)",
+                }}
+              >
+                <span style={{ fontSize: "24px" }}>🏢</span>
+              </div>
+              <div style={{ minWidth: 0, flex: 1 }}>
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "space-between",
+                    gap: "6px",
+                    marginBottom: "4px",
+                  }}
+                >
+                  <p
+                    style={{
+                      color: textMuted,
+                      fontSize: "12px",
+                      margin: 0,
+                    }}
+                  >
+                    Branch
+                  </p>
+                  <button
+                    type="button"
+                    className="branch-mini-refresh"
+                    onClick={refreshBranchCard}
+                    disabled={branchRefreshing}
+                    title="Refresh branch info"
+                  >
+                    <span className={branchRefreshing ? "spin" : ""}>⟳</span>
+                  </button>
+                </div>
+                <p
+                  style={{
+                    fontSize: "16px",
+                    fontWeight: "bold",
+                    color: creditColor,
+                    margin: 0,
+                    whiteSpace: "nowrap",
+                    overflow: "hidden",
+                    textOverflow: "ellipsis",
+                  }}
+                  title={branchName}
+                >
+                  {branchName}
+                </p>
+                <p
+                  style={{
+                    fontSize: "11px",
+                    color: textMuted,
+                    margin: "2px 0 0 0",
+                  }}
+                >
+                  {branchCode !== "—" ? `Code: ${branchCode}` : "—"}
+                </p>
+              </div>
+            </div>
+          </div>
+
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1088,6 +1441,48 @@ const Dashboard = () => {
                 style={{
                   padding: "10px",
                   borderRadius: "10px",
+                  backgroundColor: `${roleMeta.color}33`,
+                }}
+              >
+                <span style={{ fontSize: "24px" }}>{roleMeta.icon}</span>
+              </div>
+              <div>
+                <p
+                  style={{
+                    color: textMuted,
+                    fontSize: "12px",
+                    margin: "0 0 4px 0",
+                  }}
+                >
+                  Role
+                </p>
+                <p
+                  style={{
+                    fontSize: "22px",
+                    fontWeight: "bold",
+                    color: roleMeta.color,
+                    margin: 0,
+                  }}
+                >
+                  {roleMeta.label}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          <div
+            style={{
+              backgroundColor: cardSurface,
+              borderRadius: "12px",
+              padding: "20px",
+              border: `1px solid ${cardBorder}`,
+            }}
+          >
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div
+                style={{
+                  padding: "10px",
+                  borderRadius: "10px",
                   backgroundColor: isLight
                     ? "rgba(217,119,6,0.15)"
                     : "rgba(234, 179, 8, 0.2)",
@@ -1151,7 +1546,7 @@ const Dashboard = () => {
                 </p>
                 <p
                   style={{
-                    fontSize: "22px",
+                    fontSize: "16px",
                     fontWeight: "bold",
                     color: textColor,
                     margin: 0,
@@ -1818,25 +2213,102 @@ const Dashboard = () => {
             <form onSubmit={handleTransfer}>
               <div className="form-group">
                 <label className="form-label">Recipient *</label>
-                <select
-                  className="form-select"
-                  value={transferData.toMemberId}
-                  onChange={(e) =>
-                    setTransferData({
-                      ...transferData,
-                      toMemberId: e.target.value,
-                    })
-                  }
-                  required
-                >
-                  <option value="">Select a member</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.name || m.full_name} -{" "}
-                      {m.accountNumber || m.membership_number}
-                    </option>
-                  ))}
-                </select>
+
+                <div className="recipient-wrap" ref={recipientRef}>
+                  <button
+                    type="button"
+                    className="recipient-trigger"
+                    onClick={() => setRecipientOpen((o) => !o)}
+                  >
+                    {selectedRecipient ? (
+                      <>
+                        <div className="recipient-avatar">
+                          {selectedRecipientPhoto ? (
+                            <img
+                              src={selectedRecipientPhoto}
+                              alt={selectedRecipient.name || ""}
+                            />
+                          ) : (
+                            (selectedRecipient.name || "U")
+                              .charAt(0)
+                              .toUpperCase()
+                          )}
+                        </div>
+                        <div className="recipient-body">
+                          <div className="recipient-name">
+                            {selectedRecipient.name ||
+                              selectedRecipient.full_name}
+                          </div>
+                          <div className="recipient-meta">
+                            {selectedRecipient.accountNumber ||
+                              selectedRecipient.membership_number ||
+                              "—"}
+                          </div>
+                        </div>
+                      </>
+                    ) : (
+                      <span style={{ color: fieldPlaceholder }}>
+                        Select a member
+                      </span>
+                    )}
+                    <span className="caret">▼</span>
+                  </button>
+
+                  {recipientOpen && (
+                    <div className="recipient-menu">
+                      {members.length === 0 ? (
+                        <div className="recipient-empty">
+                          No other members in your branch
+                        </div>
+                      ) : (
+                        members.map((m) => {
+                          const photo = getPassportUrl(m);
+                          const isActive =
+                            String(m.id) === String(transferData.toMemberId);
+                          return (
+                            <div
+                              key={m.id}
+                              className={`recipient-item ${
+                                isActive ? "active" : ""
+                              }`}
+                              onClick={() => {
+                                setTransferData({
+                                  ...transferData,
+                                  toMemberId: m.id,
+                                });
+                                setRecipientOpen(false);
+                              }}
+                            >
+                              <div className="recipient-avatar">
+                                {photo ? (
+                                  <img
+                                    src={photo}
+                                    alt={m.name || ""}
+                                    onError={(e) => {
+                                      e.currentTarget.style.display = "none";
+                                    }}
+                                  />
+                                ) : (
+                                  (m.name || "U").charAt(0).toUpperCase()
+                                )}
+                              </div>
+                              <div className="recipient-body">
+                                <div className="recipient-name">
+                                  {m.name || m.full_name}
+                                </div>
+                                <div className="recipient-meta">
+                                  {m.accountNumber ||
+                                    m.membership_number ||
+                                    "—"}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="form-group">
                 <label className="form-label">Amount (₦) *</label>

@@ -3,6 +3,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
+import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -11,6 +12,46 @@ const MEMBERS_PER_PAGE = 10;
 
 const AdminDashboard = () => {
   const { activeBranch, activeBranchId } = useBranch();
+  const { user } = useAuth();
+
+  // ============================================================
+  // Branch shown on the banner card.
+  // Admins get it from BranchContext. Managers often don't (no switcher /
+  // no full branch list), so fall back to looking it up by their own
+  // branch id, then to whatever the login response carried.
+  // ============================================================
+  const branchId = activeBranchId || user?.branch_id || null;
+  const [fallbackBranch, setFallbackBranch] = useState(null);
+
+  useEffect(() => {
+    if (activeBranch?.name || !branchId) {
+      setFallbackBranch(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await fetch(`${API_BASE_URL}/api/branches.php`);
+        const data = await res.json();
+        const found = (data.branches || []).find(
+          (b) => String(b.id) === String(branchId),
+        );
+        if (!cancelled) setFallbackBranch(found || null);
+      } catch {
+        if (!cancelled) setFallbackBranch(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeBranch?.name, branchId]);
+
+  const branch = activeBranch?.name
+    ? activeBranch
+    : fallbackBranch ||
+      (user?.branch_name
+        ? { name: user.branch_name, code: user.branch_code }
+        : null);
 
   const [adminUsername, setAdminUsername] = useState("Admin");
   const [members, setMembers] = useState([]);
@@ -725,7 +766,7 @@ const AdminDashboard = () => {
           balance: "",
         });
         alert(
-          `✅ Member created successfully!\nAccount Number: ${accountNumber}\nBranch: ${activeBranch?.name || "N/A"}`,
+          `✅ Member created successfully!\nAccount Number: ${accountNumber}\nBranch: ${branch?.name || "N/A"}`,
         );
       } else {
         alert(data.message || "Failed to create member");
@@ -1865,7 +1906,7 @@ const AdminDashboard = () => {
         }
       `}</style>
 
-      {/* 🆕 BRANCH BANNER — shows which group is active */}
+      {/* BRANCH BANNER — shows which group is active */}
       <div
         style={{
           display: "flex",
@@ -1890,7 +1931,7 @@ const AdminDashboard = () => {
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {branch?.name || "Branch"}
             </div>
             <div
               style={{
@@ -1899,7 +1940,7 @@ const AdminDashboard = () => {
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} · Members in this branch:{" "}
+              {branch?.code || "—"} · Members in this branch:{" "}
               <strong style={{ color: "var(--credit)" }}>
                 {members.length}
               </strong>
@@ -2522,9 +2563,7 @@ const AdminDashboard = () => {
                           </div>
                           <p>
                             No members in{" "}
-                            <strong>
-                              {activeBranch?.name || "this branch"}
-                            </strong>
+                            <strong>{branch?.name || "this branch"}</strong>
                           </p>
                         </div>
                       </td>
