@@ -19,6 +19,11 @@ const PublicRegister = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
 
+  // 🆕 Branch resolved from ?branch= (or ?branch_id=) in the URL
+  const [branch, setBranch] = useState(null);
+  const [branchError, setBranchError] = useState("");
+  const [branchLoading, setBranchLoading] = useState(true);
+
   const [newMember, setNewMember] = useState({
     firstName: "",
     lastName: "",
@@ -49,8 +54,62 @@ const PublicRegister = () => {
     }
   }, [newMember.firstName]);
 
+  // 🆕 Resolve the branch from the URL on mount
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    // Accept both ?branch= and ?branch_id=
+    const raw = params.get("branch") || params.get("branch_id") || "";
+
+    if (!raw) {
+      setBranchError(
+        "No branch specified in this link. Please use the link your branch admin gave you.",
+      );
+      setBranchLoading(false);
+      return;
+    }
+
+    const resolve = async () => {
+      try {
+        const isNumeric = /^\d+$/.test(raw);
+        const url = isNumeric
+          ? `${API_BASE_URL}/api/get-branch.php?id=${raw}`
+          : `${API_BASE_URL}/api/get-branch.php?code=${encodeURIComponent(raw)}`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        if (data.status && data.branch) {
+          setBranch(data.branch);
+          setBranchError("");
+        } else {
+          setBranch(null);
+          setBranchError(
+            data.error || "This registration link is invalid or expired.",
+          );
+        }
+      } catch (err) {
+        console.error("[PublicRegister] branch resolve error:", err);
+        setBranch(null);
+        setBranchError(
+          "Could not load branch details. Please check your connection and try again.",
+        );
+      } finally {
+        setBranchLoading(false);
+      }
+    };
+    resolve();
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+
+    // 🆕 Block if branch hasn't resolved
+    if (!branch?.id) {
+      toast.error(
+        branchError || "Cannot register: no valid branch in this link.",
+      );
+      return;
+    }
 
     if (!newMember.firstName.trim() || !newMember.lastName.trim()) {
       toast.error("Please enter your full name");
@@ -82,13 +141,22 @@ const PublicRegister = () => {
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
         profile_completed: 0,
+        // 🆕 Also send in body (harmless, future-proof)
+        branch_id: branch.id,
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/members.php`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
+      // 🆕 FIX: send branch_id as a QUERY STRING param.
+      // members.php reads $_GET['branch_id'] — it ignores the JSON body.
+      // Without this, every registration falls back to "first active branch"
+      // (i.e. Shittu) regardless of which link was used.
+      const res = await fetch(
+        `${API_BASE_URL}/api/members.php?branch_id=${encodeURIComponent(branch.id)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
 
       const data = await res.json();
 
@@ -98,6 +166,7 @@ const PublicRegister = () => {
           email: newMember.email,
           password: newMember.password,
           accountNumber,
+          branchName: branch.name,
         });
         setShowCredentialsModal(true);
       } else {
@@ -125,6 +194,7 @@ Your account details:
 📧 Email: ${createdCredentials.email}
 🔑 Password: ${createdCredentials.password}
 💳 Account Number: ${createdCredentials.accountNumber}
+🏢 Branch: ${createdCredentials.branchName || "—"}
 
 Please log in and complete your profile.`;
     navigator.clipboard
@@ -148,7 +218,6 @@ Please log in and complete your profile.`;
     <div className="reg-page">
       <style>{css}</style>
 
-      {/* Background image overlay */}
       <div className="reg-bg" aria-hidden="true" />
 
       <div className="reg-card">
@@ -157,6 +226,31 @@ Please log in and complete your profile.`;
           <h1 className="reg-title">Create Account</h1>
           <p className="reg-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
         </div>
+
+        {/* 🆕 Branch banner — shows which branch this link is for */}
+        {branchLoading ? (
+          <div className="reg-branch reg-branch-loading">
+            <span className="reg-branch-icon">⏳</span>
+            <div className="reg-branch-body">Loading branch details…</div>
+          </div>
+        ) : branch ? (
+          <div className="reg-branch">
+            <span className="reg-branch-icon">🏢</span>
+            <div className="reg-branch-body">
+              <div className="reg-branch-name">{branch.name}</div>
+              <div className="reg-branch-code">
+                Branch code: <strong>{branch.code}</strong>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="reg-branch reg-branch-error">
+            <span className="reg-branch-icon">⚠️</span>
+            <div className="reg-branch-body">
+              {branchError || "Invalid registration link."}
+            </div>
+          </div>
+        )}
 
         <div className="reg-info">
           💡 Enter your details below. You'll receive your account number after
@@ -179,6 +273,7 @@ Please log in and complete your profile.`;
               required
               placeholder="Enter your first name"
               autoComplete="given-name"
+              disabled={!branch}
             />
           </div>
 
@@ -197,6 +292,7 @@ Please log in and complete your profile.`;
               required
               placeholder="Enter your last name"
               autoComplete="family-name"
+              disabled={!branch}
             />
           </div>
 
@@ -213,6 +309,7 @@ Please log in and complete your profile.`;
               minLength="6"
               placeholder="Min 6 characters"
               autoComplete="new-password"
+              disabled={!branch}
             />
           </div>
 
@@ -221,8 +318,16 @@ Please log in and complete your profile.`;
             <strong>{newMember.email || "—"}</strong>
           </div>
 
-          <button type="submit" className="submit-btn" disabled={loading}>
-            {loading ? "Creating account..." : "Create Account"}
+          <button
+            type="submit"
+            className="submit-btn"
+            disabled={loading || !branch}
+          >
+            {!branch
+              ? "Branch Required"
+              : loading
+                ? "Creating account..."
+                : "Create Account"}
           </button>
         </form>
 
@@ -240,7 +345,6 @@ Please log in and complete your profile.`;
         </div>
       </div>
 
-      {/* Credentials Modal */}
       {showCredentialsModal && createdCredentials && (
         <div className="modal-overlay">
           <div className="modal-card">
@@ -250,6 +354,17 @@ Please log in and complete your profile.`;
               ⚠️ <strong>Save these credentials</strong>. You'll need them to
               log in.
             </div>
+
+            {createdCredentials.branchName && (
+              <div className="cred-row">
+                <div className="cred-body">
+                  <div className="cred-label">🏢 Branch</div>
+                  <div className="cred-value">
+                    {createdCredentials.branchName}
+                  </div>
+                </div>
+              </div>
+            )}
 
             <div className="cred-row">
               <div className="cred-body">
@@ -319,11 +434,6 @@ Please log in and complete your profile.`;
   );
 };
 
-/* ----------------------------------------------------------------
-   CSS — flat style matching Login / Broadsheet / Profile /
-   Permissions. Background image + subtle tint. No cards, no
-   gradients, no blue focus rings.
------------------------------------------------------------------ */
 const css = `
   .reg-page {
     position: relative;
@@ -338,7 +448,6 @@ const css = `
     overflow: hidden;
   }
 
-  /* ---------- Background image layer ---------- */
   .reg-bg {
     position: fixed;
     inset: 0;
@@ -371,7 +480,6 @@ const css = `
     }
   }
 
-  /* ---------- Card ---------- */
   .reg-card {
     position: relative;
     z-index: 1;
@@ -385,7 +493,6 @@ const css = `
     box-shadow: 0 24px 60px -24px rgba(15, 23, 42, 0.4);
   }
 
-  /* ---------- Header ---------- */
   .reg-header {
     text-align: center;
     margin-bottom: 22px;
@@ -420,7 +527,45 @@ const css = `
     margin: 0;
   }
 
-  /* ---------- Info note (flat) ---------- */
+  /* 🆕 Branch banner */
+  .reg-branch {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    margin-bottom: 14px;
+    border: 1px solid color-mix(in srgb, var(--accent, #059669) 35%, transparent);
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--accent, #059669) 6%, transparent);
+    font-size: 12.5px;
+    color: var(--text, #0f172a);
+  }
+  .reg-branch-icon { font-size: 20px; flex-shrink: 0; }
+  .reg-branch-body { flex: 1; min-width: 0; }
+  .reg-branch-name {
+    font-weight: 700;
+    margin-bottom: 2px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .reg-branch-code {
+    font-size: 11px;
+    color: var(--text-muted, #64748b);
+  }
+  .reg-branch-code strong { color: var(--text, #0f172a); }
+  .reg-branch-loading {
+    border-color: var(--border, #e2e8f0);
+    background: transparent;
+    color: var(--text-muted, #64748b);
+  }
+  .reg-branch-error {
+    border-color: rgba(239, 68, 68, 0.4);
+    background: rgba(239, 68, 68, 0.06);
+    color: var(--debit, #dc2626);
+    line-height: 1.5;
+  }
+
   .reg-info {
     font-size: 12px;
     color: var(--text-muted, #64748b);
@@ -430,7 +575,6 @@ const css = `
     border-bottom: 1px solid var(--border, #e2e8f0);
   }
 
-  /* ---------- Fields (flat, underlined) ---------- */
   .field-group { margin-bottom: 18px; }
 
   .field-label {
@@ -464,8 +608,11 @@ const css = `
     outline: none;
     box-shadow: none;
   }
+  .field-input:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
 
-  /* ---------- Email note (flat) ---------- */
   .reg-email-note {
     font-size: 12px;
     color: var(--text-muted, #64748b);
@@ -476,7 +623,6 @@ const css = `
   }
   .reg-email-note strong { color: var(--text, #0f172a); }
 
-  /* ---------- Submit button ---------- */
   .submit-btn {
     width: 100%;
     padding: 11px;
@@ -498,7 +644,6 @@ const css = `
   .submit-btn:focus,
   .submit-btn:focus-visible { outline: none; }
 
-  /* ---------- Divider ---------- */
   .divider {
     display: flex;
     align-items: center;
@@ -517,7 +662,6 @@ const css = `
     background: var(--border, #e2e8f0);
   }
 
-  /* ---------- Footer ---------- */
   .footer-row {
     text-align: center;
     font-size: 12.5px;
@@ -538,7 +682,6 @@ const css = `
     border-top: 1px solid var(--border, #e2e8f0);
   }
 
-  /* ---------- Modal ---------- */
   .modal-overlay {
     position: fixed;
     inset: 0;
@@ -655,7 +798,6 @@ const css = `
     background: color-mix(in srgb, var(--accent, #059669) 10%, transparent);
   }
 
-  /* ---------- Responsive ---------- */
   @media (max-width: 640px) {
     .reg-card { padding: 26px 20px 22px; }
     .reg-title { font-size: 18px; }

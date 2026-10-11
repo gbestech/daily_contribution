@@ -3,6 +3,8 @@ import React, { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import * as XLSX from "xlsx";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -16,6 +18,8 @@ const capitalizeWords = (str) =>
 
 const AdminMembers = ({ publicMode = false }) => {
   const navigate = useNavigate();
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -67,15 +71,20 @@ const AdminMembers = ({ publicMode = false }) => {
   }, [newMember.firstName]);
 
   useEffect(() => {
+    if (publicMode) {
+      setLoading(false);
+      return;
+    }
+    setSearchTerm("");
     fetchMembers();
     fetchTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeBranchId, publicMode]);
 
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const response = await apiFetch("/api/members.php");
       if (!response.ok) throw new Error("Failed");
       const data = await response.json();
       if (data.members) {
@@ -93,6 +102,7 @@ const AdminMembers = ({ publicMode = false }) => {
             role: m.role || "member",
             profile_completed: m.profile_completed || 0,
             passport_photo: m.passport_photo || null,
+            branch_id: m.branch_id || null,
           })),
         );
       } else {
@@ -108,7 +118,7 @@ const AdminMembers = ({ publicMode = false }) => {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const response = await apiFetch("/api/transactions.php");
       const data = await response.json();
       if (data.transactions) {
         setTransactions(
@@ -155,9 +165,10 @@ const AdminMembers = ({ publicMode = false }) => {
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
         profile_completed: 0,
+        ...(activeBranchId ? { branch_id: activeBranchId } : {}),
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/members.php`, {
+      const res = await apiFetch("/api/members.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -225,14 +236,11 @@ Please log in and complete your profile.`;
     if (editPassword.trim()) payload.password = editPassword.trim();
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      const res = await apiFetch(`/api/members.php/${selectedMember.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       if (res.ok) {
         toast.success("✅ Member updated!");
@@ -251,7 +259,7 @@ Please log in and complete your profile.`;
   const handleDeleteMember = async (id) => {
     if (!window.confirm("Delete this member?")) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+      const res = await apiFetch(`/api/members.php/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -273,8 +281,8 @@ Please log in and complete your profile.`;
     }
     const m = members.find((x) => x.id === parseInt(roleAssignment.memberId));
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/members.php/${roleAssignment.memberId}`,
+      const res = await apiFetch(
+        `/api/members.php/${roleAssignment.memberId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -301,27 +309,14 @@ Please log in and complete your profile.`;
     }
   };
 
-  // ============================================================
   // ===== EXCEL BULK UPLOAD HELPERS =====
-  // ============================================================
-
-  // Download a sample Excel template
   const downloadTemplate = () => {
     const templateData = [
-      {
-        "First Name": "John",
-        "Last Name": "Doe",
-        Password: "john1234",
-      },
-      {
-        "First Name": "Jane",
-        "Last Name": "Smith",
-        Password: "jane1234",
-      },
+      { "First Name": "John", "Last Name": "Doe", Password: "john1234" },
+      { "First Name": "Jane", "Last Name": "Smith", Password: "jane1234" },
     ];
 
     const worksheet = XLSX.utils.json_to_sheet(templateData);
-    // Set column widths
     worksheet["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 18 }];
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
@@ -329,7 +324,6 @@ Please log in and complete your profile.`;
     toast.success("📥 Template downloaded!");
   };
 
-  // Handle file selection
   const handleExcelUpload = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -348,7 +342,6 @@ Please log in and complete your profile.`;
           return;
         }
 
-        // Normalize headers (case-insensitive lookup)
         const normalized = json.map((row, idx) => {
           const get = (key) => {
             const found = Object.keys(row).find(
@@ -357,14 +350,13 @@ Please log in and complete your profile.`;
             return found ? String(row[found]).trim() : "";
           };
           return {
-            _row: idx + 2, // Excel row number (header is row 1)
+            _row: idx + 2,
             firstName: get("First Name"),
             lastName: get("Last Name"),
             password: get("Password"),
           };
         });
 
-        // Validate rows
         const validated = normalized.map((r) => {
           const errors = [];
           if (!r.firstName) errors.push("First Name required");
@@ -384,18 +376,15 @@ Please log in and complete your profile.`;
       }
     };
     reader.readAsBinaryString(file);
-    // reset input so same file can be re-selected
     e.target.value = "";
   };
 
-  // Generate email the same way the form does
   const generateEmail = (firstName) => {
     const firstNameLower = firstName.trim().toLowerCase();
     const randomNum = Math.floor(Math.random() * 90000) + 10000;
     return `${firstNameLower}${randomNum}@gmail.com`;
   };
 
-  // Upload all valid rows
   const handleBulkUpload = async () => {
     const validRows = bulkRows.filter((r) => r.errors.length === 0);
     if (!validRows.length) {
@@ -428,9 +417,10 @@ Please log in and complete your profile.`;
           join_date: new Date().toISOString().split("T")[0],
           balance: 0,
           profile_completed: 0,
+          ...(activeBranchId ? { branch_id: activeBranchId } : {}),
         };
 
-        const res = await fetch(`${API_BASE_URL}/api/members.php`, {
+        const res = await apiFetch("/api/members.php", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(payload),
@@ -478,7 +468,6 @@ Please log in and complete your profile.`;
     fetchMembers();
   };
 
-  // Download the bulk upload results
   const downloadBulkResults = () => {
     if (!bulkResults?.length) return;
 
@@ -506,7 +495,9 @@ Please log in and complete your profile.`;
     XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
     XLSX.writeFile(
       workbook,
-      `members_upload_results_${new Date().toISOString().split("T")[0]}.xlsx`,
+      `members_upload_results_${activeBranch?.code || "branch"}_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`,
     );
     toast.success("📥 Results downloaded!");
   };
@@ -519,33 +510,71 @@ Please log in and complete your profile.`;
       (m.phone || "").includes(searchTerm),
   );
 
+  // ============================================================
+  // 🆕 ROLE BADGE COLORS — always use WHITE text so it's readable
+  //    on any background (dark, light, or mid-tone).
+  // ============================================================
   const getRoleColor = (role) => {
-    switch (role?.toLowerCase()) {
+    const r = String(role || "").toLowerCase();
+    switch (r) {
       case "admin":
       case "administrator":
-        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
+        // Deep purple for admin
+        return {
+          bg: "linear-gradient(135deg, #7c3aed, #6d28d9)",
+          color: "#ffffff",
+          border: "1px solid #a78bfa",
+        };
       case "manager":
-        return { bg: "var(--info)", color: "var(--badge-text)" };
+        // Bright blue for manager — guaranteed contrast
+        return {
+          bg: "linear-gradient(135deg, #2563eb, #1d4ed8)",
+          color: "#ffffff",
+          border: "1px solid #60a5fa",
+        };
+      case "member":
       default:
-        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
+        // Green for member
+        return {
+          bg: "linear-gradient(135deg, #059669, #047857)",
+          color: "#ffffff",
+          border: "1px solid #34d399",
+        };
     }
   };
 
   const getStatusColor = (status) => {
-    switch (status) {
+    const s = String(status || "").toLowerCase();
+    switch (s) {
       case "active":
-        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
+        return {
+          bg: "linear-gradient(135deg, #10b981, #059669)",
+          color: "#ffffff",
+          border: "1px solid #34d399",
+        };
       case "inactive":
-        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
+        return {
+          bg: "linear-gradient(135deg, #ef4444, #dc2626)",
+          color: "#ffffff",
+          border: "1px solid #f87171",
+        };
       case "suspended":
-        return { bg: "var(--pending-bg)", color: "var(--badge-text)" };
+        return {
+          bg: "linear-gradient(135deg, #f59e0b, #d97706)",
+          color: "#ffffff",
+          border: "1px solid #fbbf24",
+        };
       default:
-        return { bg: "var(--bg-surface-3)", color: "var(--text)" };
+        return {
+          bg: "linear-gradient(135deg, #6b7280, #4b5563)",
+          color: "#ffffff",
+          border: "1px solid #9ca3af",
+        };
     }
   };
 
   // ============================================================
-  // PUBLIC MODE — show only the registration form, no table
+  // PUBLIC MODE — registration form only
   // ============================================================
   if (publicMode) {
     return (
@@ -620,18 +649,32 @@ Please log in and complete your profile.`;
           .pub-input {
             width: 100%;
             padding: 12px 14px;
-            font-size: 14px; color: var(--text);
-            background: var(--bg-surface-2);
+            font-size: 14px;
+            color: var(--text) !important;
+            -webkit-text-fill-color: var(--text) !important;
+            background: var(--bg-surface-2) !important;
             border: 1px solid var(--border);
             border-radius: 10px;
             outline: none;
             box-sizing: border-box;
             transition: all 0.2s;
           }
-          .pub-input::placeholder { color: var(--text-dim); }
+          .pub-input::placeholder {
+            color: var(--text-dim) !important;
+            -webkit-text-fill-color: var(--text-dim) !important;
+            opacity: 1;
+          }
           .pub-input:focus {
             border-color: var(--accent);
             box-shadow: 0 0 0 3px var(--accent-bg);
+          }
+          .pub-input:-webkit-autofill,
+          .pub-input:-webkit-autofill:hover,
+          .pub-input:-webkit-autofill:focus {
+            -webkit-text-fill-color: var(--text) !important;
+            -webkit-box-shadow: 0 0 0 1000px var(--bg-surface-2) inset !important;
+            box-shadow: 0 0 0 1000px var(--bg-surface-2) inset !important;
+            transition: background-color 9999s ease-in-out 0s;
           }
           .pub-email-note {
             background: var(--approved-bg);
@@ -657,9 +700,7 @@ Please log in and complete your profile.`;
             transform: translateY(-1px);
             box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
           }
-          .pub-submit:disabled {
-            opacity: 0.6; cursor: not-allowed;
-          }
+          .pub-submit:disabled { opacity: 0.6; cursor: not-allowed; }
           .pub-footer {
             text-align: center;
             margin-top: 20px;
@@ -765,7 +806,6 @@ Please log in and complete your profile.`;
           </div>
         </div>
 
-        {/* Credentials modal — shows after successful registration */}
         {showCredentialsModal && createdCredentials && (
           <div
             style={{
@@ -884,13 +924,7 @@ Please log in and complete your profile.`;
                 </div>
               ))}
 
-              <div
-                style={{
-                  display: "flex",
-                  gap: "10px",
-                  marginTop: "16px",
-                }}
-              >
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
                 <button
                   onClick={copyAllCredentials}
                   style={{
@@ -937,7 +971,7 @@ Please log in and complete your profile.`;
   }
 
   // ============================================================
-  // ADMIN MODE — main dashboard
+  // ADMIN MODE
   // ============================================================
   if (loading) {
     return (
@@ -1004,22 +1038,72 @@ Please log in and complete your profile.`;
           color: var(--text); margin-bottom: 4px;
         }
         .form-input {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
           border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text); font-size: 14px; outline: none;
+          background: var(--bg-surface-2) !important;
+          color: var(--text) !important;
+          -webkit-text-fill-color: var(--text) !important;
+          caret-color: var(--accent);
+          font-size: 14px;
+          outline: none;
+          box-sizing: border-box;
+          transition: border-color 0.2s, background-color 0.2s;
+        }
+        .form-input::placeholder {
+          color: var(--text-dim) !important;
+          -webkit-text-fill-color: var(--text-dim) !important;
+          opacity: 1;
+        }
+        .form-input:focus {
+          border-color: var(--accent);
+          background: var(--bg-surface-2) !important;
+          color: var(--text) !important;
+          -webkit-text-fill-color: var(--text) !important;
+        }
+        .form-input:disabled {
+          opacity: 0.6;
+          color: var(--text) !important;
+          -webkit-text-fill-color: var(--text) !important;
+        }
+        .form-input:-webkit-autofill,
+        .form-input:-webkit-autofill:hover,
+        .form-input:-webkit-autofill:focus {
+          -webkit-text-fill-color: var(--text) !important;
+          -webkit-box-shadow: 0 0 0 1000px var(--bg-surface-2) inset !important;
+          box-shadow: 0 0 0 1000px var(--bg-surface-2) inset !important;
+          transition: background-color 9999s ease-in-out 0s;
+        }
+        .form-input::selection {
+          background: var(--accent);
+          color: #ffffff;
+        }
+        .form-input[type="number"]::-webkit-outer-spin-button,
+        .form-input[type="number"]::-webkit-inner-spin-button {
+          -webkit-appearance: none; margin: 0;
+        }
+        .form-input[type="number"] { -moz-appearance: textfield; }
+
+        .form-select {
+          width: 100%;
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2) !important;
+          color: var(--text) !important;
+          -webkit-text-fill-color: var(--text) !important;
+          font-size: 14px;
+          outline: none;
+          cursor: pointer;
           box-sizing: border-box;
         }
-        .form-input:focus { border-color: var(--accent); }
-        .form-input:disabled { opacity: 0.6; }
-        .form-input::placeholder { color: var(--text-dim); }
-        .form-select {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text); font-size: 14px; outline: none;
+        .form-select:focus { border-color: var(--accent); }
+        .form-select option {
+          background: var(--bg-surface);
+          color: var(--text);
         }
-        .form-select option { background: var(--bg-surface); color: var(--text); }
+
         .btn-primary {
           padding: 10px 24px; border-radius: 8px; border: none;
           background: var(--accent); color: white; cursor: pointer;
@@ -1050,6 +1134,22 @@ Please log in and complete your profile.`;
           background: var(--accent-bg); color: var(--purple);
           cursor: pointer; font-size: 14px;
         }
+
+        /* 🆕 Badge styles — always WHITE text */
+        .role-badge,
+        .status-badge {
+          display: inline-block;
+          padding: 4px 12px;
+          font-size: 11px;
+          border-radius: 9999px;
+          font-weight: 700;
+          text-transform: uppercase;
+          letter-spacing: 0.4px;
+          color: #ffffff !important;
+          -webkit-text-fill-color: #ffffff !important;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+        }
+
         .credential-row {
           display: flex; justify-content: space-between; align-items: center;
           gap: 8px; padding: 10px 12px; border-radius: 8px;
@@ -1074,16 +1174,13 @@ Please log in and complete your profile.`;
         }
         .cred-copy-btn:hover { opacity: 0.85; }
 
-        /* ===== CLEAN TABLE — no borders, transparent ===== */
         .am-table {
           width: 100%;
           border-collapse: collapse;
           border: none;
           background: transparent;
         }
-        .am-table thead {
-          background: transparent;
-        }
+        .am-table thead { background: transparent; }
         .am-table thead th {
           padding: 12px 16px;
           text-align: left;
@@ -1098,20 +1195,18 @@ Please log in and complete your profile.`;
           background: transparent;
           transition: background-color 0.15s ease;
         }
-        .am-table tbody tr:hover {
-          background: var(--bg-surface-2);
-        }
+        .am-table tbody tr:hover { background: var(--bg-surface-2); }
         .am-table tbody td {
           padding: 12px 16px;
           border: none;
           color: var(--text);
         }
 
-        /* Plain underline search input */
         .am-search {
           width: 100%;
           background: transparent;
-          color: var(--text);
+          color: var(--text) !important;
+          -webkit-text-fill-color: var(--text) !important;
           padding: 10px 0;
           border: none;
           border-bottom: 1px solid var(--border);
@@ -1121,10 +1216,13 @@ Please log in and complete your profile.`;
           box-sizing: border-box;
           transition: border-color 0.2s ease;
         }
-        .am-search::placeholder { color: var(--text-dim); }
+        .am-search::placeholder {
+          color: var(--text-dim) !important;
+          -webkit-text-fill-color: var(--text-dim) !important;
+          opacity: 1;
+        }
         .am-search:focus { border-bottom-color: var(--accent); }
 
-        /* Bulk upload preview table */
         .bulk-table {
           width: 100%;
           border-collapse: collapse;
@@ -1144,13 +1242,83 @@ Please log in and complete your profile.`;
           border-bottom: 1px solid var(--border);
           color: var(--text);
         }
-        .bulk-table tr.row-error td {
-          background: var(--rejected-bg);
+        .bulk-table tr.row-error td { background: var(--rejected-bg); }
+        .bulk-table tr.row-ok td { background: transparent; }
+
+        .action-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px 6px;
+          border-radius: 6px;
+          transition: background 0.15s;
         }
-        .bulk-table tr.row-ok td {
-          background: transparent;
-        }
+        .action-btn:hover { background: var(--bg-surface-3); }
       `}</style>
+
+      {/* BRANCH BANNER */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Members for this branch only ·{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {members.length}
+              </strong>{" "}
+              members ·{" "}
+              <strong style={{ color: "var(--info)" }}>
+                {transactions.length}
+              </strong>{" "}
+              transactions
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
 
       {/* Header */}
       <div
@@ -1174,14 +1342,14 @@ Please log in and complete your profile.`;
               fontSize: "14px",
             }}
           >
-            Manage members, assign roles, view balances
+            Manage members for {activeBranch?.name || "your branch"}, assign
+            roles, view balances
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button onClick={() => setShowRoleModal(true)} className="btn-role">
             🔑 Assign Role
           </button>
-          {/* Hidden file input for Excel upload */}
           <input
             ref={fileInputRef}
             type="file"
@@ -1201,7 +1369,6 @@ Please log in and complete your profile.`;
         </div>
       </div>
 
-      {/* Plain search — no wrapper, no card */}
       <div style={{ marginBottom: "20px" }}>
         <input
           type="text"
@@ -1212,7 +1379,6 @@ Please log in and complete your profile.`;
         />
       </div>
 
-      {/* Plain table — no background, blends with page */}
       <div>
         <div style={{ overflowX: "auto" }}>
           <table className="am-table">
@@ -1233,157 +1399,158 @@ Please log in and complete your profile.`;
               </tr>
             </thead>
             <tbody>
-              {filteredMembers.map((member) => (
-                <tr key={member.id}>
-                  <td>
-                    <div
+              {filteredMembers.map((member) => {
+                const roleStyle = getRoleColor(member.role);
+                const statusStyle = getStatusColor(member.status);
+
+                return (
+                  <tr key={member.id}>
+                    <td>
+                      <div
+                        style={{
+                          fontSize: "14px",
+                          fontWeight: "600",
+                          color: "var(--info)",
+                          fontFamily: "monospace",
+                        }}
+                      >
+                        {member.membership_number}
+                      </div>
+                    </td>
+                    <td>
+                      <div
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "10px",
+                        }}
+                      >
+                        <div
+                          style={{
+                            width: "36px",
+                            height: "36px",
+                            borderRadius: "50%",
+                            backgroundColor: "var(--approved-bg)",
+                            display: "flex",
+                            alignItems: "center",
+                            justifyContent: "center",
+                            color: "var(--badge-text)",
+                            fontWeight: "bold",
+                            overflow: "hidden",
+                          }}
+                        >
+                          {member.passport_photo ? (
+                            <img
+                              src={`${API_BASE_URL}/api/uploads/passports/${member.passport_photo}`}
+                              alt=""
+                              style={{
+                                width: "100%",
+                                height: "100%",
+                                objectFit: "cover",
+                              }}
+                            />
+                          ) : (
+                            (member.full_name || "U").charAt(0)
+                          )}
+                        </div>
+                        <div
+                          style={{
+                            color: "var(--text)",
+                            fontSize: "14px",
+                            fontWeight: "500",
+                          }}
+                        >
+                          {member.full_name}
+                        </div>
+                      </div>
+                    </td>
+                    <td>
+                      <div style={{ fontSize: "13px", color: "var(--text)" }}>
+                        {member.email}
+                      </div>
+                      <div
+                        style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                      >
+                        {member.phone || "—"}
+                      </div>
+                    </td>
+                    <td>
+                      <span
+                        className="role-badge"
+                        style={{
+                          background: roleStyle.bg,
+                          color: roleStyle.color,
+                          border: roleStyle.border,
+                        }}
+                      >
+                        {member.role}
+                      </span>
+                    </td>
+                    <td>
+                      <span
+                        className="status-badge"
+                        style={{
+                          background: statusStyle.bg,
+                          color: statusStyle.color,
+                          border: statusStyle.border,
+                        }}
+                      >
+                        {member.status}
+                      </span>
+                    </td>
+                    <td>
+                      {member.profile_completed ? (
+                        <span
+                          style={{
+                            color: "var(--credit)",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          ✅ Complete
+                        </span>
+                      ) : (
+                        <span
+                          style={{
+                            color: "var(--warning)",
+                            fontSize: "12px",
+                            fontWeight: "600",
+                          }}
+                        >
+                          ⏳ Pending
+                        </span>
+                      )}
+                    </td>
+                    <td
                       style={{
                         fontSize: "14px",
                         fontWeight: "600",
-                        color: "var(--info)",
-                        fontFamily: "monospace",
+                        color: "var(--credit)",
                       }}
                     >
-                      {member.membership_number}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          backgroundColor: "var(--approved-bg)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "var(--badge-text)",
-                          fontWeight: "bold",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {member.passport_photo ? (
-                          <img
-                            src={`${API_BASE_URL}/api/uploads/passports/${member.passport_photo}`}
-                            alt=""
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : (
-                          (member.full_name || "U").charAt(0)
-                        )}
+                      ₦{parseFloat(member.balance || 0).toLocaleString()}
+                    </td>
+                    <td>
+                      <div style={{ display: "flex", gap: "8px" }}>
+                        <button
+                          onClick={() => handleEditMember(member)}
+                          className="action-btn"
+                          title="Edit"
+                        >
+                          ✏️
+                        </button>
+                        <button
+                          onClick={() => handleDeleteMember(member.id)}
+                          className="action-btn"
+                          title="Delete"
+                        >
+                          🗑️
+                        </button>
                       </div>
-                      <div
-                        style={{
-                          color: "var(--text)",
-                          fontSize: "14px",
-                          fontWeight: "500",
-                        }}
-                      >
-                        {member.full_name}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
-                      {member.email}
-                    </div>
-                    <div
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
-                    >
-                      {member.phone || "—"}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: "3px 10px",
-                        fontSize: "11px",
-                        borderRadius: "12px",
-                        fontWeight: "600",
-                        backgroundColor: getRoleColor(member.role).bg,
-                        color: getRoleColor(member.role).color,
-                      }}
-                    >
-                      {member.role}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: "4px 12px",
-                        fontSize: "12px",
-                        borderRadius: "20px",
-                        fontWeight: "600",
-                        backgroundColor: getStatusColor(member.status).bg,
-                        color: getStatusColor(member.status).color,
-                      }}
-                    >
-                      {member.status}
-                    </span>
-                  </td>
-                  <td>
-                    {member.profile_completed ? (
-                      <span
-                        style={{
-                          color: "var(--credit)",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ✅ Complete
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          color: "var(--warning)",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ⏳ Pending
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: "var(--credit)",
-                    }}
-                  >
-                    ₦{parseFloat(member.balance || 0).toLocaleString()}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button
-                        onClick={() => handleEditMember(member)}
-                        className="action-btn action-btn-edit"
-                        title="Edit"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMember(member.id)}
-                        className="action-btn action-btn-delete"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -1396,7 +1563,7 @@ Please log in and complete your profile.`;
             }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
-            <p>No members found</p>
+            <p>No members found in {activeBranch?.name || "this branch"}</p>
           </div>
         )}
       </div>
@@ -1432,20 +1599,14 @@ Please log in and complete your profile.`;
                 marginBottom: "16px",
               }}
             >
-              <p
-                style={{
-                  margin: 0,
-                  fontSize: "13px",
-                  color: "var(--text)",
-                }}
-              >
-                💡 Only basic info here. The member will complete their profile
-                (phone, address, next of kin, passport, savings plan) after
-                logging in.
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--text)" }}>
+                💡 New member will be created in{" "}
+                <strong>{activeBranch?.name || "this branch"}</strong>. They'll
+                complete their profile (phone, address, next of kin, passport,
+                savings plan) after logging in.
               </p>
             </div>
 
-            {/* ===== Excel buttons ===== */}
             <div
               style={{
                 display: "flex",
@@ -1481,7 +1642,7 @@ Please log in and complete your profile.`;
                   padding: "10px 14px",
                   borderRadius: "8px",
                   border: "none",
-                  background: "#e9f5efea",
+                  background: "#1d6f42",
                   color: "white",
                   cursor: "pointer",
                   fontSize: "13px",
@@ -1503,19 +1664,11 @@ Please log in and complete your profile.`;
               }}
             >
               <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  background: "var(--border)",
-                }}
+                style={{ flex: 1, height: "1px", background: "var(--border)" }}
               />
               <span>OR fill manually</span>
               <div
-                style={{
-                  flex: 1,
-                  height: "1px",
-                  background: "var(--border)",
-                }}
+                style={{ flex: 1, height: "1px", background: "var(--border)" }}
               />
             </div>
 
@@ -1579,11 +1732,7 @@ Please log in and complete your profile.`;
                 }}
               >
                 <p
-                  style={{
-                    margin: 0,
-                    fontSize: "12px",
-                    color: "var(--text)",
-                  }}
+                  style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}
                 >
                   📧 Auto email:{" "}
                   <strong style={{ color: "var(--text)" }}>
@@ -1622,7 +1771,7 @@ Please log in and complete your profile.`;
         </div>
       )}
 
-      {/* ===== Bulk Upload Preview Modal ===== */}
+      {/* Bulk Upload Preview Modal */}
       {showBulkModal && (
         <div className="modal-overlay">
           <div className="modal-content modal-content-lg">
@@ -1667,6 +1816,10 @@ Please log in and complete your profile.`;
                       (will be skipped)
                     </>
                   )}
+                  <div style={{ marginTop: "6px", fontSize: "12px" }}>
+                    🏢 Will be created in{" "}
+                    <strong>{activeBranch?.name || "this branch"}</strong>
+                  </div>
                 </div>
 
                 <div
@@ -1725,11 +1878,7 @@ Please log in and complete your profile.`;
                 </div>
 
                 <div
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    marginTop: "18px",
-                  }}
+                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
                 >
                   <button
                     className="btn-primary"
@@ -1845,11 +1994,7 @@ Please log in and complete your profile.`;
                 </div>
 
                 <div
-                  style={{
-                    display: "flex",
-                    gap: "10px",
-                    marginTop: "18px",
-                  }}
+                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
                 >
                   <button
                     className="btn-primary"

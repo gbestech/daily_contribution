@@ -206,7 +206,6 @@ const ITEM_OPTIONS = [
   { value: "other", label: "Other (specify in notes)" },
 ];
 
-// Fields we persist in the draft (exclude password fields and derived values)
 const DRAFT_FIELDS = [
   "date_of_birth",
   "gender",
@@ -233,14 +232,11 @@ const MemberProfile = () => {
   const [editMode, setEditMode] = useState(false);
   const [showCompletion, setShowCompletion] = useState(false);
 
-  // 🆕 Block render until we know the real profile state
   const [loadingProfile, setLoadingProfile] = useState(true);
 
-  // 🆕 Tracks whether the profile is complete (server-authoritative)
   const [profileConfirmedComplete, setProfileConfirmedComplete] =
     useState(false);
 
-  // 🆕 Unsaved changes flag for the "leave site?" warning
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
 
   const [passportFile, setPassportFile] = useState(null);
@@ -248,6 +244,17 @@ const MemberProfile = () => {
   const fileInputRef = useRef(null);
 
   const [itemOptions, setItemOptions] = useState(ITEM_OPTIONS);
+
+  // ============================================================
+  // 🆕 Role helpers — decide whether the savings section applies
+  // ============================================================
+  const role = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = role === "admin" || role === "administrator";
+  const isManager = role === "manager";
+  // Savings plan only applies to regular members (not staff).
+  const showSavingsSection = !isAdmin && !isManager;
 
   const [formData, setFormData] = useState({
     name: "",
@@ -277,6 +284,26 @@ const MemberProfile = () => {
     confirmPassword: "",
   });
 
+  // 🆕 Resolve the member's branch_id from every available source.
+  const getUserBranchId = () => {
+    if (user?.branch_id !== undefined && user?.branch_id !== null) {
+      return user.branch_id;
+    }
+    if (user?.branchId !== undefined && user?.branchId !== null) {
+      return user.branchId;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      if (stored?.branch_id !== undefined && stored?.branch_id !== null) {
+        return stored.branch_id;
+      }
+      if (stored?.branchId !== undefined && stored?.branchId !== null) {
+        return stored.branchId;
+      }
+    } catch {}
+    return null;
+  };
+
   // ============================================================
   // Draft helpers
   // ============================================================
@@ -290,9 +317,7 @@ const MemberProfile = () => {
         draft[f] = data[f] ?? "";
       });
       localStorage.setItem(draftKey, JSON.stringify(draft));
-    } catch (e) {
-      /* quota exceeded — ignore */
-    }
+    } catch (e) {}
   };
 
   const loadDraft = () => {
@@ -317,6 +342,8 @@ const MemberProfile = () => {
   // Live savings calculation
   // ============================================================
   const calculation = React.useMemo(() => {
+    if (!showSavingsSection) return null;
+
     const plan = formData.savings_plan;
     const duration = formData.duration;
     const perPeriodAmount = parseFloat(formData.amount);
@@ -352,14 +379,26 @@ const MemberProfile = () => {
             ? "per week"
             : "per month",
     };
-  }, [formData.savings_plan, formData.duration, formData.amount]);
+  }, [
+    formData.savings_plan,
+    formData.duration,
+    formData.amount,
+    showSavingsSection,
+  ]);
 
-  // Fetch items
+  // Fetch items (branch-scoped) — only for non-staff
   useEffect(() => {
+    if (!showSavingsSection) return;
+
     let cancelled = false;
     const loadItems = async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/items.php`);
+        const branchId = getUserBranchId();
+        const url = branchId
+          ? `${API_BASE_URL}/api/items.php?branch_id=${branchId}`
+          : `${API_BASE_URL}/api/items.php`;
+
+        const res = await fetch(url);
         if (!res.ok) return;
         const data = await res.json();
         const list = data.items || data.data || [];
@@ -376,7 +415,8 @@ const MemberProfile = () => {
     return () => {
       cancelled = true;
     };
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showSavingsSection]);
 
   const fetchFreshProfile = async (showToastFlag = false) => {
     if (!user?.id) {
@@ -385,7 +425,14 @@ const MemberProfile = () => {
     }
     setSyncing(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php/${user.id}`);
+      const userBranchId = getUserBranchId();
+      const url = userBranchId
+        ? `${API_BASE_URL}/api/members.php/${user.id}?branch_id=${userBranchId}`
+        : `${API_BASE_URL}/api/members.php/${user.id}`;
+
+      console.log("[MemberProfile] GET:", url);
+
+      const res = await fetch(url);
       const data = await res.json();
 
       if (data.member) {
@@ -424,7 +471,6 @@ const MemberProfile = () => {
           m.profile_completed === "1" ||
           m.profile_completed === true;
 
-        // Merge any saved draft on top of server data (only when incomplete)
         let merged = serverData;
         if (!isComplete) {
           const draft = loadDraft();
@@ -441,7 +487,6 @@ const MemberProfile = () => {
             });
           }
         } else {
-          // Profile already complete → drop any lingering draft
           clearDraft();
         }
 
@@ -456,12 +501,16 @@ const MemberProfile = () => {
         setProfileConfirmedComplete(isComplete);
         setShowCompletion(!isComplete);
 
-        // If a draft was restored, let the user know
         if (!isComplete && merged !== serverData) {
           toast.success("📝 Draft restored");
         }
 
-        const updatedUser = { ...user, ...m };
+        const updatedUser = {
+          ...user,
+          ...m,
+          branch_id:
+            m.branch_id ?? user?.branch_id ?? getUserBranchId() ?? null,
+        };
         localStorage.setItem("user", JSON.stringify(updatedUser));
 
         if (showToastFlag) toast.success("✅ Refreshed");
@@ -478,7 +527,6 @@ const MemberProfile = () => {
     }
   };
 
-  // Load fresh profile on mount and whenever the user changes
   useEffect(() => {
     if (user?.id) {
       setLoadingProfile(true);
@@ -489,12 +537,6 @@ const MemberProfile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // ⚠️ NOTE: The auto-redirect that used to live here has been REMOVED.
-  // Reason: refreshing this page should keep you on the profile page.
-  // The only automatic navigation happens AFTER a successful save
-  // (see handleCompleteProfile below).
-
-  // Warn before leaving with unsaved completion-form changes
   useEffect(() => {
     if (!hasUnsavedChanges) return;
     const handler = (e) => {
@@ -505,7 +547,6 @@ const MemberProfile = () => {
     return () => window.removeEventListener("beforeunload", handler);
   }, [hasUnsavedChanges]);
 
-  // When user starts typing on an incomplete profile, mark unsaved
   useEffect(() => {
     if (showCompletion && !profileConfirmedComplete) {
       const touched = DRAFT_FIELDS.some(
@@ -608,7 +649,13 @@ const MemberProfile = () => {
   };
 
   const sendUpdate = async (payload) => {
-    const url = `${API_BASE_URL}/api/members.php/${user.id}`;
+    const userBranchId = getUserBranchId();
+    const url = userBranchId
+      ? `${API_BASE_URL}/api/members.php/${user.id}?branch_id=${userBranchId}`
+      : `${API_BASE_URL}/api/members.php/${user.id}`;
+
+    console.log("[MemberProfile] PUT:", url);
+
     const res = await fetch(url, {
       method: "PUT",
       headers: {
@@ -643,6 +690,7 @@ const MemberProfile = () => {
   const handleCompleteProfile = async (e) => {
     e.preventDefault();
 
+    // ---------- Required fields ----------
     const required = [
       ["date_of_birth", "Date of Birth"],
       ["gender", "Gender"],
@@ -651,11 +699,17 @@ const MemberProfile = () => {
       ["next_of_kin_name", "Next of Kin Name"],
       ["next_of_kin_phone", "Next of Kin Phone"],
       ["next_of_kin_relationship", "Next of Kin Relationship"],
-      ["savings_plan", "Savings Plan"],
-      ["savings_method", "Savings Method"],
-      ["duration", "Duration"],
-      ["amount", "Amount"],
     ];
+
+    // Savings fields only required for non-staff
+    if (showSavingsSection) {
+      required.push(
+        ["savings_plan", "Savings Plan"],
+        ["savings_method", "Savings Method"],
+        ["duration", "Duration"],
+        ["amount", "Amount"],
+      );
+    }
 
     for (const [k, label] of required) {
       if (!formData[k] || String(formData[k]).trim() === "") {
@@ -664,12 +718,16 @@ const MemberProfile = () => {
       }
     }
 
-    if (formData.savings_method === "Item" && !formData.item_name) {
+    if (
+      showSavingsSection &&
+      formData.savings_method === "Item" &&
+      !formData.item_name
+    ) {
       toast.error("Please select the item you want to save for");
       return;
     }
 
-    if (Number(formData.amount) <= 0) {
+    if (showSavingsSection && Number(formData.amount) <= 0) {
       toast.error("Please enter a valid amount");
       return;
     }
@@ -694,21 +752,25 @@ const MemberProfile = () => {
         next_of_kin_name: formData.next_of_kin_name,
         next_of_kin_phone: formData.next_of_kin_phone,
         next_of_kin_relationship: formData.next_of_kin_relationship,
-        savings_plan: formData.savings_plan,
-        savings_method: formData.savings_method,
-        item_name: formData.savings_method === "Item" ? formData.item_name : "",
-        duration: formData.duration,
-        amount: Number(formData.amount) || 0,
-        total_amount: calculation ? calculation.total : 0,
         bank_name: formData.bank_name || "",
         bank_account_number: formData.bank_account_number || "",
         passport_photo: filename,
         profile_completed: 1,
       };
 
+      // Only send savings fields for actual saving members
+      if (showSavingsSection) {
+        payload.savings_plan = formData.savings_plan;
+        payload.savings_method = formData.savings_method;
+        payload.item_name =
+          formData.savings_method === "Item" ? formData.item_name : "";
+        payload.duration = formData.duration;
+        payload.amount = Number(formData.amount) || 0;
+        payload.total_amount = calculation ? calculation.total : 0;
+      }
+
       await sendUpdate(payload);
 
-      // Success → clear draft & unsaved flag BEFORE redirect
       clearDraft();
       setHasUnsavedChanges(false);
 
@@ -722,7 +784,6 @@ const MemberProfile = () => {
       setShowCompletion(false);
       setEditMode(false);
 
-      // Deliberate navigation — only fires after a successful save.
       setTimeout(() => {
         navigate("/member/dashboard", { replace: true });
       }, 400);
@@ -745,13 +806,18 @@ const MemberProfile = () => {
         address: formData.address,
         bank_name: formData.bank_name,
         bank_account_number: formData.bank_account_number,
-        savings_plan: formData.savings_plan,
-        savings_method: formData.savings_method,
-        item_name: formData.savings_method === "Item" ? formData.item_name : "",
-        duration: formData.duration,
-        amount: Number(formData.amount) || 0,
-        total_amount: calculation ? calculation.total : 0,
       };
+
+      if (showSavingsSection) {
+        payload.savings_plan = formData.savings_plan;
+        payload.savings_method = formData.savings_method;
+        payload.item_name =
+          formData.savings_method === "Item" ? formData.item_name : "";
+        payload.duration = formData.duration;
+        payload.amount = Number(formData.amount) || 0;
+        payload.total_amount = calculation ? calculation.total : 0;
+      }
+
       if (formData.password) {
         if (formData.password !== formData.confirmPassword) {
           toast.error("Passwords don't match");
@@ -778,11 +844,8 @@ const MemberProfile = () => {
     }
   };
 
-  // ============================================================
-  // Calculation preview
-  // ============================================================
   const CalculationPreview = () => {
-    if (!calculation) return null;
+    if (!showSavingsSection || !calculation) return null;
     return (
       <div
         style={{
@@ -916,25 +979,30 @@ const MemberProfile = () => {
         />
       </div>
 
-      <div className="pf-section-title">💰 Savings</div>
-      <div className="pf-info-grid">
-        <InfoRow label="Savings Plan" value={formData.savings_plan} />
-        <InfoRow label="Savings Method" value={formData.savings_method} />
-        {formData.savings_method === "Item" && (
-          <InfoRow label="Item" value={itemLabel} />
-        )}
-        <InfoRow label="Duration" value={formData.duration} />
-        <InfoRow
-          label="Amount per period"
-          value={formData.amount ? formatMoney(formData.amount) : "—"}
-        />
-        {calculation && (
-          <InfoRow
-            label="Total to save"
-            value={formatMoney(calculation.total)}
-          />
-        )}
-      </div>
+      {/* 🆕 Savings section only shown to regular saving members */}
+      {showSavingsSection && (
+        <>
+          <div className="pf-section-title">💰 Savings</div>
+          <div className="pf-info-grid">
+            <InfoRow label="Savings Plan" value={formData.savings_plan} />
+            <InfoRow label="Savings Method" value={formData.savings_method} />
+            {formData.savings_method === "Item" && (
+              <InfoRow label="Item" value={itemLabel} />
+            )}
+            <InfoRow label="Duration" value={formData.duration} />
+            <InfoRow
+              label="Amount per period"
+              value={formData.amount ? formatMoney(formData.amount) : "—"}
+            />
+            {calculation && (
+              <InfoRow
+                label="Total to save"
+                value={formatMoney(calculation.total)}
+              />
+            )}
+          </div>
+        </>
+      )}
 
       <div className="pf-section-title">🏦 Bank Details</div>
       <div className="pf-info-grid">
@@ -949,7 +1017,6 @@ const MemberProfile = () => {
     </div>
   );
 
-  // Loading screen
   if (loadingProfile) {
     return (
       <div className="profile-page">
@@ -1051,86 +1118,95 @@ const MemberProfile = () => {
                   required
                 />
               </div>
-              <div>
-                <label className="pf-label">Savings Plan *</label>
-                <Dropdown
-                  name="savings_plan"
-                  value={formData.savings_plan}
-                  onChange={handleChange}
-                  options={PLAN_OPTIONS}
-                  placeholder="Choose plan"
-                  required
-                />
-              </div>
-            </div>
 
-            <div className="pf-grid">
-              <div>
-                <label className="pf-label">Savings Method *</label>
-                <Dropdown
-                  name="savings_method"
-                  value={formData.savings_method}
-                  onChange={handleChange}
-                  options={SAVINGS_METHOD_OPTIONS}
-                  placeholder="Cash or Item?"
-                  required
-                />
-              </div>
-
-              {formData.savings_method === "Item" && (
+              {/* 🆕 Savings Plan only for regular members */}
+              {showSavingsSection && (
                 <div>
-                  <label className="pf-label">Select Item *</label>
+                  <label className="pf-label">Savings Plan *</label>
                   <Dropdown
-                    name="item_name"
-                    value={formData.item_name}
+                    name="savings_plan"
+                    value={formData.savings_plan}
                     onChange={handleChange}
-                    options={itemOptions}
-                    placeholder="Choose item"
+                    options={PLAN_OPTIONS}
+                    placeholder="Choose plan"
                     required
                   />
                 </div>
               )}
             </div>
 
-            <div className="pf-grid">
-              <div>
-                <label className="pf-label">Duration of Saving *</label>
-                <Dropdown
-                  name="duration"
-                  value={formData.duration}
-                  onChange={handleChange}
-                  options={DURATION_OPTIONS}
-                  placeholder="Choose duration"
-                  required
-                />
-              </div>
-              <div>
-                <label className="pf-label">
-                  Amount per{" "}
-                  {formData.savings_plan === "Daily"
-                    ? "day"
-                    : formData.savings_plan === "Weekly"
-                      ? "week"
-                      : formData.savings_plan === "Monthly"
-                        ? "month"
-                        : "period"}{" "}
-                  (₦) *
-                </label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  className="pf-input"
-                  min="1"
-                  step="0.01"
-                  placeholder="e.g., 2000"
-                  required
-                />
-              </div>
-            </div>
+            {/* 🆕 Savings Method / Item / Duration / Amount — hidden for staff */}
+            {showSavingsSection && (
+              <>
+                <div className="pf-grid">
+                  <div>
+                    <label className="pf-label">Savings Method *</label>
+                    <Dropdown
+                      name="savings_method"
+                      value={formData.savings_method}
+                      onChange={handleChange}
+                      options={SAVINGS_METHOD_OPTIONS}
+                      placeholder="Cash or Item?"
+                      required
+                    />
+                  </div>
 
-            <CalculationPreview />
+                  {formData.savings_method === "Item" && (
+                    <div>
+                      <label className="pf-label">Select Item *</label>
+                      <Dropdown
+                        name="item_name"
+                        value={formData.item_name}
+                        onChange={handleChange}
+                        options={itemOptions}
+                        placeholder="Choose item"
+                        required
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <div className="pf-grid">
+                  <div>
+                    <label className="pf-label">Duration of Saving *</label>
+                    <Dropdown
+                      name="duration"
+                      value={formData.duration}
+                      onChange={handleChange}
+                      options={DURATION_OPTIONS}
+                      placeholder="Choose duration"
+                      required
+                    />
+                  </div>
+                  <div>
+                    <label className="pf-label">
+                      Amount per{" "}
+                      {formData.savings_plan === "Daily"
+                        ? "day"
+                        : formData.savings_plan === "Weekly"
+                          ? "week"
+                          : formData.savings_plan === "Monthly"
+                            ? "month"
+                            : "period"}{" "}
+                      (₦) *
+                    </label>
+                    <input
+                      type="number"
+                      name="amount"
+                      value={formData.amount}
+                      onChange={handleChange}
+                      className="pf-input"
+                      min="1"
+                      step="0.01"
+                      placeholder="e.g., 2000"
+                      required
+                    />
+                  </div>
+                </div>
+
+                <CalculationPreview />
+              </>
+            )}
 
             <div className="pf-field">
               <label className="pf-label">Residential Address *</label>
@@ -1296,61 +1372,68 @@ const MemberProfile = () => {
                   maxLength="11"
                 />
               </div>
-              <div>
-                <label className="pf-label">Savings Plan</label>
-                <Dropdown
-                  name="savings_plan"
-                  value={formData.savings_plan}
-                  onChange={handleChange}
-                  options={PLAN_OPTIONS}
-                  placeholder="Choose plan"
-                />
-              </div>
-              <div>
-                <label className="pf-label">Savings Method</label>
-                <Dropdown
-                  name="savings_method"
-                  value={formData.savings_method}
-                  onChange={handleChange}
-                  options={SAVINGS_METHOD_OPTIONS}
-                  placeholder="Cash or Item?"
-                />
-              </div>
-              {formData.savings_method === "Item" && (
-                <div>
-                  <label className="pf-label">Item</label>
-                  <Dropdown
-                    name="item_name"
-                    value={formData.item_name}
-                    onChange={handleChange}
-                    options={itemOptions}
-                    placeholder="Choose item"
-                  />
-                </div>
+
+              {/* 🆕 Savings fields only for regular members */}
+              {showSavingsSection && (
+                <>
+                  <div>
+                    <label className="pf-label">Savings Plan</label>
+                    <Dropdown
+                      name="savings_plan"
+                      value={formData.savings_plan}
+                      onChange={handleChange}
+                      options={PLAN_OPTIONS}
+                      placeholder="Choose plan"
+                    />
+                  </div>
+                  <div>
+                    <label className="pf-label">Savings Method</label>
+                    <Dropdown
+                      name="savings_method"
+                      value={formData.savings_method}
+                      onChange={handleChange}
+                      options={SAVINGS_METHOD_OPTIONS}
+                      placeholder="Cash or Item?"
+                    />
+                  </div>
+                  {formData.savings_method === "Item" && (
+                    <div>
+                      <label className="pf-label">Item</label>
+                      <Dropdown
+                        name="item_name"
+                        value={formData.item_name}
+                        onChange={handleChange}
+                        options={itemOptions}
+                        placeholder="Choose item"
+                      />
+                    </div>
+                  )}
+                  <div>
+                    <label className="pf-label">Duration of Saving</label>
+                    <Dropdown
+                      name="duration"
+                      value={formData.duration}
+                      onChange={handleChange}
+                      options={DURATION_OPTIONS}
+                      placeholder="Choose duration"
+                    />
+                  </div>
+                  <div>
+                    <label className="pf-label">Amount per period (₦)</label>
+                    <input
+                      type="number"
+                      name="amount"
+                      value={formData.amount}
+                      onChange={handleChange}
+                      className="pf-input"
+                      min="1"
+                      step="0.01"
+                      placeholder="e.g., 2000"
+                    />
+                  </div>
+                </>
               )}
-              <div>
-                <label className="pf-label">Duration of Saving</label>
-                <Dropdown
-                  name="duration"
-                  value={formData.duration}
-                  onChange={handleChange}
-                  options={DURATION_OPTIONS}
-                  placeholder="Choose duration"
-                />
-              </div>
-              <div>
-                <label className="pf-label">Amount per period (₦)</label>
-                <input
-                  type="number"
-                  name="amount"
-                  value={formData.amount}
-                  onChange={handleChange}
-                  className="pf-input"
-                  min="1"
-                  step="0.01"
-                  placeholder="e.g., 2000"
-                />
-              </div>
+
               <div className="pf-span-2">
                 <label className="pf-label">Address</label>
                 <textarea
@@ -1427,9 +1510,6 @@ const MemberProfile = () => {
   );
 };
 
-/* ----------------------------------------------------------------
-   CSS
------------------------------------------------------------------ */
 const css = `
   .profile-page {
     padding: 24px;
@@ -1477,7 +1557,6 @@ const css = `
     --pf-highlight: rgba(5, 150, 105, 0.12);
   }
 
-  /* Loading spinner */
   .pf-loading {
     display: flex;
     flex-direction: column;

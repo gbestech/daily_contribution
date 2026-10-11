@@ -1,10 +1,14 @@
 // src/components/admin/AdminReports.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const AdminReports = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [activeTab, setActiveTab] = useState("overview");
   const [dateRange, setDateRange] = useState("this_month");
   const [startDate, setStartDate] = useState("");
@@ -36,7 +40,8 @@ const AdminReports = () => {
 
   useEffect(() => {
     fetchData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]); // 🆕 refetch when branch changes
 
   useEffect(() => {
     if (transactions.length > 0) {
@@ -48,14 +53,12 @@ const AdminReports = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const membersResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const membersResponse = await apiFetch("/api/members.php");
       const membersData = await membersResponse.json();
       const membersList = membersData.members || [];
       setMembers(membersList);
 
-      const transactionsResponse = await fetch(
-        `${API_BASE_URL}/api/transactions.php`,
-      );
+      const transactionsResponse = await apiFetch("/api/transactions.php");
       const transactionsData = await transactionsResponse.json();
       const transactionsList = transactionsData.transactions || [];
       setTransactions(transactionsList);
@@ -436,7 +439,6 @@ const AdminReports = () => {
           margin: 0 auto;
         }
 
-        /* ===== STAT CARDS — no background, no border ===== */
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -458,7 +460,6 @@ const AdminReports = () => {
           margin-top: 4px;
         }
 
-        /* ===== TABS — no container background ===== */
         .tabs-container {
           display: flex;
           gap: 8px;
@@ -486,7 +487,6 @@ const AdminReports = () => {
           color: white;
         }
 
-        /* ===== REPORT CARDS — no background, no border ===== */
         .report-card {
           background: transparent;
           border: none;
@@ -500,7 +500,6 @@ const AdminReports = () => {
           color: var(--text);
         }
 
-        /* ===== CHART ===== */
         .chart-bars {
           display: flex;
           align-items: flex-end;
@@ -535,7 +534,6 @@ const AdminReports = () => {
           margin-bottom: 4px;
         }
 
-        /* ===== TABLES — no borders, no background ===== */
         .reports-table {
           width: 100%;
           border-collapse: collapse;
@@ -571,7 +569,6 @@ const AdminReports = () => {
           background-color: var(--bg-surface-2);
         }
 
-        /* ===== BADGES ===== */
         .badge {
           display: inline-block;
           padding: 3px 10px;
@@ -581,7 +578,6 @@ const AdminReports = () => {
           border: none;
         }
 
-        /* ===== FILTER CONTROLS — no backgrounds ===== */
         .filter-controls {
           display: flex;
           gap: 12px;
@@ -621,7 +617,6 @@ const AdminReports = () => {
           box-shadow: 0 0 0 2px var(--accent-bg);
         }
 
-        /* ===== BUTTONS ===== */
         .btn-export {
           padding: 8px 20px;
           border-radius: 8px;
@@ -720,6 +715,70 @@ const AdminReports = () => {
       `}</style>
 
       <div className="reports-container">
+        {/* ===== 🆕 BRANCH BANNER ===== */}
+        <div
+          className="no-print"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "14px 18px",
+            marginBottom: "20px",
+            borderRadius: "12px",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            background: "rgba(16, 185, 129, 0.06)",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "26px" }}>🏢</span>
+            <div>
+              <div
+                style={{
+                  color: "var(--text)",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                }}
+              >
+                {activeBranch?.name || "Branch"}
+              </div>
+              <div
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  marginTop: "2px",
+                }}
+              >
+                {activeBranch?.code || "—"} · Reports for this branch only ·{" "}
+                <strong style={{ color: "var(--credit)" }}>
+                  {members.length}
+                </strong>{" "}
+                members ·{" "}
+                <strong style={{ color: "var(--info)" }}>
+                  {transactions.length}
+                </strong>{" "}
+                transactions
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "var(--credit)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            ● active branch
+          </span>
+        </div>
+
         {/* Header */}
         <div
           style={{
@@ -742,7 +801,7 @@ const AdminReports = () => {
                 marginTop: "4px",
               }}
             >
-              View analytics and reports for your organization
+              Analytics for {activeBranch?.name || "your organization"}
             </p>
           </div>
           <div className="action-buttons no-print">
@@ -816,11 +875,12 @@ const AdminReports = () => {
             🔄 Reset Filters
           </button>
           <span className="filter-indicator">
-            Showing {reportData.transactions.length} transactions
+            Showing {reportData.transactions.length} transactions in{" "}
+            {activeBranch?.name || "this branch"}
           </span>
         </div>
 
-        {/* Stats — no cards */}
+        {/* Stats */}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-label">Total Sales</div>
@@ -904,7 +964,9 @@ const AdminReports = () => {
         {activeTab === "overview" && (
           <div>
             <div className="report-card">
-              <div className="report-card-title">📊 Performance Overview</div>
+              <div className="report-card-title">
+                📊 Performance Overview — {activeBranch?.name || "Branch"}
+              </div>
               <div
                 style={{
                   display: "grid",
@@ -986,7 +1048,9 @@ const AdminReports = () => {
         {activeTab === "monthly" && (
           <div>
             <div className="report-card">
-              <div className="report-card-title">📈 Monthly Performance</div>
+              <div className="report-card-title">
+                📈 Monthly Performance — {activeBranch?.name || "Branch"}
+              </div>
               <div className="chart-bars">
                 {monthlyData.map((month) => {
                   const height =
@@ -1051,6 +1115,8 @@ const AdminReports = () => {
                 Showing data for {dateRange.replace(/_/g, " ")}
                 {selectedReportType !== "all" &&
                   ` (${selectedReportType}s only)`}
+                {" · "}
+                {activeBranch?.name || "this branch"}
               </div>
             </div>
           </div>
@@ -1060,7 +1126,9 @@ const AdminReports = () => {
         {activeTab === "members" && (
           <div>
             <div className="report-card">
-              <div className="report-card-title">👥 Top Members</div>
+              <div className="report-card-title">
+                👥 Top Members — {activeBranch?.name || "Branch"}
+              </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="reports-table">
                   <thead>
@@ -1106,7 +1174,9 @@ const AdminReports = () => {
                             color: "var(--text-muted)",
                           }}
                         >
-                          No members found for the selected filters
+                          No members found in{" "}
+                          {activeBranch?.name || "this branch"} for the selected
+                          filters
                         </td>
                       </tr>
                     )}
@@ -1121,7 +1191,9 @@ const AdminReports = () => {
         {activeTab === "transactions" && (
           <div>
             <div className="report-card">
-              <div className="report-card-title">💳 Recent Transactions</div>
+              <div className="report-card-title">
+                💳 Recent Transactions — {activeBranch?.name || "Branch"}
+              </div>
               <div style={{ overflowX: "auto" }}>
                 <table className="reports-table">
                   <thead>
@@ -1190,7 +1262,9 @@ const AdminReports = () => {
                             color: "var(--text-muted)",
                           }}
                         >
-                          No transactions found for the selected filters
+                          No transactions found in{" "}
+                          {activeBranch?.name || "this branch"} for the selected
+                          filters
                         </td>
                       </tr>
                     )}

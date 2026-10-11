@@ -1,2397 +1,10 @@
-// // src/components/admin/Members.jsx
-// import React, { useState, useEffect } from "react";
-// import toast from "react-hot-toast";
-
-// const API_BASE_URL = "http://localhost:8000";
-
-// const AdminMembers = () => {
-//   const [members, setMembers] = useState([]);
-//   const [transactions, setTransactions] = useState([]);
-//   const [loading, setLoading] = useState(true);
-//   const [searchTerm, setSearchTerm] = useState("");
-//   const [showAddModal, setShowAddModal] = useState(false);
-//   const [showEditModal, setShowEditModal] = useState(false);
-//   const [selectedMember, setSelectedMember] = useState(null);
-//   const [editPassword, setEditPassword] = useState("");
-//   const [showRoleModal, setShowRoleModal] = useState(false);
-//   const [roleAssignment, setRoleAssignment] = useState({
-//     memberId: "",
-//     role: "member",
-//   });
-//   const [newMember, setNewMember] = useState({
-//     firstName: "",
-//     lastName: "",
-//     email: "",
-//     phone: "",
-//     password: "",
-//     role: "member",
-//     status: "Active",
-//     initial_balance: "",
-//   });
-//   const [selectedMemberTransactions, setSelectedMemberTransactions] =
-//     useState(null);
-//   const [showTransactionModal, setShowTransactionModal] = useState(false);
-//   const [transactionFilter, setTransactionFilter] = useState("All");
-//   const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
-//   const [newTransaction, setNewTransaction] = useState({
-//     memberId: "",
-//     type: "deposit",
-//     amount: "",
-//     description: "",
-//     status: "pending",
-//   });
-
-//   // Generate account number
-//   const generateAccountNumber = () => {
-//     const prefix = "10";
-//     const randomDigits = Math.floor(Math.random() * 100000000)
-//       .toString()
-//       .padStart(8, "0");
-//     return prefix + randomDigits;
-//   };
-
-//   // Generate random number for email
-//   const generateRandomNumber = () => {
-//     return Math.floor(Math.random() * 90000) + 10000;
-//   };
-
-//   // Validate phone number
-//   const validatePhone = (phone) => {
-//     const cleaned = phone.replace(/\D/g, "");
-//     if (cleaned.length !== 11) {
-//       return {
-//         valid: false,
-//         message: "Phone number must be exactly 11 digits",
-//       };
-//     }
-//     if (!cleaned.startsWith("0")) {
-//       return {
-//         valid: false,
-//         message: "Phone number must start with 0 (e.g., 080XXXXXXXX)",
-//       };
-//     }
-//     return { valid: true, cleaned };
-//   };
-
-//   // Check if phone number is unique
-//   const isPhoneUnique = (phone, excludeMemberId = null) => {
-//     const cleanedPhone = phone.replace(/\D/g, "");
-//     return !members.some((member) => {
-//       const memberPhone = (member.phone || "").replace(/\D/g, "");
-//       return memberPhone === cleanedPhone && member.id !== excludeMemberId;
-//     });
-//   };
-
-//   // Auto-generate email when first name changes
-//   useEffect(() => {
-//     const firstName = newMember.firstName.trim().toLowerCase();
-//     if (firstName) {
-//       const randomNum = generateRandomNumber();
-//       const email = `${firstName}${randomNum}@gmail.com`;
-//       setNewMember((prev) => ({ ...prev, email }));
-//     } else {
-//       setNewMember((prev) => ({ ...prev, email: "" }));
-//     }
-//   }, [newMember.firstName]);
-
-//   // Fetch members from API
-//   useEffect(() => {
-//     fetchMembers();
-//     fetchTransactions();
-//   }, []);
-
-//   const fetchMembers = async () => {
-//     setLoading(true);
-//     try {
-//       const response = await fetch(`${API_BASE_URL}/api/members.php`);
-//       if (!response.ok) throw new Error("Failed to fetch members");
-//       const data = await response.json();
-
-//       if (data.members) {
-//         const formattedMembers = data.members.map((member) => ({
-//           id: member.id,
-//           membership_number:
-//             member.accountNumber || `MEM-${String(member.id).padStart(4, "0")}`,
-//           full_name: member.name,
-//           email: member.email,
-//           phone: member.phone,
-//           balance: member.balance || 0,
-//           status: member.status?.toLowerCase() || "active",
-//           join_date: member.joinDate || new Date().toISOString().split("T")[0],
-//           role: member.role || "member",
-//         }));
-//         setMembers(formattedMembers);
-//       } else {
-//         setMembers([]);
-//       }
-//     } catch (error) {
-//       console.error("Error fetching members:", error);
-//       toast.error("Failed to fetch members");
-//       setMembers([]);
-//     } finally {
-//       setLoading(false);
-//     }
-//   };
-
-//   const fetchTransactions = async () => {
-//     try {
-//       const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
-//       if (!response.ok) throw new Error("Failed to fetch transactions");
-//       const data = await response.json();
-
-//       if (data.transactions) {
-//         const formattedTransactions = data.transactions.map((transaction) => ({
-//           id: transaction.id,
-//           member_id: transaction.memberId,
-//           transaction_type: transaction.type,
-//           amount: transaction.amount,
-//           status: transaction.status,
-//           description: transaction.description || "",
-//           created_at: transaction.date || new Date().toISOString(),
-//         }));
-//         setTransactions(formattedTransactions);
-//       } else {
-//         setTransactions([]);
-//       }
-//     } catch (error) {
-//       console.error("Error fetching transactions:", error);
-//       setTransactions([]);
-//     }
-//   };
-
-//   // Get member transactions
-//   const getMemberTransactions = (memberId) => {
-//     const allTransactions = transactions.filter(
-//       (t) => t.member_id === memberId,
-//     );
-//     if (transactionFilter === "All") return allTransactions;
-//     return allTransactions.filter(
-//       (t) => t.transaction_type === transactionFilter.toLowerCase(),
-//     );
-//   };
-
-//   // Add new member - SEND PLAIN PASSWORD (backend will hash it)
-//   const handleAddMember = async (e) => {
-//     e.preventDefault();
-
-//     if (newMember.phone) {
-//       const validation = validatePhone(newMember.phone);
-//       if (!validation.valid) {
-//         toast.error(validation.message);
-//         return;
-//       }
-//       if (!isPhoneUnique(newMember.phone)) {
-//         toast.error(
-//           "Phone number already exists. Please use a different number.",
-//         );
-//         return;
-//       }
-//       newMember.phone = validation.cleaned;
-//     }
-
-//     if (!newMember.password || newMember.password.trim().length < 6) {
-//       toast.error("Password must be at least 6 characters");
-//       return;
-//     }
-
-//     try {
-//       const fullName =
-//         `${newMember.firstName.trim()} ${newMember.lastName.trim()}`.trim();
-//       const accountNumber = generateAccountNumber();
-
-//       // IMPORTANT: Send plain password - backend will hash it
-//       const memberData = {
-//         accountNumber: accountNumber,
-//         account_number: accountNumber,
-//         name: fullName,
-//         full_name: fullName,
-//         email: newMember.email,
-//         phone: newMember.phone || "",
-//         password: newMember.password, // Send plain password
-//         role: newMember.role || "member",
-//         status: newMember.status || "Active",
-//         membership_type: "Standard",
-//         join_date: new Date().toISOString().split("T")[0],
-//         balance: parseFloat(newMember.initial_balance) || 0,
-//       };
-
-//       console.log("Sending member data (password plain):", {
-//         ...memberData,
-//         password: "***",
-//       });
-
-//       const response = await fetch(`${API_BASE_URL}/api/members.php`, {
-//         method: "POST",
-//         headers: {
-//           "Content-Type": "application/json",
-//           Accept: "application/json",
-//         },
-//         body: JSON.stringify(memberData),
-//       });
-
-//       const data = await response.json();
-//       console.log("Response data:", data);
-
-//       if (response.ok) {
-//         toast.success(
-//           `✅ Member created successfully with role: ${newMember.role}`,
-//         );
-//         setShowAddModal(false);
-//         setNewMember({
-//           firstName: "",
-//           lastName: "",
-//           email: "",
-//           phone: "",
-//           password: "",
-//           role: "member",
-//           status: "Active",
-//           initial_balance: "",
-//         });
-//         fetchMembers();
-//       } else {
-//         toast.error(data.message || data.error || "Failed to create member");
-//       }
-//     } catch (error) {
-//       console.error("Error creating member:", error);
-//       toast.error("Failed to create member: " + error.message);
-//     }
-//   };
-
-//   // Edit member
-//   const handleEditMember = (member) => {
-//     setSelectedMember({ ...member });
-//     setEditPassword("");
-//     setShowEditModal(true);
-//   };
-
-//   // Update member - SEND PLAIN PASSWORD (backend will hash it)
-//   const handleUpdateMember = async (e) => {
-//     e.preventDefault();
-
-//     if (selectedMember.phone) {
-//       const validation = validatePhone(selectedMember.phone);
-//       if (!validation.valid) {
-//         toast.error(validation.message);
-//         return;
-//       }
-//       if (!isPhoneUnique(selectedMember.phone, selectedMember.id)) {
-//         toast.error(
-//           "Phone number already exists. Please use a different number.",
-//         );
-//         return;
-//       }
-//       selectedMember.phone = validation.cleaned;
-//     }
-
-//     if (editPassword && editPassword.trim().length < 6) {
-//       toast.error("New password must be at least 6 characters");
-//       return;
-//     }
-
-//     const payload = {
-//       name: selectedMember.full_name,
-//       email: selectedMember.email,
-//       phone: selectedMember.phone || "",
-//       balance: parseFloat(selectedMember.balance) || 0,
-//       status: selectedMember.status,
-//       role: selectedMember.role,
-//     };
-
-//     // Send plain password if provided - backend will hash it
-//     if (editPassword.trim()) {
-//       payload.password = editPassword; // Send plain password
-//     }
-
-//     try {
-//       const response = await fetch(
-//         `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-//         {
-//           method: "PUT",
-//           headers: {
-//             "Content-Type": "application/json",
-//             Accept: "application/json",
-//           },
-//           body: JSON.stringify(payload),
-//         },
-//       );
-
-//       const data = await response.json();
-
-//       if (response.ok) {
-//         toast.success("✅ Member updated successfully!");
-//         setShowEditModal(false);
-//         setSelectedMember(null);
-//         setEditPassword("");
-//         fetchMembers();
-//       } else {
-//         toast.error(data.message || data.error || "Failed to update member");
-//       }
-//     } catch (error) {
-//       console.error("Error updating member:", error);
-//       toast.error("Failed to update member");
-//     }
-//   };
-
-//   // Delete member
-//   const handleDeleteMember = async (id) => {
-//     if (!window.confirm("Are you sure you want to delete this member?")) return;
-
-//     try {
-//       const response = await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
-//         method: "DELETE",
-//       });
-
-//       if (response.ok) {
-//         toast.success("✅ Member deleted successfully!");
-//         fetchMembers();
-//       } else {
-//         const data = await response.json();
-//         toast.error(data.message || "Failed to delete member");
-//       }
-//     } catch (error) {
-//       console.error("Error deleting member:", error);
-//       toast.error("Failed to delete member");
-//     }
-//   };
-
-//   // Assign Role
-//   const handleAssignRole = async () => {
-//     if (!roleAssignment.memberId) {
-//       toast.error("Please select a member");
-//       return;
-//     }
-
-//     try {
-//       const selectedMember = members.find(
-//         (m) => m.id === parseInt(roleAssignment.memberId),
-//       );
-
-//       const response = await fetch(
-//         `${API_BASE_URL}/api/members.php/${roleAssignment.memberId}`,
-//         {
-//           method: "PUT",
-//           headers: {
-//             "Content-Type": "application/json",
-//             Accept: "application/json",
-//           },
-//           body: JSON.stringify({
-//             role: roleAssignment.role,
-//             name: selectedMember?.full_name,
-//             email: selectedMember?.email,
-//             phone: selectedMember?.phone || "",
-//             status: selectedMember?.status,
-//             balance: selectedMember?.balance || 0,
-//           }),
-//         },
-//       );
-
-//       const data = await response.json();
-
-//       if (response.ok) {
-//         toast.success(`✅ Role assigned successfully: ${roleAssignment.role}`);
-//         setShowRoleModal(false);
-//         setRoleAssignment({ memberId: "", role: "member" });
-//         fetchMembers();
-
-//         if (
-//           roleAssignment.role === "admin" ||
-//           roleAssignment.role === "administrator"
-//         ) {
-//           toast.success("🔑 This member can now login as an admin!");
-//         }
-//       } else {
-//         toast.error(data.message || "Failed to assign role");
-//       }
-//     } catch (error) {
-//       console.error("Error assigning role:", error);
-//       toast.error("Failed to assign role");
-//     }
-//   };
-
-//   // Add transaction
-//   const handleAddTransaction = async (e) => {
-//     e.preventDefault();
-
-//     const member = members.find(
-//       (m) => m.id === parseInt(newTransaction.memberId),
-//     );
-//     if (!member) {
-//       toast.error("Member not found");
-//       return;
-//     }
-
-//     const transaction = {
-//       memberId: parseInt(newTransaction.memberId),
-//       memberName: member.full_name,
-//       accountNumber: member.membership_number,
-//       type: newTransaction.type,
-//       amount: parseFloat(newTransaction.amount),
-//       date: new Date().toISOString().split("T")[0],
-//       status: "pending",
-//       description: newTransaction.description,
-//     };
-
-//     try {
-//       const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
-//         method: "POST",
-//         headers: { "Content-Type": "application/json" },
-//         body: JSON.stringify(transaction),
-//       });
-
-//       const data = await response.json();
-
-//       if (response.ok) {
-//         toast.success("✅ Transaction added successfully!");
-//         setShowAddTransactionModal(false);
-//         setNewTransaction({
-//           memberId: "",
-//           type: "deposit",
-//           amount: "",
-//           description: "",
-//           status: "pending",
-//         });
-//         fetchMembers();
-//         fetchTransactions();
-//       } else {
-//         toast.error(data.message || "Failed to add transaction");
-//       }
-//     } catch (error) {
-//       console.error("Error adding transaction:", error);
-//       toast.error("Failed to add transaction");
-//     }
-//   };
-
-//   // Approve transaction
-//   const handleApproveTransaction = async (transactionId) => {
-//     try {
-//       const response = await fetch(
-//         `${API_BASE_URL}/api/transactions.php/${transactionId}/approve`,
-//         {
-//           method: "PUT",
-//           headers: { "Content-Type": "application/json" },
-//         },
-//       );
-
-//       if (response.ok) {
-//         toast.success("✅ Transaction approved!");
-//         fetchTransactions();
-//         fetchMembers();
-//       } else {
-//         toast.error("Failed to approve transaction");
-//       }
-//     } catch (error) {
-//       console.error("Error approving transaction:", error);
-//       toast.error("Failed to approve transaction");
-//     }
-//   };
-
-//   // Reject transaction
-//   const handleRejectTransaction = async (transactionId) => {
-//     try {
-//       const response = await fetch(
-//         `${API_BASE_URL}/api/transactions.php/${transactionId}/reject`,
-//         {
-//           method: "PUT",
-//           headers: { "Content-Type": "application/json" },
-//         },
-//       );
-
-//       if (response.ok) {
-//         toast.success("✅ Transaction rejected!");
-//         fetchTransactions();
-//       } else {
-//         toast.error("Failed to reject transaction");
-//       }
-//     } catch (error) {
-//       console.error("Error rejecting transaction:", error);
-//       toast.error("Failed to reject transaction");
-//     }
-//   };
-
-//   // View transaction history
-//   const handleViewTransactions = (member) => {
-//     setSelectedMemberTransactions(member);
-//     setShowTransactionModal(true);
-//     setTransactionFilter("All");
-//   };
-
-//   // Filter members based on search
-//   const filteredMembers = members.filter(
-//     (member) =>
-//       (member.full_name &&
-//         member.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
-//       (member.email &&
-//         member.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
-//       (member.membership_number &&
-//         member.membership_number.includes(searchTerm)) ||
-//       (member.phone && member.phone.includes(searchTerm)) ||
-//       (member.role &&
-//         member.role.toLowerCase().includes(searchTerm.toLowerCase())),
-//   );
-
-//   // Get status color
-//   const getStatusColor = (status) => {
-//     switch (status) {
-//       case "active":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
-//       case "inactive":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
-//       case "suspended":
-//         return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
-//       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
-//     }
-//   };
-
-//   // Get role color
-//   const getRoleColor = (role) => {
-//     switch (role?.toLowerCase()) {
-//       case "admin":
-//       case "administrator":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
-//       case "manager":
-//         return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
-//       case "member":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
-//       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
-//     }
-//   };
-
-//   // Get role icon
-//   const getRoleIcon = (role) => {
-//     switch (role?.toLowerCase()) {
-//       case "admin":
-//       case "administrator":
-//         return "👑";
-//       case "manager":
-//         return "📊";
-//       case "member":
-//         return "👤";
-//       default:
-//         return "👤";
-//     }
-//   };
-
-//   // Get transaction type color
-//   const getTransactionTypeColor = (type) => {
-//     switch (type) {
-//       case "deposit":
-//       case "contribution":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)", icon: "💰" };
-//       case "withdrawal":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)", icon: "🏦" };
-//       case "transfer":
-//       case "transfer_in":
-//       case "transfer_out":
-//         return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)", icon: "🔄" };
-//       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)", icon: "💳" };
-//     }
-//   };
-
-//   // Get transaction status color
-//   const getTransactionStatusColor = (status) => {
-//     switch (status) {
-//       case "completed":
-//       case "approved":
-//         return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
-//       case "pending":
-//         return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
-//       case "failed":
-//       case "rejected":
-//         return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
-//       default:
-//         return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
-//     }
-//   };
-
-//   // Format date
-//   const formatDate = (dateString) => {
-//     if (!dateString) return "N/A";
-//     try {
-//       return new Date(dateString).toLocaleDateString("en-NG", {
-//         day: "2-digit",
-//         month: "short",
-//         year: "numeric",
-//       });
-//     } catch {
-//       return dateString;
-//     }
-//   };
-
-//   // Format phone number for display
-//   const formatPhoneDisplay = (phone) => {
-//     if (!phone) return "N/A";
-//     const cleaned = phone.replace(/\D/g, "");
-//     if (cleaned.length === 11) {
-//       return `${cleaned.slice(0, 4)} ${cleaned.slice(4, 7)} ${cleaned.slice(7)}`;
-//     }
-//     return phone;
-//   };
-
-//   if (loading) {
-//     return (
-//       <div
-//         style={{
-//           padding: "24px",
-//           color: "var(--text)",
-//           backgroundColor: "#0f172a",
-//           minHeight: "100vh",
-//           display: "flex",
-//           alignItems: "center",
-//           justifyContent: "center",
-//         }}
-//       >
-//         <div
-//           style={{
-//             width: "48px",
-//             height: "48px",
-//             border: "4px solid rgba(255,255,255,0.1)",
-//             borderTopColor: "var(--accent)",
-//             borderRadius: "50%",
-//             animation: "spin 1s linear infinite",
-//           }}
-//         />
-//         <style>{`
-//           @keyframes spin {
-//             to { transform: rotate(360deg); }
-//           }
-//         `}</style>
-//       </div>
-//     );
-//   }
-
-//   return (
-//     <div
-//       style={{
-//         padding: "24px",
-//         color: "var(--text)",
-//         backgroundColor: "#0f172a",
-//         minHeight: "100vh",
-//       }}
-//     >
-//       <style>{`
-//         @keyframes spin {
-//           to { transform: rotate(360deg); }
-//         }
-//         .modal-overlay {
-//           position: fixed;
-//           inset: 0;
-//           background-color: rgba(0,0,0,0.7);
-//           backdrop-filter: blur(4px);
-//           display: flex;
-//           align-items: center;
-//           justify-content: center;
-//           z-index: 1000;
-//           padding: 16px;
-//         }
-//         .modal-content {
-//           background-color: var(--bg-surface);
-//           border-radius: 12px;
-//           padding: 32px;
-//           max-width: 500px;
-//           width: 100%;
-//           max-height: 90vh;
-//           overflow-y: auto;
-//           border: 1px solid rgba(255,255,255,0.1);
-//         }
-//         .modal-header {
-//           display: flex;
-//           justify-content: space-between;
-//           align-items: center;
-//           margin-bottom: 24px;
-//         }
-//         .modal-title {
-//           font-size: 20px;
-//           font-weight: bold;
-//           color: white;
-//           margin: 0;
-//         }
-//         .modal-close {
-//           color: var(--text-muted);
-//           background: none;
-//           border: none;
-//           font-size: 28px;
-//           cursor: pointer;
-//           padding: 0 8px;
-//         }
-//         .modal-close:hover {
-//           color: white;
-//         }
-//         .form-group {
-//           margin-bottom: 16px;
-//         }
-//         .form-label {
-//           display: block;
-//           font-size: 14px;
-//           font-weight: 500;
-//           color: var(--text);
-//           margin-bottom: 4px;
-//         }
-//         .form-input {
-//           width: 100%;
-//           padding: 10px 14px;
-//           border-radius: 8px;
-//           border: 1px solid rgba(255,255,255,0.1);
-//           background-color: rgba(255,255,255,0.08);
-//           color: white;
-//           font-size: 14px;
-//           outline: none;
-//           transition: border-color 0.2s;
-//           box-sizing: border-box;
-//         }
-//         .form-input:focus {
-//           border-color: var(--accent);
-//         }
-//         .form-input:disabled {
-//           opacity: 0.6;
-//           cursor: not-allowed;
-//         }
-//         .form-input::placeholder {
-//           color: var(--text-dim);
-//         }
-//         .form-select {
-//           width: 100%;
-//           padding: 10px 14px;
-//           border-radius: 8px;
-//           border: 1px solid rgba(255,255,255,0.1);
-//           background-color: rgba(255,255,255,0.08);
-//           color: white;
-//           font-size: 14px;
-//           outline: none;
-//           transition: border-color 0.2s;
-//           appearance: none;
-//         }
-//         .form-select:focus {
-//           border-color: var(--accent);
-//         }
-//         .form-select option {
-//           background-color: var(--bg-surface);
-//           color: white;
-//           padding: 8px;
-//         }
-//         .email-hint {
-//           font-size: 12px;
-//           color: var(--text-muted);
-//           margin-top: 4px;
-//           font-style: italic;
-//         }
-//         .email-hint strong {
-//           color: var(--info);
-//           font-style: normal;
-//         }
-//         .btn-primary {
-//           padding: 10px 24px;
-//           border-radius: 8px;
-//           border: none;
-//           background: var(--accent);
-//           color: white;
-//           cursor: pointer;
-//           font-size: 14px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//         }
-//         .btn-primary:hover {
-//           background: #059669;
-//         }
-//         .btn-primary:disabled {
-//           opacity: 0.5;
-//           cursor: not-allowed;
-//         }
-//         .btn-secondary {
-//           padding: 10px 24px;
-//           border-radius: 8px;
-//           border: 1px solid rgba(255,255,255,0.1);
-//           background: transparent;
-//           color: white;
-//           cursor: pointer;
-//           font-size: 14px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//         }
-//         .btn-secondary:hover {
-//           background: rgba(255,255,255,0.05);
-//         }
-//         .btn-danger {
-//           padding: 10px 24px;
-//           border-radius: 8px;
-//           border: none;
-//           background: rgba(239, 68, 68, 0.15);
-//           color: var(--debit);
-//           cursor: pointer;
-//           font-size: 14px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//         }
-//         .btn-danger:hover {
-//           background: rgba(239, 68, 68, 0.25);
-//         }
-//         .btn-add {
-//           padding: 10px 20px;
-//           border-radius: 8px;
-//           border: none;
-//           background: rgba(16, 185, 129, 0.15);
-//           color: var(--credit);
-//           cursor: pointer;
-//           font-size: 14px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//           display: flex;
-//           align-items: center;
-//           gap: 8px;
-//         }
-//         .btn-add:hover {
-//           background: rgba(16, 185, 129, 0.25);
-//         }
-//         .btn-edit {
-//           padding: 6px 12px;
-//           border-radius: 6px;
-//           border: none;
-//           background: rgba(59, 130, 246, 0.15);
-//           color: var(--info);
-//           cursor: pointer;
-//           font-size: 12px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//           margin-right: 4px;
-//         }
-//         .btn-edit:hover {
-//           background: rgba(59, 130, 246, 0.25);
-//         }
-//         .btn-role {
-//           padding: 6px 12px;
-//           border-radius: 6px;
-//           border: none;
-//           background: rgba(139, 92, 246, 0.15);
-//           color: var(--purple);
-//           cursor: pointer;
-//           font-size: 12px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//           margin-right: 4px;
-//         }
-//         .btn-role:hover {
-//           background: rgba(139, 92, 246, 0.25);
-//         }
-//         .btn-delete {
-//           padding: 6px 12px;
-//           border-radius: 6px;
-//           border: none;
-//           background: rgba(239, 68, 68, 0.15);
-//           color: var(--debit);
-//           cursor: pointer;
-//           font-size: 12px;
-//           font-weight: 500;
-//           transition: all 0.2s;
-//         }
-//         .btn-delete:hover {
-//           background: rgba(239, 68, 68, 0.25);
-//         }
-//         .role-badge {
-//           display: inline-flex;
-//           align-items: center;
-//           gap: 4px;
-//           padding: 2px 10px;
-//           border-radius: 12px;
-//           font-size: 11px;
-//           font-weight: 500;
-//         }
-//         .pagination {
-//           display: flex;
-//           justify-content: space-between;
-//           align-items: center;
-//           padding: 16px 0;
-//           margin-top: 16px;
-//           flex-wrap: wrap;
-//           gap: 8px;
-//         }
-//         .pagination-info {
-//           font-size: 14px;
-//           color: var(--text-muted);
-//         }
-//         .pagination-buttons {
-//           display: flex;
-//           gap: 4px;
-//           flex-wrap: wrap;
-//         }
-//         .page-btn {
-//           padding: 6px 12px;
-//           border-radius: 6px;
-//           border: 1px solid rgba(255,255,255,0.1);
-//           background: transparent;
-//           color: var(--text-muted);
-//           cursor: pointer;
-//           font-size: 13px;
-//           transition: all 0.2s;
-//         }
-//         .page-btn:hover:not(:disabled) {
-//           background-color: rgba(255,255,255,0.05);
-//           color: white;
-//         }
-//         .page-btn.active {
-//           background-color: #00aa69;
-//           border-color: #00aa69;
-//           color: white;
-//         }
-//         .page-btn:disabled {
-//           opacity: 0.3;
-//           cursor: not-allowed;
-//         }
-//       `}</style>
-
-//       {/* Header */}
-//       <div
-//         style={{
-//           display: "flex",
-//           justifyContent: "space-between",
-//           alignItems: "center",
-//           marginBottom: "24px",
-//           flexWrap: "wrap",
-//           gap: "16px",
-//         }}
-//       >
-//         <div>
-//           <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
-//             👥 Members Management
-//           </h2>
-//           <p style={{ color: "var(--text-muted)", margin: "4px 0 0 0" }}>
-//             Manage members, assign roles, view transactions, and track balances
-//           </p>
-//         </div>
-//         <div style={{ display: "flex", gap: "12px", flexWrap: "wrap" }}>
-//           <button
-//             onClick={() => setShowRoleModal(true)}
-//             className="btn-role"
-//             style={{ padding: "10px 20px", fontSize: "14px" }}
-//           >
-//             🔑 Assign Role
-//           </button>
-//           <button
-//             onClick={() => setShowAddTransactionModal(true)}
-//             className="btn-primary"
-//             style={{ backgroundColor: "#3b82f6" }}
-//             onMouseEnter={(e) => (e.target.style.backgroundColor = "#2563eb")}
-//             onMouseLeave={(e) => (e.target.style.backgroundColor = "#3b82f6")}
-//           >
-//             + Add Transaction
-//           </button>
-//           <button onClick={() => setShowAddModal(true)} className="btn-add">
-//             + Add New Member
-//           </button>
-//         </div>
-//       </div>
-
-//       {/* Search Bar */}
-//       <div
-//         style={{
-//           backgroundColor: "rgba(255,255,255,0.05)",
-//           borderRadius: "12px",
-//           padding: "16px",
-//           marginBottom: "24px",
-//           border: "1px solid rgba(255,255,255,0.1)",
-//         }}
-//       >
-//         <input
-//           type="text"
-//           placeholder="🔍 Search members by name, email, phone, role, or membership number..."
-//           value={searchTerm}
-//           onChange={(e) => setSearchTerm(e.target.value)}
-//           style={{
-//             width: "100%",
-//             backgroundColor: "rgba(255,255,255,0.08)",
-//             color: "var(--text)",
-//             padding: "10px 16px",
-//             borderRadius: "8px",
-//             border: "1px solid rgba(255,255,255,0.1)",
-//             outline: "none",
-//             fontSize: "14px",
-//           }}
-//           onFocus={(e) => (e.target.style.borderColor = "var(--accent)")}
-//           onBlur={(e) => (e.target.style.borderColor = "rgba(255,255,255,0.1)")}
-//         />
-//       </div>
-
-//       {/* Members Table */}
-//       <div
-//         style={{
-//           backgroundColor: "rgba(255,255,255,0.05)",
-//           borderRadius: "12px",
-//           border: "1px solid rgba(255,255,255,0.1)",
-//           overflow: "hidden",
-//         }}
-//       >
-//         <div style={{ overflowX: "auto" }}>
-//           <table style={{ width: "100%", borderCollapse: "collapse" }}>
-//             <thead style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
-//               <tr>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Membership
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Member
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Contact
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Role
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Status
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Balance
-//                 </th>
-//                 <th
-//                   style={{
-//                     padding: "12px 16px",
-//                     textAlign: "left",
-//                     fontSize: "12px",
-//                     fontWeight: "600",
-//                     color: "var(--text-muted)",
-//                     textTransform: "uppercase",
-//                     letterSpacing: "0.5px",
-//                   }}
-//                 >
-//                   Actions
-//                 </th>
-//               </tr>
-//             </thead>
-//             <tbody>
-//               {filteredMembers.map((member) => (
-//                 <tr
-//                   key={member.id}
-//                   style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-//                 >
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <div
-//                       style={{
-//                         fontSize: "14px",
-//                         fontWeight: "600",
-//                         color: "var(--info)",
-//                         fontFamily: "monospace",
-//                       }}
-//                     >
-//                       {member.membership_number || "N/A"}
-//                     </div>
-//                   </td>
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <div
-//                       style={{
-//                         display: "flex",
-//                         alignItems: "center",
-//                         gap: "12px",
-//                       }}
-//                     >
-//                       <div
-//                         style={{
-//                           width: "36px",
-//                           height: "36px",
-//                           borderRadius: "50%",
-//                           backgroundColor: "rgba(16, 185, 129, 0.2)",
-//                           display: "flex",
-//                           alignItems: "center",
-//                           justifyContent: "center",
-//                           color: "var(--credit)",
-//                           fontWeight: "bold",
-//                           fontSize: "14px",
-//                         }}
-//                       >
-//                         {(member.full_name || "U").charAt(0)}
-//                       </div>
-//                       <div>
-//                         <div
-//                           style={{
-//                             color: "var(--text)",
-//                             fontSize: "14px",
-//                             fontWeight: "500",
-//                           }}
-//                         >
-//                           {member.full_name || "Unknown"}
-//                         </div>
-//                       </div>
-//                     </div>
-//                   </td>
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <div style={{ fontSize: "14px", color: "var(--text)" }}>
-//                       {member.email || "N/A"}
-//                     </div>
-//                     <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
-//                       {member.phone ? formatPhoneDisplay(member.phone) : "N/A"}
-//                     </div>
-//                   </td>
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <span
-//                       className="role-badge"
-//                       style={{
-//                         backgroundColor: getRoleColor(member.role).bg,
-//                         color: getRoleColor(member.role).color,
-//                       }}
-//                     >
-//                       {getRoleIcon(member.role)} {member.role || "member"}
-//                     </span>
-//                   </td>
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <span
-//                       style={{
-//                         padding: "4px 12px",
-//                         fontSize: "12px",
-//                         borderRadius: "20px",
-//                         backgroundColor: getStatusColor(member.status).bg,
-//                         color: getStatusColor(member.status).color,
-//                       }}
-//                     >
-//                       {member.status || "N/A"}
-//                     </span>
-//                   </td>
-//                   <td
-//                     style={{
-//                       padding: "12px 16px",
-//                       fontSize: "14px",
-//                       fontWeight: "600",
-//                       color: "var(--credit)",
-//                     }}
-//                   >
-//                     ₦{parseFloat(member.balance || 0).toLocaleString()}
-//                   </td>
-//                   <td style={{ padding: "12px 16px" }}>
-//                     <div
-//                       style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}
-//                     >
-//                       <button
-//                         onClick={() => handleViewTransactions(member)}
-//                         style={{
-//                           color: "var(--info)",
-//                           background: "none",
-//                           border: "none",
-//                           cursor: "pointer",
-//                           fontSize: "12px",
-//                           padding: "4px 8px",
-//                           borderRadius: "4px",
-//                           transition: "background-color 0.3s",
-//                         }}
-//                         onMouseEnter={(e) =>
-//                           (e.target.style.backgroundColor =
-//                             "rgba(96, 165, 250, 0.1)")
-//                         }
-//                         onMouseLeave={(e) =>
-//                           (e.target.style.backgroundColor = "transparent")
-//                         }
-//                       >
-//                         📊 History
-//                       </button>
-//                       <button
-//                         onClick={() => handleEditMember(member)}
-//                         style={{
-//                           color: "var(--credit)",
-//                           background: "none",
-//                           border: "none",
-//                           cursor: "pointer",
-//                           fontSize: "12px",
-//                           padding: "4px 8px",
-//                           borderRadius: "4px",
-//                           transition: "background-color 0.3s",
-//                         }}
-//                         onMouseEnter={(e) =>
-//                           (e.target.style.backgroundColor =
-//                             "rgba(52, 211, 153, 0.1)")
-//                         }
-//                         onMouseLeave={(e) =>
-//                           (e.target.style.backgroundColor = "transparent")
-//                         }
-//                       >
-//                         ✏️ Edit
-//                       </button>
-//                       <button
-//                         onClick={() => handleDeleteMember(member.id)}
-//                         style={{
-//                           color: "var(--debit)",
-//                           background: "none",
-//                           border: "none",
-//                           cursor: "pointer",
-//                           fontSize: "12px",
-//                           padding: "4px 8px",
-//                           borderRadius: "4px",
-//                           transition: "background-color 0.3s",
-//                         }}
-//                         onMouseEnter={(e) =>
-//                           (e.target.style.backgroundColor =
-//                             "rgba(248, 113, 113, 0.1)")
-//                         }
-//                         onMouseLeave={(e) =>
-//                           (e.target.style.backgroundColor = "transparent")
-//                         }
-//                       >
-//                         🗑️ Delete
-//                       </button>
-//                     </div>
-//                   </td>
-//                 </tr>
-//               ))}
-//             </tbody>
-//           </table>
-//         </div>
-//         {filteredMembers.length === 0 && (
-//           <div
-//             style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
-//           >
-//             <div style={{ fontSize: "48px", marginBottom: "8px" }}>📭</div>
-//             <p>No members found</p>
-//             <p style={{ fontSize: "14px" }}>
-//               Try adjusting your search or add a new member
-//             </p>
-//           </div>
-//         )}
-//       </div>
-
-//       {/* Stats */}
-//       <div
-//         style={{
-//           marginTop: "16px",
-//           display: "flex",
-//           justifyContent: "space-between",
-//           color: "var(--text-muted)",
-//           fontSize: "14px",
-//           flexWrap: "wrap",
-//           gap: "8px",
-//         }}
-//       >
-//         <span>Total Members: {filteredMembers.length}</span>
-//         <span>
-//           Active: {members.filter((m) => m.status === "active").length}
-//         </span>
-//         <span>
-//           Inactive: {members.filter((m) => m.status === "inactive").length}
-//         </span>
-//         <span>
-//           👑 Admins:{" "}
-//           {
-//             members.filter(
-//               (m) => m.role === "admin" || m.role === "administrator",
-//             ).length
-//           }
-//         </span>
-//         <span>
-//           📊 Managers: {members.filter((m) => m.role === "manager").length}
-//         </span>
-//       </div>
-
-//       {/* Add Member Modal */}
-//       {showAddModal && (
-//         <div className="modal-overlay">
-//           <div className="modal-content">
-//             <div className="modal-header">
-//               <h3 className="modal-title">➕ Add New Member</h3>
-//               <button
-//                 className="modal-close"
-//                 onClick={() => {
-//                   setShowAddModal(false);
-//                   setNewMember({
-//                     firstName: "",
-//                     lastName: "",
-//                     email: "",
-//                     phone: "",
-//                     password: "",
-//                     role: "member",
-//                     status: "Active",
-//                     initial_balance: "",
-//                   });
-//                 }}
-//               >
-//                 ×
-//               </button>
-//             </div>
-
-//             <form onSubmit={handleAddMember}>
-//               <div className="form-group">
-//                 <label className="form-label">First Name *</label>
-//                 <input
-//                   type="text"
-//                   className="form-input"
-//                   value={newMember.firstName}
-//                   onChange={(e) =>
-//                     setNewMember({
-//                       ...newMember,
-//                       firstName: e.target.value,
-//                     })
-//                   }
-//                   required
-//                   placeholder="Enter first name"
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Last Name *</label>
-//                 <input
-//                   type="text"
-//                   className="form-input"
-//                   value={newMember.lastName}
-//                   onChange={(e) =>
-//                     setNewMember({ ...newMember, lastName: e.target.value })
-//                   }
-//                   required
-//                   placeholder="Enter last name"
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Email (Auto-generated)</label>
-//                 <input
-//                   type="email"
-//                   className="form-input"
-//                   value={newMember.email}
-//                   disabled
-//                   style={{
-//                     opacity: 0.7,
-//                     cursor: "not-allowed",
-//                   }}
-//                   placeholder="Email will be auto-generated from first name"
-//                 />
-//                 {newMember.firstName && newMember.email && (
-//                   <div className="email-hint">
-//                     📧 Email will be: <strong>{newMember.email}</strong>
-//                   </div>
-//                 )}
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">
-//                   Phone Number *
-//                   <span
-//                     style={{
-//                       color: "var(--text-muted)",
-//                       fontWeight: "400",
-//                       fontSize: "12px",
-//                       marginLeft: "8px",
-//                     }}
-//                   >
-//                     (11 digits, starts with 0)
-//                   </span>
-//                 </label>
-//                 <input
-//                   type="tel"
-//                   className="form-input"
-//                   value={newMember.phone}
-//                   onChange={(e) => {
-//                     const value = e.target.value.replace(/\D/g, "");
-//                     setNewMember({ ...newMember, phone: value });
-//                   }}
-//                   placeholder="e.g., 08012345678"
-//                   maxLength="11"
-//                   required
-//                 />
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   📱 Must be exactly 11 digits and start with 0
-//                 </div>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Password *</label>
-//                 <input
-//                   type="password"
-//                   className="form-input"
-//                   value={newMember.password}
-//                   onChange={(e) =>
-//                     setNewMember({ ...newMember, password: e.target.value })
-//                   }
-//                   required
-//                   minLength="6"
-//                   placeholder="Enter password (min 6 characters)"
-//                 />
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   🔑 Password will be securely hashed on the server
-//                 </div>
-//               </div>
-
-//               {/* Role Field */}
-//               <div className="form-group">
-//                 <label className="form-label">Role *</label>
-//                 <select
-//                   className="form-select"
-//                   value={newMember.role}
-//                   onChange={(e) =>
-//                     setNewMember({ ...newMember, role: e.target.value })
-//                   }
-//                   required
-//                 >
-//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👤 Member
-//                   </option>
-//                   <option
-//                     value="manager"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     📊 Manager
-//                   </option>
-//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👑 Admin
-//                   </option>
-//                 </select>
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   {newMember.role === "admin" &&
-//                     "🔑 Admins can login to the admin dashboard"}
-//                   {newMember.role === "manager" &&
-//                     "📊 Managers can manage members and transactions"}
-//                   {newMember.role === "member" &&
-//                     "👤 Members can view their own data"}
-//                 </div>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Status</label>
-//                 <select
-//                   className="form-select"
-//                   value={newMember.status}
-//                   onChange={(e) =>
-//                     setNewMember({ ...newMember, status: e.target.value })
-//                   }
-//                 >
-//                   <option value="Active" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     Active
-//                   </option>
-//                   <option
-//                     value="Inactive"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     Inactive
-//                   </option>
-//                   <option
-//                     value="Suspended"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     Suspended
-//                   </option>
-//                 </select>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Initial Balance (₦)</label>
-//                 <input
-//                   type="number"
-//                   className="form-input"
-//                   value={newMember.initial_balance}
-//                   onChange={(e) =>
-//                     setNewMember({
-//                       ...newMember,
-//                       initial_balance: e.target.value,
-//                     })
-//                   }
-//                   placeholder="Enter initial balance"
-//                   min="0"
-//                   step="0.01"
-//                 />
-//               </div>
-
-//               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-//                 <button
-//                   type="submit"
-//                   className="btn-primary"
-//                   style={{ flex: 1 }}
-//                 >
-//                   Create Member
-//                 </button>
-//                 <button
-//                   type="button"
-//                   className="btn-secondary"
-//                   onClick={() => {
-//                     setShowAddModal(false);
-//                     setNewMember({
-//                       firstName: "",
-//                       lastName: "",
-//                       email: "",
-//                       phone: "",
-//                       password: "",
-//                       role: "member",
-//                       status: "Active",
-//                       initial_balance: "",
-//                     });
-//                   }}
-//                   style={{ flex: 1 }}
-//                 >
-//                   Cancel
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Edit Member Modal */}
-//       {showEditModal && selectedMember && (
-//         <div className="modal-overlay">
-//           <div className="modal-content">
-//             <div className="modal-header">
-//               <h3 className="modal-title">✏️ Edit Member</h3>
-//               <button
-//                 className="modal-close"
-//                 onClick={() => {
-//                   setShowEditModal(false);
-//                   setSelectedMember(null);
-//                   setEditPassword("");
-//                 }}
-//               >
-//                 ×
-//               </button>
-//             </div>
-
-//             <form onSubmit={handleUpdateMember}>
-//               <div className="form-group">
-//                 <label className="form-label">Membership Number</label>
-//                 <input
-//                   type="text"
-//                   className="form-input"
-//                   value={selectedMember.membership_number || "N/A"}
-//                   disabled
-//                   style={{ fontFamily: "monospace" }}
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Full Name</label>
-//                 <input
-//                   type="text"
-//                   className="form-input"
-//                   value={selectedMember.full_name || ""}
-//                   disabled
-//                   style={{ color: "var(--text-muted)" }}
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Email Address</label>
-//                 <input
-//                   type="email"
-//                   className="form-input"
-//                   value={selectedMember.email || ""}
-//                   onChange={(e) =>
-//                     setSelectedMember({
-//                       ...selectedMember,
-//                       email: e.target.value,
-//                     })
-//                   }
-//                   placeholder="member@example.com"
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">
-//                   Phone Number
-//                   <span
-//                     style={{
-//                       color: "var(--text-muted)",
-//                       fontWeight: "400",
-//                       fontSize: "12px",
-//                       marginLeft: "8px",
-//                     }}
-//                   >
-//                     (11 digits, starts with 0)
-//                   </span>
-//                 </label>
-//                 <input
-//                   type="tel"
-//                   className="form-input"
-//                   value={selectedMember.phone || ""}
-//                   onChange={(e) => {
-//                     const value = e.target.value.replace(/\D/g, "");
-//                     setSelectedMember({
-//                       ...selectedMember,
-//                       phone: value,
-//                     });
-//                   }}
-//                   placeholder="e.g., 08012345678"
-//                   maxLength="11"
-//                   required
-//                 />
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   📱 Must be exactly 11 digits and start with 0
-//                 </div>
-//               </div>
-
-//               {/* Role Field in Edit Modal */}
-//               <div className="form-group">
-//                 <label className="form-label">Role</label>
-//                 <select
-//                   className="form-select"
-//                   value={selectedMember.role || "member"}
-//                   onChange={(e) =>
-//                     setSelectedMember({
-//                       ...selectedMember,
-//                       role: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👤 Member
-//                   </option>
-//                   <option
-//                     value="manager"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     📊 Manager
-//                   </option>
-//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👑 Admin
-//                   </option>
-//                 </select>
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   {selectedMember.role === "admin" &&
-//                     "🔑 This user can login as an admin"}
-//                   {selectedMember.role === "manager" &&
-//                     "📊 This user can manage members and transactions"}
-//                 </div>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">
-//                   New Password{" "}
-//                   <span style={{ color: "var(--text-muted)", fontWeight: "400" }}>
-//                     (leave blank to keep current)
-//                   </span>
-//                 </label>
-//                 <input
-//                   type="password"
-//                   className="form-input"
-//                   value={editPassword}
-//                   onChange={(e) => setEditPassword(e.target.value)}
-//                   placeholder="Enter new password (optional)"
-//                   minLength="6"
-//                 />
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "4px",
-//                   }}
-//                 >
-//                   🔑 Password will be securely hashed on the server
-//                 </div>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Balance (₦)</label>
-//                 <input
-//                   type="number"
-//                   className="form-input"
-//                   value={selectedMember.balance || 0}
-//                   onChange={(e) =>
-//                     setSelectedMember({
-//                       ...selectedMember,
-//                       balance: parseFloat(e.target.value) || 0,
-//                     })
-//                   }
-//                   min="0"
-//                   step="0.01"
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Status</label>
-//                 <select
-//                   className="form-select"
-//                   value={selectedMember.status || "active"}
-//                   onChange={(e) =>
-//                     setSelectedMember({
-//                       ...selectedMember,
-//                       status: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option value="active" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     Active
-//                   </option>
-//                   <option
-//                     value="inactive"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     Inactive
-//                   </option>
-//                   <option
-//                     value="suspended"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     Suspended
-//                   </option>
-//                 </select>
-//               </div>
-
-//               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-//                 <button
-//                   type="submit"
-//                   className="btn-primary"
-//                   style={{ flex: 1 }}
-//                 >
-//                   Update Member
-//                 </button>
-//                 <button
-//                   type="button"
-//                   className="btn-secondary"
-//                   onClick={() => {
-//                     setShowEditModal(false);
-//                     setSelectedMember(null);
-//                     setEditPassword("");
-//                   }}
-//                   style={{ flex: 1 }}
-//                 >
-//                   Cancel
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Assign Role Modal */}
-//       {showRoleModal && (
-//         <div className="modal-overlay">
-//           <div className="modal-content">
-//             <div className="modal-header">
-//               <h3 className="modal-title">🔑 Assign Role</h3>
-//               <button
-//                 className="modal-close"
-//                 onClick={() => {
-//                   setShowRoleModal(false);
-//                   setRoleAssignment({ memberId: "", role: "member" });
-//                 }}
-//               >
-//                 ×
-//               </button>
-//             </div>
-
-//             <form
-//               onSubmit={(e) => {
-//                 e.preventDefault();
-//                 handleAssignRole();
-//               }}
-//             >
-//               <div className="form-group">
-//                 <label className="form-label">Select Member *</label>
-//                 <select
-//                   className="form-select"
-//                   required
-//                   value={roleAssignment.memberId}
-//                   onChange={(e) =>
-//                     setRoleAssignment({
-//                       ...roleAssignment,
-//                       memberId: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option value="" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     Choose a member
-//                   </option>
-//                   {members.map((member) => (
-//                     <option
-//                       key={member.id}
-//                       value={member.id}
-//                       style={{ backgroundColor: "var(--bg-surface)" }}
-//                     >
-//                       {member.full_name} ({member.membership_number}) - Current:{" "}
-//                       {member.role || "member"}
-//                     </option>
-//                   ))}
-//                 </select>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Assign Role *</label>
-//                 <select
-//                   className="form-select"
-//                   required
-//                   value={roleAssignment.role}
-//                   onChange={(e) =>
-//                     setRoleAssignment({
-//                       ...roleAssignment,
-//                       role: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option value="member" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👤 Member - Basic access
-//                   </option>
-//                   <option
-//                     value="manager"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     📊 Manager - Manage members & transactions
-//                   </option>
-//                   <option value="admin" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     👑 Admin - Full access
-//                   </option>
-//                 </select>
-//                 <div
-//                   style={{
-//                     fontSize: "11px",
-//                     color: "var(--text-dim)",
-//                     marginTop: "8px",
-//                   }}
-//                 >
-//                   {roleAssignment.role === "admin" && (
-//                     <div style={{ color: "var(--debit)" }}>
-//                       ⚠️ Admins have full access to the system. They can login
-//                       to the admin dashboard.
-//                     </div>
-//                   )}
-//                   {roleAssignment.role === "manager" && (
-//                     <div style={{ color: "var(--info)" }}>
-//                       📊 Managers can manage members, view transactions, and
-//                       perform administrative tasks.
-//                     </div>
-//                   )}
-//                   {roleAssignment.role === "member" && (
-//                     <div style={{ color: "var(--credit)" }}>
-//                       👤 Members can view their own profile and transaction
-//                       history.
-//                     </div>
-//                   )}
-//                 </div>
-//               </div>
-
-//               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-//                 <button
-//                   type="submit"
-//                   className="btn-primary"
-//                   style={{ flex: 1, backgroundColor: "#8b5cf6" }}
-//                   onMouseEnter={(e) =>
-//                     (e.target.style.backgroundColor = "var(--purple)")
-//                   }
-//                   onMouseLeave={(e) =>
-//                     (e.target.style.backgroundColor = "#8b5cf6")
-//                   }
-//                 >
-//                   Assign Role
-//                 </button>
-//                 <button
-//                   type="button"
-//                   className="btn-secondary"
-//                   onClick={() => {
-//                     setShowRoleModal(false);
-//                     setRoleAssignment({ memberId: "", role: "member" });
-//                   }}
-//                   style={{ flex: 1 }}
-//                 >
-//                   Cancel
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Transaction History Modal */}
-//       {showTransactionModal && selectedMemberTransactions && (
-//         <div className="modal-overlay">
-//           <div className="modal-content" style={{ maxWidth: "800px" }}>
-//             <div className="modal-header">
-//               <div>
-//                 <h3 className="modal-title">📊 Transaction History</h3>
-//                 <p
-//                   style={{
-//                     color: "var(--text-muted)",
-//                     fontSize: "14px",
-//                     margin: "4px 0 0 0",
-//                   }}
-//                 >
-//                   {selectedMemberTransactions.full_name || "Member"} •{" "}
-//                   {selectedMemberTransactions.membership_number || "N/A"}
-//                   {" • "}
-//                   <span
-//                     className="role-badge"
-//                     style={{
-//                       backgroundColor: getRoleColor(
-//                         selectedMemberTransactions.role,
-//                       ).bg,
-//                       color: getRoleColor(selectedMemberTransactions.role)
-//                         .color,
-//                     }}
-//                   >
-//                     {getRoleIcon(selectedMemberTransactions.role)}{" "}
-//                     {selectedMemberTransactions.role || "member"}
-//                   </span>
-//                 </p>
-//               </div>
-//               <button
-//                 className="modal-close"
-//                 onClick={() => setShowTransactionModal(false)}
-//               >
-//                 ×
-//               </button>
-//             </div>
-
-//             {/* Balance Summary */}
-//             <div
-//               style={{
-//                 backgroundColor: "rgba(16, 185, 129, 0.1)",
-//                 padding: "16px",
-//                 borderRadius: "8px",
-//                 marginBottom: "16px",
-//                 border: "1px solid rgba(16, 185, 129, 0.2)",
-//               }}
-//             >
-//               <div
-//                 style={{
-//                   display: "flex",
-//                   justifyContent: "space-between",
-//                   alignItems: "center",
-//                 }}
-//               >
-//                 <span style={{ color: "var(--text-muted)" }}>Current Balance</span>
-//                 <span
-//                   style={{
-//                     fontSize: "24px",
-//                     fontWeight: "bold",
-//                     color: "var(--credit)",
-//                   }}
-//                 >
-//                   ₦
-//                   {parseFloat(
-//                     selectedMemberTransactions.balance || 0,
-//                   ).toLocaleString()}
-//                 </span>
-//               </div>
-//             </div>
-
-//             {/* Filter Buttons */}
-//             <div
-//               style={{
-//                 display: "flex",
-//                 gap: "8px",
-//                 marginBottom: "16px",
-//                 flexWrap: "wrap",
-//               }}
-//             >
-//               {["All", "Deposit", "Withdrawal", "Transfer"].map((filter) => (
-//                 <button
-//                   key={filter}
-//                   onClick={() => setTransactionFilter(filter)}
-//                   style={{
-//                     backgroundColor:
-//                       transactionFilter === filter
-//                         ? "var(--accent)"
-//                         : "rgba(255,255,255,0.08)",
-//                     color: transactionFilter === filter ? "white" : "var(--text)",
-//                     padding: "6px 16px",
-//                     border:
-//                       transactionFilter === filter
-//                         ? "none"
-//                         : "1px solid rgba(255,255,255,0.1)",
-//                     borderRadius: "20px",
-//                     cursor: "pointer",
-//                     fontSize: "12px",
-//                     transition: "all 0.3s",
-//                   }}
-//                 >
-//                   {filter}
-//                 </button>
-//               ))}
-//             </div>
-
-//             {/* Transactions List */}
-//             <div
-//               style={{
-//                 backgroundColor: "rgba(255,255,255,0.03)",
-//                 borderRadius: "8px",
-//                 border: "1px solid rgba(255,255,255,0.05)",
-//                 overflow: "hidden",
-//               }}
-//             >
-//               {getMemberTransactions(selectedMemberTransactions.id).length >
-//               0 ? (
-//                 getMemberTransactions(selectedMemberTransactions.id).map(
-//                   (transaction) => {
-//                     const typeStyle = getTransactionTypeColor(
-//                       transaction.transaction_type,
-//                     );
-//                     const statusStyle = getTransactionStatusColor(
-//                       transaction.status,
-//                     );
-//                     return (
-//                       <div
-//                         key={transaction.id}
-//                         style={{
-//                           display: "flex",
-//                           justifyContent: "space-between",
-//                           alignItems: "center",
-//                           padding: "12px 16px",
-//                           borderBottom: "1px solid rgba(255,255,255,0.05)",
-//                         }}
-//                       >
-//                         <div
-//                           style={{
-//                             display: "flex",
-//                             alignItems: "center",
-//                             gap: "12px",
-//                           }}
-//                         >
-//                           <div
-//                             style={{
-//                               width: "36px",
-//                               height: "36px",
-//                               borderRadius: "50%",
-//                               backgroundColor: typeStyle.bg,
-//                               display: "flex",
-//                               alignItems: "center",
-//                               justifyContent: "center",
-//                               fontSize: "18px",
-//                             }}
-//                           >
-//                             {typeStyle.icon}
-//                           </div>
-//                           <div>
-//                             <div
-//                               style={{
-//                                 color: "var(--text)",
-//                                 fontSize: "14px",
-//                                 fontWeight: "500",
-//                               }}
-//                             >
-//                               {transaction.transaction_type}
-//                             </div>
-//                             <div style={{ color: "var(--text-muted)", fontSize: "12px" }}>
-//                               {transaction.description || "No description"}
-//                             </div>
-//                             <div style={{ color: "var(--text-dim)", fontSize: "10px" }}>
-//                               {formatDate(transaction.created_at)}
-//                             </div>
-//                           </div>
-//                         </div>
-//                         <div style={{ textAlign: "right" }}>
-//                           <div
-//                             style={{
-//                               color:
-//                                 transaction.transaction_type === "deposit" ||
-//                                 transaction.transaction_type === "contribution"
-//                                   ? "var(--credit)"
-//                                   : "var(--debit)",
-//                               fontSize: "14px",
-//                               fontWeight: "600",
-//                             }}
-//                           >
-//                             {transaction.transaction_type === "deposit" ||
-//                             transaction.transaction_type === "contribution"
-//                               ? "+"
-//                               : "-"}
-//                             ₦
-//                             {parseFloat(
-//                               transaction.amount || 0,
-//                             ).toLocaleString()}
-//                           </div>
-//                           <span
-//                             style={{
-//                               padding: "2px 10px",
-//                               fontSize: "10px",
-//                               borderRadius: "12px",
-//                               backgroundColor: statusStyle.bg,
-//                               color: statusStyle.color,
-//                             }}
-//                           >
-//                             {transaction.status}
-//                           </span>
-//                         </div>
-//                       </div>
-//                     );
-//                   },
-//                 )
-//               ) : (
-//                 <div
-//                   style={{
-//                     textAlign: "center",
-//                     padding: "32px",
-//                     color: "var(--text-muted)",
-//                   }}
-//                 >
-//                   <div style={{ fontSize: "32px", marginBottom: "8px" }}>
-//                     💳
-//                   </div>
-//                   <p>
-//                     No {transactionFilter !== "All" ? transactionFilter : ""}{" "}
-//                     transactions found
-//                   </p>
-//                 </div>
-//               )}
-//             </div>
-
-//             {/* Transaction Stats */}
-//             <div
-//               style={{
-//                 marginTop: "16px",
-//                 display: "flex",
-//                 justifyContent: "space-between",
-//                 color: "var(--text-muted)",
-//                 fontSize: "12px",
-//                 flexWrap: "wrap",
-//                 gap: "8px",
-//               }}
-//             >
-//               <span>
-//                 Total Transactions:{" "}
-//                 {getMemberTransactions(selectedMemberTransactions.id).length}
-//               </span>
-//               <span>
-//                 Completed:{" "}
-//                 {
-//                   getMemberTransactions(selectedMemberTransactions.id).filter(
-//                     (t) => t.status === "completed" || t.status === "approved",
-//                   ).length
-//                 }
-//               </span>
-//               <span>
-//                 Pending:{" "}
-//                 {
-//                   getMemberTransactions(selectedMemberTransactions.id).filter(
-//                     (t) => t.status === "pending",
-//                   ).length
-//                 }
-//               </span>
-//             </div>
-//           </div>
-//         </div>
-//       )}
-
-//       {/* Add Transaction Modal */}
-//       {showAddTransactionModal && (
-//         <div className="modal-overlay">
-//           <div className="modal-content">
-//             <div className="modal-header">
-//               <h3 className="modal-title">Add New Transaction</h3>
-//               <button
-//                 className="modal-close"
-//                 onClick={() => {
-//                   setShowAddTransactionModal(false);
-//                   setNewTransaction({
-//                     memberId: "",
-//                     type: "deposit",
-//                     amount: "",
-//                     description: "",
-//                     status: "pending",
-//                   });
-//                 }}
-//               >
-//                 ×
-//               </button>
-//             </div>
-
-//             <form onSubmit={handleAddTransaction}>
-//               <div className="form-group">
-//                 <label className="form-label">Member *</label>
-//                 <select
-//                   className="form-select"
-//                   required
-//                   value={newTransaction.memberId}
-//                   onChange={(e) =>
-//                     setNewTransaction({
-//                       ...newTransaction,
-//                       memberId: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option value="" style={{ backgroundColor: "var(--bg-surface)" }}>
-//                     Select a member
-//                   </option>
-//                   {members.map((member) => (
-//                     <option
-//                       key={member.id}
-//                       value={member.id}
-//                       style={{ backgroundColor: "var(--bg-surface)" }}
-//                     >
-//                       {member.full_name} - {member.membership_number} [
-//                       {member.role || "member"}]
-//                     </option>
-//                   ))}
-//                 </select>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Transaction Type *</label>
-//                 <select
-//                   className="form-select"
-//                   required
-//                   value={newTransaction.type}
-//                   onChange={(e) =>
-//                     setNewTransaction({
-//                       ...newTransaction,
-//                       type: e.target.value,
-//                     })
-//                   }
-//                 >
-//                   <option
-//                     value="deposit"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     💰 Deposit
-//                   </option>
-//                   <option
-//                     value="withdrawal"
-//                     style={{ backgroundColor: "var(--bg-surface)" }}
-//                   >
-//                     🏦 Withdrawal
-//                   </option>
-//                 </select>
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Amount (₦) *</label>
-//                 <input
-//                   type="number"
-//                   className="form-input"
-//                   required
-//                   value={newTransaction.amount}
-//                   onChange={(e) =>
-//                     setNewTransaction({
-//                       ...newTransaction,
-//                       amount: e.target.value,
-//                     })
-//                   }
-//                   placeholder="Enter amount"
-//                   min="1"
-//                   step="0.01"
-//                 />
-//               </div>
-
-//               <div className="form-group">
-//                 <label className="form-label">Description *</label>
-//                 <input
-//                   type="text"
-//                   className="form-input"
-//                   required
-//                   value={newTransaction.description}
-//                   onChange={(e) =>
-//                     setNewTransaction({
-//                       ...newTransaction,
-//                       description: e.target.value,
-//                     })
-//                   }
-//                   placeholder="Enter transaction description"
-//                 />
-//               </div>
-
-//               <div style={{ display: "flex", gap: "12px", marginTop: "24px" }}>
-//                 <button
-//                   type="submit"
-//                   className="btn-primary"
-//                   style={{ flex: 1, backgroundColor: "#3b82f6" }}
-//                   onMouseEnter={(e) =>
-//                     (e.target.style.backgroundColor = "#2563eb")
-//                   }
-//                   onMouseLeave={(e) =>
-//                     (e.target.style.backgroundColor = "#3b82f6")
-//                   }
-//                 >
-//                   Add Transaction
-//                 </button>
-//                 <button
-//                   type="button"
-//                   className="btn-secondary"
-//                   onClick={() => setShowAddTransactionModal(false)}
-//                   style={{ flex: 1 }}
-//                 >
-//                   Cancel
-//                 </button>
-//               </div>
-//             </form>
-//           </div>
-//         </div>
-//       )}
-//     </div>
-//   );
-// };
-
-// export default AdminMembers;
-
-
 // src/components/admin/Members.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import * as XLSX from "xlsx";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -2403,13 +16,22 @@ const capitalizeWords = (str) =>
     )
     .join(" ");
 
-const AdminMembers = () => {
+const AdminMembers = ({ publicMode = false }) => {
+  const navigate = useNavigate();
+  const { activeBranch, activeBranchId } = useBranch();
+
+  // 🆕 Public-mode branch (from ?branch= in the URL)
+  const [publicBranch, setPublicBranch] = useState(null);
+  const [publicBranchError, setPublicBranchError] = useState("");
+
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
   const [showAddModal, setShowAddModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
+  const [createdCredentials, setCreatedCredentials] = useState(null);
   const [selectedMember, setSelectedMember] = useState(null);
   const [editPassword, setEditPassword] = useState("");
   const [newMember, setNewMember] = useState({
@@ -2424,6 +46,13 @@ const AdminMembers = () => {
     role: "member",
   });
 
+  // ===== Bulk upload state =====
+  const [showBulkModal, setShowBulkModal] = useState(false);
+  const [bulkRows, setBulkRows] = useState([]);
+  const [bulkUploading, setBulkUploading] = useState(false);
+  const [bulkResults, setBulkResults] = useState(null);
+  const fileInputRef = useRef(null);
+
   const generateAccountNumber = () => {
     const prefix = "10";
     const randomDigits = Math.floor(Math.random() * 100000000)
@@ -2433,23 +62,6 @@ const AdminMembers = () => {
   };
 
   const generateRandomNumber = () => Math.floor(Math.random() * 90000) + 10000;
-
-  const validatePhone = (phone) => {
-    const cleaned = phone.replace(/\D/g, "");
-    if (cleaned.length !== 11)
-      return { valid: false, message: "Phone must be exactly 11 digits" };
-    if (!cleaned.startsWith("0"))
-      return { valid: false, message: "Phone must start with 0" };
-    return { valid: true, cleaned };
-  };
-
-  const isPhoneUnique = (phone, excludeId = null) => {
-    const cleanedPhone = phone.replace(/\D/g, "");
-    return !members.some((m) => {
-      const mp = (m.phone || "").replace(/\D/g, "");
-      return mp === cleanedPhone && m.id !== excludeId;
-    });
-  };
 
   useEffect(() => {
     const firstName = newMember.firstName.trim().toLowerCase();
@@ -2463,14 +75,60 @@ const AdminMembers = () => {
   }, [newMember.firstName]);
 
   useEffect(() => {
+    // Public registration page should not fetch admin data
+    if (publicMode) {
+      setLoading(false);
+
+      // 🆕 Read ?branch= from the URL and resolve the branch
+      const params = new URLSearchParams(window.location.search);
+      const raw = params.get("branch") || "";
+      if (!raw) {
+        setPublicBranchError(
+          "No branch specified in this link. Please use the link your branch admin gave you.",
+        );
+        return;
+      }
+
+      const resolveBranch = async () => {
+        try {
+          // Accept either ?branch=2 (numeric id) or ?branch=LAG-01 (code)
+          const isNumeric = /^\d+$/.test(raw);
+          const url = isNumeric
+            ? `/api/get-branch.php?id=${raw}`
+            : `/api/get-branch.php?code=${encodeURIComponent(raw)}`;
+
+          const res = await apiFetch(url);
+          const data = await res.json();
+          if (data.status && data.branch) {
+            setPublicBranch(data.branch);
+            setPublicBranchError("");
+          } else {
+            setPublicBranch(null);
+            setPublicBranchError(data.error || "Invalid branch link");
+          }
+        } catch (err) {
+          console.error("[Members] Branch resolve error:", err);
+          setPublicBranch(null);
+          setPublicBranchError(
+            "Could not load branch details. Please try again.",
+          );
+        }
+      };
+      resolveBranch();
+      return;
+    }
+
+    // Admin mode continues as before
+    setSearchTerm("");
     fetchMembers();
     fetchTransactions();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId, publicMode]);
 
   const fetchMembers = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const response = await apiFetch("/api/members.php");
       if (!response.ok) throw new Error("Failed");
       const data = await response.json();
       if (data.members) {
@@ -2488,13 +146,14 @@ const AdminMembers = () => {
             role: m.role || "member",
             profile_completed: m.profile_completed || 0,
             passport_photo: m.passport_photo || null,
+            branch_id: m.branch_id || null,
           })),
         );
       } else {
         setMembers([]);
       }
     } catch (e) {
-      toast.error("Failed to fetch members");
+      if (!publicMode) toast.error("Failed to fetch members");
       setMembers([]);
     } finally {
       setLoading(false);
@@ -2503,7 +162,7 @@ const AdminMembers = () => {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const response = await apiFetch("/api/transactions.php");
       const data = await response.json();
       if (data.transactions) {
         setTransactions(
@@ -2526,6 +185,15 @@ const AdminMembers = () => {
 
   const handleAddMember = async (e) => {
     e.preventDefault();
+
+    // 🆕 Public mode: require a valid branch before submitting
+    if (publicMode && !publicBranch?.id) {
+      toast.error(
+        publicBranchError || "Cannot register: no valid branch selected.",
+      );
+      return;
+    }
+
     if (!newMember.password || newMember.password.trim().length < 6) {
       toast.error("Password must be at least 6 characters");
       return;
@@ -2549,9 +217,15 @@ const AdminMembers = () => {
         membership_type: "Standard",
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
+        profile_completed: 0,
+        // 🆕 Public registration uses the branch from the URL.
+        //    Admin mode uses the active branch from BranchContext.
+        branch_id: publicMode
+          ? (publicBranch?.id ?? null)
+          : (activeBranchId ?? null),
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/members.php`, {
+      const res = await apiFetch("/api/members.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -2559,20 +233,45 @@ const AdminMembers = () => {
 
       const data = await res.json();
       if (res.ok) {
-        toast.success(`✅ Member created! Account: ${accountNumber}`);
-        toast(
-          "Ask the member to log in and complete their profile (phone, address, passport, savings plan).",
-          { duration: 6000, icon: "📝" },
-        );
+        setCreatedCredentials({
+          name: fullName,
+          email: newMember.email,
+          password: newMember.password,
+          accountNumber,
+        });
+
         setShowAddModal(false);
+        setShowCredentialsModal(true);
         setNewMember({ firstName: "", lastName: "", email: "", password: "" });
-        fetchMembers();
+        if (!publicMode) fetchMembers();
       } else {
         toast.error(data.message || data.error || "Failed to create member");
       }
     } catch (e) {
       toast.error("Failed to create member");
     }
+  };
+
+  const copyToClipboard = (text, label) => {
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success(`📋 ${label} copied!`))
+      .catch(() => toast.error("Copy failed"));
+  };
+
+  const copyAllCredentials = () => {
+    if (!createdCredentials) return;
+    const text = `Welcome ${createdCredentials.name}!
+Your account details:
+📧 Email: ${createdCredentials.email}
+🔑 Password: ${createdCredentials.password}
+💳 Account Number: ${createdCredentials.accountNumber}
+
+Please log in and complete your profile.`;
+    navigator.clipboard
+      .writeText(text)
+      .then(() => toast.success("📋 All credentials copied!"))
+      .catch(() => toast.error("Copy failed"));
   };
 
   const handleEditMember = (m) => {
@@ -2594,14 +293,11 @@ const AdminMembers = () => {
     if (editPassword.trim()) payload.password = editPassword.trim();
 
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        },
-      );
+      const res = await apiFetch(`/api/members.php/${selectedMember.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
       const data = await res.json();
       if (res.ok) {
         toast.success("✅ Member updated!");
@@ -2620,7 +316,7 @@ const AdminMembers = () => {
   const handleDeleteMember = async (id) => {
     if (!window.confirm("Delete this member?")) return;
     try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+      const res = await apiFetch(`/api/members.php/${id}`, {
         method: "DELETE",
       });
       if (res.ok) {
@@ -2642,8 +338,8 @@ const AdminMembers = () => {
     }
     const m = members.find((x) => x.id === parseInt(roleAssignment.memberId));
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/members.php/${roleAssignment.memberId}`,
+      const res = await apiFetch(
+        `/api/members.php/${roleAssignment.memberId}`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -2670,6 +366,202 @@ const AdminMembers = () => {
     }
   };
 
+  // ============================================================
+  // ===== EXCEL BULK UPLOAD HELPERS =====
+  // ============================================================
+
+  const downloadTemplate = () => {
+    const templateData = [
+      { "First Name": "John", "Last Name": "Doe", Password: "john1234" },
+      { "First Name": "Jane", "Last Name": "Smith", Password: "jane1234" },
+    ];
+
+    const worksheet = XLSX.utils.json_to_sheet(templateData);
+    worksheet["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 18 }];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
+    XLSX.writeFile(workbook, "members_upload_template.xlsx");
+    toast.success("📥 Template downloaded!");
+  };
+
+  const handleExcelUpload = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = evt.target.result;
+        const workbook = XLSX.read(data, { type: "binary" });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
+        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
+
+        if (!json.length) {
+          toast.error("Excel file is empty");
+          return;
+        }
+
+        const normalized = json.map((row, idx) => {
+          const get = (key) => {
+            const found = Object.keys(row).find(
+              (k) => k.trim().toLowerCase() === key.toLowerCase(),
+            );
+            return found ? String(row[found]).trim() : "";
+          };
+          return {
+            _row: idx + 2,
+            firstName: get("First Name"),
+            lastName: get("Last Name"),
+            password: get("Password"),
+          };
+        });
+
+        const validated = normalized.map((r) => {
+          const errors = [];
+          if (!r.firstName) errors.push("First Name required");
+          if (!r.lastName) errors.push("Last Name required");
+          if (!r.password) errors.push("Password required");
+          else if (r.password.length < 6)
+            errors.push("Password must be ≥ 6 characters");
+          return { ...r, errors };
+        });
+
+        setBulkRows(validated);
+        setBulkResults(null);
+        setShowBulkModal(true);
+      } catch (err) {
+        console.error(err);
+        toast.error("Failed to read Excel file");
+      }
+    };
+    reader.readAsBinaryString(file);
+    e.target.value = "";
+  };
+
+  const generateEmail = (firstName) => {
+    const firstNameLower = firstName.trim().toLowerCase();
+    const randomNum = Math.floor(Math.random() * 90000) + 10000;
+    return `${firstNameLower}${randomNum}@gmail.com`;
+  };
+
+  const handleBulkUpload = async () => {
+    const validRows = bulkRows.filter((r) => r.errors.length === 0);
+    if (!validRows.length) {
+      toast.error("No valid rows to upload");
+      return;
+    }
+
+    setBulkUploading(true);
+    const results = [];
+
+    for (const row of validRows) {
+      try {
+        const fullName = capitalizeWords(
+          `${row.firstName} ${row.lastName}`.trim(),
+        );
+        const email = generateEmail(row.firstName);
+        const accountNumber = generateAccountNumber();
+
+        const payload = {
+          accountNumber,
+          account_number: accountNumber,
+          name: fullName,
+          full_name: fullName,
+          email,
+          phone: "",
+          password: row.password,
+          role: "member",
+          status: "Active",
+          membership_type: "Standard",
+          join_date: new Date().toISOString().split("T")[0],
+          balance: 0,
+          profile_completed: 0,
+          ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+        };
+
+        const res = await apiFetch("/api/members.php", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        });
+
+        const data = await res.json();
+        if (res.ok) {
+          results.push({
+            row: row._row,
+            name: fullName,
+            email,
+            password: row.password,
+            accountNumber,
+            status: "success",
+          });
+        } else {
+          results.push({
+            row: row._row,
+            name: fullName,
+            email,
+            status: "failed",
+            error: data.message || data.error || "Failed",
+          });
+        }
+      } catch (err) {
+        results.push({
+          row: row._row,
+          name: `${row.firstName} ${row.lastName}`,
+          email: "",
+          status: "failed",
+          error: "Network error",
+        });
+      }
+    }
+
+    setBulkResults(results);
+    setBulkUploading(false);
+
+    const successCount = results.filter((r) => r.status === "success").length;
+    const failCount = results.filter((r) => r.status === "failed").length;
+
+    if (successCount) toast.success(`✅ ${successCount} member(s) created!`);
+    if (failCount) toast.error(`⚠️ ${failCount} row(s) failed`);
+
+    fetchMembers();
+  };
+
+  const downloadBulkResults = () => {
+    if (!bulkResults?.length) return;
+
+    const data = bulkResults.map((r) => ({
+      Row: r.row,
+      Name: r.name,
+      Email: r.email || "—",
+      Password: r.password || "—",
+      "Account Number": r.accountNumber || "—",
+      Status: r.status === "success" ? "Success" : "Failed",
+      Error: r.error || "",
+    }));
+
+    const worksheet = XLSX.utils.json_to_sheet(data);
+    worksheet["!cols"] = [
+      { wch: 6 },
+      { wch: 22 },
+      { wch: 28 },
+      { wch: 14 },
+      { wch: 16 },
+      { wch: 10 },
+      { wch: 24 },
+    ];
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
+    XLSX.writeFile(
+      workbook,
+      `members_upload_results_${activeBranch?.code || "branch"}_${
+        new Date().toISOString().split("T")[0]
+      }.xlsx`,
+    );
+    toast.success("📥 Results downloaded!");
+  };
+
   const filteredMembers = members.filter(
     (m) =>
       (m.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -2682,34 +574,467 @@ const AdminMembers = () => {
     switch (role?.toLowerCase()) {
       case "admin":
       case "administrator":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
+        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
       case "manager":
-        return { bg: "rgba(59, 130, 246, 0.2)", color: "var(--info)" };
+        return { bg: "var(--info)", color: "var(--badge-text)" };
       default:
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
+        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
     }
   };
 
   const getStatusColor = (status) => {
     switch (status) {
       case "active":
-        return { bg: "rgba(16, 185, 129, 0.2)", color: "var(--credit)" };
+        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
       case "inactive":
-        return { bg: "rgba(239, 68, 68, 0.2)", color: "var(--debit)" };
+        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
       case "suspended":
-        return { bg: "rgba(234, 179, 8, 0.2)", color: "var(--warning)" };
+        return { bg: "var(--pending-bg)", color: "var(--badge-text)" };
       default:
-        return { bg: "rgba(255, 255, 255, 0.1)", color: "var(--text-muted)" };
+        return { bg: "var(--bg-surface-3)", color: "var(--text)" };
     }
   };
 
+  // ============================================================
+  // PUBLIC MODE — show only the registration form, no table
+  // ============================================================
+  if (publicMode) {
+    return (
+      <div
+        style={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          background:
+            "radial-gradient(circle at top, var(--bg-surface) 0%, var(--bg-app) 60%)",
+          padding: "20px",
+          fontFamily: "system-ui, -apple-system, sans-serif",
+        }}
+      >
+        <style>{`
+          .pub-card {
+            width: 100%;
+            max-width: 440px;
+            background: var(--bg-surface);
+            backdrop-filter: blur(12px);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 36px 30px 28px;
+            box-shadow: var(--shadow-lg);
+            position: relative;
+            overflow: hidden;
+            color: var(--text);
+          }
+          .pub-card::before {
+            content: "";
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 3px;
+            background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
+          }
+          .pub-logo {
+            width: 64px; height: 64px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #059669, #0d9488);
+            display: flex; align-items: center; justify-content: center;
+            font-size: 28px; color: white;
+            margin: 0 auto 14px;
+            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
+          }
+          .pub-title {
+            font-size: 22px; font-weight: 700;
+            color: var(--text); text-align: center;
+            margin: 0 0 4px 0; letter-spacing: -0.3px;
+          }
+          .pub-subtitle {
+            font-size: 13px; color: var(--text-muted);
+            text-align: center; margin: 0 0 22px 0;
+          }
+          .pub-info {
+            background: var(--accent-bg);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 12px 14px;
+            margin-bottom: 20px;
+            font-size: 12px;
+            color: var(--text);
+            line-height: 1.5;
+          }
+          .pub-group { margin-bottom: 14px; }
+          .pub-label {
+            display: block; font-size: 12px;
+            font-weight: 600; color: var(--text);
+            margin-bottom: 6px;
+            letter-spacing: 0.3px; text-transform: uppercase;
+          }
+          .pub-input {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 14px; color: var(--text);
+            background: var(--bg-surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            outline: none;
+            box-sizing: border-box;
+            transition: all 0.2s;
+          }
+          .pub-input::placeholder { color: var(--text-dim); }
+          .pub-input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px var(--accent-bg);
+          }
+          .pub-email-note {
+            background: var(--approved-bg);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 10px 14px;
+            margin-bottom: 14px;
+            font-size: 12px;
+            color: var(--text);
+            word-break: break-all;
+          }
+          .pub-submit {
+            width: 100%; padding: 13px;
+            border: none; border-radius: 10px;
+            font-size: 15px; font-weight: 600;
+            color: white; cursor: pointer;
+            background: linear-gradient(135deg, #059669, #0d9488);
+            box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.5);
+            transition: all 0.2s;
+            margin-top: 6px;
+          }
+          .pub-submit:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
+          }
+          .pub-submit:disabled {
+            opacity: 0.6; cursor: not-allowed;
+          }
+          .pub-footer {
+            text-align: center;
+            margin-top: 20px;
+            font-size: 13px;
+            color: var(--text-muted);
+          }
+          .pub-footer a {
+            color: var(--accent);
+            text-decoration: none;
+            font-weight: 600;
+          }
+          .pub-footer a:hover { text-decoration: underline; }
+          .pub-note {
+            text-align: center;
+            font-size: 10px;
+            color: var(--text-dim);
+            margin-top: 18px;
+          }
+        `}</style>
+
+        <div className="pub-card">
+          <div className="pub-logo">🏦</div>
+          <h1 className="pub-title">Create Account</h1>
+          <p className="pub-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
+
+          {/* 🆕 Branch context banner */}
+          {publicBranch ? (
+            <div
+              style={{
+                background: "var(--approved-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                marginBottom: "20px",
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                fontSize: "13px",
+                color: "var(--text)",
+              }}
+            >
+              <span style={{ fontSize: "22px" }}>🏢</span>
+              <div>
+                <div style={{ fontWeight: "700" }}>{publicBranch.name}</div>
+                <div style={{ color: "var(--text-muted)", fontSize: "11px" }}>
+                  Branch code: {publicBranch.code}
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div
+              style={{
+                background: "var(--rejected-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "10px",
+                padding: "12px 14px",
+                marginBottom: "20px",
+                fontSize: "13px",
+                color: "var(--text)",
+                lineHeight: 1.5,
+              }}
+            >
+              ⚠️ {publicBranchError || "Loading branch details…"}
+            </div>
+          )}
+
+          <div className="pub-info">
+            💡 Enter your details below. You'll receive your account number
+            after registration and can log in to complete your profile.
+          </div>
+
+          <form onSubmit={handleAddMember}>
+            <div className="pub-group">
+              <label className="pub-label">First Name *</label>
+              <input
+                type="text"
+                className="pub-input"
+                value={newMember.firstName}
+                onChange={(e) =>
+                  setNewMember({
+                    ...newMember,
+                    firstName: capitalizeWords(e.target.value),
+                  })
+                }
+                required
+                placeholder="Enter your first name"
+                autoComplete="given-name"
+              />
+            </div>
+
+            <div className="pub-group">
+              <label className="pub-label">Last Name *</label>
+              <input
+                type="text"
+                className="pub-input"
+                value={newMember.lastName}
+                onChange={(e) =>
+                  setNewMember({
+                    ...newMember,
+                    lastName: capitalizeWords(e.target.value),
+                  })
+                }
+                required
+                placeholder="Enter your last name"
+                autoComplete="family-name"
+              />
+            </div>
+
+            <div className="pub-group">
+              <label className="pub-label">Password *</label>
+              <input
+                type="password"
+                className="pub-input"
+                value={newMember.password}
+                onChange={(e) =>
+                  setNewMember({ ...newMember, password: e.target.value })
+                }
+                required
+                minLength="6"
+                placeholder="Min 6 characters"
+                autoComplete="new-password"
+              />
+            </div>
+
+            <div className="pub-email-note">
+              📧 Your login email will be:{" "}
+              <strong style={{ color: "var(--text)" }}>
+                {newMember.email || "—"}
+              </strong>
+            </div>
+
+            <button
+              type="submit"
+              className="pub-submit"
+              disabled={!publicBranch?.id}
+            >
+              {publicBranch?.id ? "Create Account" : "Branch Required"}
+            </button>
+          </form>
+
+          <div className="pub-footer">
+            Already have an account? <Link to="/login">Sign in here</Link>
+          </div>
+
+          <div className="pub-note">
+            © {new Date().getFullYear()} AR-RIYAADAH SAVINGS HUB. All rights
+            reserved.
+          </div>
+        </div>
+
+        {showCredentialsModal && createdCredentials && (
+          <div
+            style={{
+              position: "fixed",
+              inset: 0,
+              background: "var(--bg-overlay)",
+              backdropFilter: "blur(6px)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              zIndex: 1000,
+              padding: "16px",
+            }}
+          >
+            <div
+              style={{
+                background: "var(--bg-surface)",
+                borderRadius: "14px",
+                padding: "28px",
+                maxWidth: "460px",
+                width: "100%",
+                maxHeight: "90vh",
+                overflowY: "auto",
+                border: "1px solid var(--border)",
+                color: "var(--text)",
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: "18px",
+                  fontWeight: "bold",
+                  margin: "0 0 16px 0",
+                }}
+              >
+                🎉 Account Created!
+              </h3>
+
+              <div
+                style={{
+                  background: "var(--approved-bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "8px",
+                  padding: "12px 14px",
+                  marginBottom: "16px",
+                  fontSize: "13px",
+                  color: "var(--text)",
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ <strong>Save these credentials</strong>. You'll need them to
+                log in.
+              </div>
+
+              {[
+                { label: "📧 Email", value: createdCredentials.email },
+                { label: "🔑 Password", value: createdCredentials.password },
+                {
+                  label: "💳 Account Number",
+                  value: createdCredentials.accountNumber,
+                },
+              ].map((row) => (
+                <div
+                  key={row.label}
+                  style={{
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                    gap: "8px",
+                    padding: "10px 12px",
+                    borderRadius: "8px",
+                    background: "var(--bg-surface-2)",
+                    border: "1px solid var(--border)",
+                    marginBottom: "8px",
+                  }}
+                >
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div
+                      style={{
+                        fontSize: "11px",
+                        color: "var(--text-muted)",
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px",
+                        marginBottom: "2px",
+                      }}
+                    >
+                      {row.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: "14px",
+                        color: "var(--text)",
+                        fontWeight: "600",
+                        fontFamily: "monospace",
+                        wordBreak: "break-all",
+                      }}
+                    >
+                      {row.value}
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => copyToClipboard(row.value, row.label)}
+                    style={{
+                      background: "var(--accent-bg)",
+                      color: "var(--text)",
+                      border: "1px solid var(--border)",
+                      padding: "6px 12px",
+                      borderRadius: "6px",
+                      cursor: "pointer",
+                      fontSize: "12px",
+                      fontWeight: "500",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Copy
+                  </button>
+                </div>
+              ))}
+
+              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
+                <button
+                  onClick={copyAllCredentials}
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    borderRadius: "8px",
+                    border: "none",
+                    background:
+                      "linear-gradient(to right, var(--purple), #6d28d9)",
+                    color: "white",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                  }}
+                >
+                  📋 Copy All
+                </button>
+                <button
+                  onClick={() => {
+                    setShowCredentialsModal(false);
+                    setCreatedCredentials(null);
+                    navigate("/login");
+                  }}
+                  style={{
+                    flex: 1,
+                    padding: "10px 20px",
+                    borderRadius: "8px",
+                    border: "1px solid var(--border)",
+                    background: "transparent",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: "13px",
+                    fontWeight: "500",
+                  }}
+                >
+                  ✅ Go to Login
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // ============================================================
+  // ADMIN MODE — main dashboard
+  // ============================================================
   if (loading) {
     return (
       <div
         style={{
           padding: "24px",
           color: "var(--text)",
-          backgroundColor: "#0f172a",
+          backgroundColor: "var(--bg-app)",
           minHeight: "100vh",
           display: "flex",
           alignItems: "center",
@@ -2726,29 +1051,38 @@ const AdminMembers = () => {
       style={{
         padding: "24px",
         color: "var(--text)",
-        backgroundColor: "#0f172a",
+        backgroundColor: "var(--bg-app)",
         minHeight: "100vh",
       }}
     >
       <style>{`
         .modal-overlay {
           position: fixed; inset: 0;
-          background: rgba(0,0,0,0.7);
+          background: var(--bg-overlay);
           backdrop-filter: blur(4px);
           display: flex; align-items: center; justify-content: center;
           z-index: 1000; padding: 16px;
         }
         .modal-content {
-          background: var(--bg-surface); border-radius: 12px;
-          padding: 28px; max-width: 480px; width: 100%;
-          max-height: 90vh; overflow-y: auto;
-          border: 1px solid rgba(255,255,255,0.1);
+          background: var(--bg-surface);
+          border-radius: 12px;
+          padding: 28px;
+          max-width: 480px;
+          width: 100%;
+          max-height: 90vh;
+          overflow-y: auto;
+          border: 1px solid var(--border);
+          color: var(--text);
         }
+        .modal-content-lg { max-width: 820px; }
         .modal-header {
           display: flex; justify-content: space-between;
           align-items: center; margin-bottom: 20px;
         }
-        .modal-title { font-size: 18px; font-weight: bold; margin: 0; }
+        .modal-title {
+          font-size: 18px; font-weight: bold; margin: 0;
+          color: var(--text);
+        }
         .modal-close {
           background: none; border: none; color: var(--text-muted);
           font-size: 26px; cursor: pointer; padding: 0 6px;
@@ -2760,9 +1094,9 @@ const AdminMembers = () => {
         }
         .form-input {
           width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.08);
-          color: white; font-size: 14px; outline: none;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text); font-size: 14px; outline: none;
           box-sizing: border-box;
         }
         .form-input:focus { border-color: var(--accent); }
@@ -2770,36 +1104,215 @@ const AdminMembers = () => {
         .form-input::placeholder { color: var(--text-dim); }
         .form-select {
           width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: rgba(255,255,255,0.08);
-          color: white; font-size: 14px; outline: none;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text); font-size: 14px; outline: none;
         }
-        .form-select option { background: var(--bg-surface); }
+        .form-select option { background: var(--bg-surface); color: var(--text); }
         .btn-primary {
           padding: 10px 24px; border-radius: 8px; border: none;
           background: var(--accent); color: white; cursor: pointer;
           font-size: 14px; font-weight: 500;
         }
-        .btn-primary:hover { background: #059669; }
+        .btn-primary:hover { background: var(--accent-hover); }
+        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .btn-secondary {
           padding: 10px 24px; border-radius: 8px;
-          border: 1px solid rgba(255,255,255,0.1);
-          background: transparent; color: white;
+          border: 1px solid var(--border);
+          background: transparent; color: var(--text);
           cursor: pointer; font-size: 14px;
         }
         .btn-add {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(16, 185, 129, 0.15); color: var(--credit);
+          background: var(--approved-bg); color: var(--badge-text);
           cursor: pointer; font-size: 14px; font-weight: 500;
         }
-        .btn-add:hover { background: rgba(16, 185, 129, 0.25); }
+        .btn-add:hover { opacity: 0.85; }
+        .btn-excel {
+          padding: 10px 20px; border-radius: 8px; border: none;
+          background: #1d6f42; color: white;
+          cursor: pointer; font-size: 14px; font-weight: 500;
+        }
+        .btn-excel:hover { opacity: 0.9; }
         .btn-role {
           padding: 10px 20px; border-radius: 8px; border: none;
-          background: rgba(139, 92, 246, 0.15); color: var(--purple);
+          background: var(--accent-bg); color: var(--purple);
           cursor: pointer; font-size: 14px;
         }
+        .credential-row {
+          display: flex; justify-content: space-between; align-items: center;
+          gap: 8px; padding: 10px 12px; border-radius: 8px;
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
+          margin-bottom: 8px;
+        }
+        .credential-label {
+          font-size: 11px; color: var(--text-muted); text-transform: uppercase;
+          letter-spacing: 0.5px; margin-bottom: 2px;
+        }
+        .credential-value {
+          font-size: 14px; color: var(--text); font-weight: 600;
+          font-family: monospace; word-break: break-all;
+        }
+        .cred-copy-btn {
+          background: var(--accent-bg);
+          color: var(--text);
+          border: 1px solid var(--border);
+          padding: 6px 12px; border-radius: 6px; cursor: pointer;
+          font-size: 12px; font-weight: 500; white-space: nowrap;
+        }
+        .cred-copy-btn:hover { opacity: 0.85; }
+
+        .am-table {
+          width: 100%;
+          border-collapse: collapse;
+          border: none;
+          background: transparent;
+        }
+        .am-table thead {
+          background: transparent;
+        }
+        .am-table thead th {
+          padding: 12px 16px;
+          text-align: left;
+          font-size: 12px;
+          color: var(--text-muted);
+          text-transform: uppercase;
+          font-weight: 600;
+          border: none;
+        }
+        .am-table tbody tr {
+          border: none;
+          background: transparent;
+          transition: background-color 0.15s ease;
+        }
+        .am-table tbody tr:hover {
+          background: var(--bg-surface-2);
+        }
+        .am-table tbody td {
+          padding: 12px 16px;
+          border: none;
+          color: var(--text);
+        }
+
+        .am-search {
+          width: 100%;
+          background: transparent;
+          color: var(--text);
+          padding: 10px 0;
+          border: none;
+          border-bottom: 1px solid var(--border);
+          border-radius: 0;
+          outline: none;
+          font-size: 14px;
+          box-sizing: border-box;
+          transition: border-color 0.2s ease;
+        }
+        .am-search::placeholder { color: var(--text-dim); }
+        .am-search:focus { border-bottom-color: var(--accent); }
+
+        .bulk-table {
+          width: 100%;
+          border-collapse: collapse;
+          font-size: 13px;
+        }
+        .bulk-table th {
+          text-align: left;
+          padding: 8px 10px;
+          font-size: 11px;
+          text-transform: uppercase;
+          color: var(--text-muted);
+          border-bottom: 1px solid var(--border);
+          font-weight: 600;
+        }
+        .bulk-table td {
+          padding: 8px 10px;
+          border-bottom: 1px solid var(--border);
+          color: var(--text);
+        }
+        .bulk-table tr.row-error td {
+          background: var(--rejected-bg);
+        }
+        .bulk-table tr.row-ok td {
+          background: transparent;
+        }
+
+        .action-btn {
+          background: none;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px 6px;
+          border-radius: 6px;
+          transition: background 0.15s;
+        }
+        .action-btn:hover { background: var(--bg-surface-3); }
       `}</style>
 
+      {/* ===== BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Members for this branch only ·{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {members.length}
+              </strong>{" "}
+              members ·{" "}
+              <strong style={{ color: "var(--info)" }}>
+                {transactions.length}
+              </strong>{" "}
+              transactions
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
+      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -2815,14 +1328,32 @@ const AdminMembers = () => {
             👥 Members Management
           </h2>
           <p
-            style={{ color: "var(--text-muted)", margin: "4px 0 0 0", fontSize: "14px" }}
+            style={{
+              color: "var(--text-muted)",
+              margin: "4px 0 0 0",
+              fontSize: "14px",
+            }}
           >
-            Manage members, assign roles, view balances
+            Manage members for {activeBranch?.name || "your branch"}, assign
+            roles, view balances
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button onClick={() => setShowRoleModal(true)} className="btn-role">
             🔑 Assign Role
+          </button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            style={{ display: "none" }}
+            onChange={handleExcelUpload}
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            className="btn-excel"
+          >
+            📤 Bulk Upload (Excel)
           </button>
           <button onClick={() => setShowAddModal(true)} className="btn-add">
             + Add New Member
@@ -2830,45 +1361,20 @@ const AdminMembers = () => {
         </div>
       </div>
 
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.05)",
-          borderRadius: "12px",
-          padding: "14px",
-          marginBottom: "20px",
-          border: "1px solid rgba(255,255,255,0.1)",
-        }}
-      >
+      <div style={{ marginBottom: "20px" }}>
         <input
           type="text"
+          className="am-search"
           placeholder="🔍 Search by name, email, phone, or account number..."
           value={searchTerm}
           onChange={(e) => setSearchTerm(e.target.value)}
-          style={{
-            width: "100%",
-            backgroundColor: "rgba(255,255,255,0.08)",
-            color: "var(--text)",
-            padding: "10px 16px",
-            borderRadius: "8px",
-            border: "1px solid rgba(255,255,255,0.1)",
-            outline: "none",
-            fontSize: "14px",
-            boxSizing: "border-box",
-          }}
         />
       </div>
 
-      <div
-        style={{
-          backgroundColor: "rgba(255,255,255,0.05)",
-          borderRadius: "12px",
-          border: "1px solid rgba(255,255,255,0.1)",
-          overflow: "hidden",
-        }}
-      >
+      <div>
         <div style={{ overflowX: "auto" }}>
-          <table style={{ width: "100%", borderCollapse: "collapse" }}>
-            <thead style={{ backgroundColor: "rgba(255,255,255,0.08)" }}>
+          <table className="am-table">
+            <thead>
               <tr>
                 {[
                   "Membership",
@@ -2880,28 +1386,14 @@ const AdminMembers = () => {
                   "Balance",
                   "Actions",
                 ].map((h) => (
-                  <th
-                    key={h}
-                    style={{
-                      padding: "12px 16px",
-                      textAlign: "left",
-                      fontSize: "12px",
-                      color: "var(--text-muted)",
-                      textTransform: "uppercase",
-                    }}
-                  >
-                    {h}
-                  </th>
+                  <th key={h}>{h}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {filteredMembers.map((member) => (
-                <tr
-                  key={member.id}
-                  style={{ borderTop: "1px solid rgba(255,255,255,0.05)" }}
-                >
-                  <td style={{ padding: "12px 16px" }}>
+                <tr key={member.id}>
+                  <td>
                     <div
                       style={{
                         fontSize: "14px",
@@ -2913,7 +1405,7 @@ const AdminMembers = () => {
                       {member.membership_number}
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <div
                       style={{
                         display: "flex",
@@ -2926,11 +1418,11 @@ const AdminMembers = () => {
                           width: "36px",
                           height: "36px",
                           borderRadius: "50%",
-                          backgroundColor: "rgba(16, 185, 129, 0.2)",
+                          backgroundColor: "var(--approved-bg)",
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          color: "var(--credit)",
+                          color: "var(--badge-text)",
                           fontWeight: "bold",
                           overflow: "hidden",
                         }}
@@ -2960,20 +1452,23 @@ const AdminMembers = () => {
                       </div>
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <div style={{ fontSize: "13px", color: "var(--text)" }}>
                       {member.email}
                     </div>
-                    <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>
+                    <div
+                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
+                    >
                       {member.phone || "—"}
                     </div>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <span
                       style={{
                         padding: "3px 10px",
                         fontSize: "11px",
                         borderRadius: "12px",
+                        fontWeight: "600",
                         backgroundColor: getRoleColor(member.role).bg,
                         color: getRoleColor(member.role).color,
                       }}
@@ -2981,12 +1476,13 @@ const AdminMembers = () => {
                       {member.role}
                     </span>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     <span
                       style={{
                         padding: "4px 12px",
                         fontSize: "12px",
                         borderRadius: "20px",
+                        fontWeight: "600",
                         backgroundColor: getStatusColor(member.status).bg,
                         color: getStatusColor(member.status).color,
                       }}
@@ -2994,20 +1490,31 @@ const AdminMembers = () => {
                       {member.status}
                     </span>
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
+                  <td>
                     {member.profile_completed ? (
-                      <span style={{ color: "var(--credit)", fontSize: "12px" }}>
+                      <span
+                        style={{
+                          color: "var(--credit)",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }}
+                      >
                         ✅ Complete
                       </span>
                     ) : (
-                      <span style={{ color: "var(--warning)", fontSize: "12px" }}>
+                      <span
+                        style={{
+                          color: "var(--warning)",
+                          fontSize: "12px",
+                          fontWeight: "600",
+                        }}
+                      >
                         ⏳ Pending
                       </span>
                     )}
                   </td>
                   <td
                     style={{
-                      padding: "12px 16px",
                       fontSize: "14px",
                       fontWeight: "600",
                       color: "var(--credit)",
@@ -3015,31 +1522,21 @@ const AdminMembers = () => {
                   >
                     ₦{parseFloat(member.balance || 0).toLocaleString()}
                   </td>
-                  <td style={{ padding: "12px 16px" }}>
-                    <div style={{ display: "flex", gap: "6px" }}>
+                  <td>
+                    <div style={{ display: "flex", gap: "8px" }}>
                       <button
                         onClick={() => handleEditMember(member)}
-                        style={{
-                          color: "var(--credit)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
+                        className="action-btn"
+                        title="Edit"
                       >
-                        ✏️ Edit
+                        ✏️
                       </button>
                       <button
                         onClick={() => handleDeleteMember(member.id)}
-                        style={{
-                          color: "var(--debit)",
-                          background: "none",
-                          border: "none",
-                          cursor: "pointer",
-                          fontSize: "12px",
-                        }}
+                        className="action-btn"
+                        title="Delete"
                       >
-                        🗑️ Delete
+                        🗑️
                       </button>
                     </div>
                   </td>
@@ -3050,15 +1547,19 @@ const AdminMembers = () => {
         </div>
         {filteredMembers.length === 0 && (
           <div
-            style={{ textAlign: "center", padding: "40px", color: "var(--text-muted)" }}
+            style={{
+              textAlign: "center",
+              padding: "40px",
+              color: "var(--text-muted)",
+            }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
-            <p>No members found</p>
+            <p>No members found in {activeBranch?.name || "this branch"}</p>
           </div>
         )}
       </div>
 
-      {/* Add Member Modal — MINIMAL */}
+      {/* Add Member Modal */}
       {showAddModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -3082,18 +1583,83 @@ const AdminMembers = () => {
 
             <div
               style={{
-                backgroundColor: "rgba(59, 130, 246, 0.08)",
-                border: "1px solid rgba(59, 130, 246, 0.2)",
+                backgroundColor: "var(--accent-bg)",
+                border: "1px solid var(--border)",
                 borderRadius: "8px",
                 padding: "12px 14px",
                 marginBottom: "16px",
               }}
             >
-              <p style={{ margin: 0, fontSize: "13px", color: "#93c5fd" }}>
-                💡 Only basic info here. The member will complete their profile
-                (phone, address, next of kin, passport, savings plan) after
-                logging in.
+              <p style={{ margin: 0, fontSize: "13px", color: "var(--text)" }}>
+                💡 New member will be created in{" "}
+                <strong>{activeBranch?.name || "this branch"}</strong>. They'll
+                complete their profile after logging in.
               </p>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                gap: "10px",
+                marginBottom: "16px",
+                flexWrap: "wrap",
+              }}
+            >
+              <button
+                type="button"
+                onClick={downloadTemplate}
+                style={{
+                  flex: 1,
+                  minWidth: "150px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "1px solid var(--border)",
+                  background: "var(--bg-surface-2)",
+                  color: "var(--text)",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                📥 Download Template
+              </button>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                style={{
+                  flex: 1,
+                  minWidth: "150px",
+                  padding: "10px 14px",
+                  borderRadius: "8px",
+                  border: "none",
+                  background: "#1d6f42",
+                  color: "white",
+                  cursor: "pointer",
+                  fontSize: "13px",
+                  fontWeight: "500",
+                }}
+              >
+                📤 Upload Excel
+              </button>
+            </div>
+
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "10px",
+                marginBottom: "16px",
+                color: "var(--text-muted)",
+                fontSize: "12px",
+              }}
+            >
+              <div
+                style={{ flex: 1, height: "1px", background: "var(--border)" }}
+              />
+              <span>OR fill manually</span>
+              <div
+                style={{ flex: 1, height: "1px", background: "var(--border)" }}
+              />
             </div>
 
             <form onSubmit={handleAddMember}>
@@ -3148,14 +1714,16 @@ const AdminMembers = () => {
 
               <div
                 style={{
-                  backgroundColor: "rgba(16, 185, 129, 0.08)",
-                  border: "1px solid rgba(16, 185, 129, 0.2)",
+                  backgroundColor: "var(--approved-bg)",
+                  border: "1px solid var(--border)",
                   borderRadius: "8px",
                   padding: "10px 14px",
                   marginBottom: "12px",
                 }}
               >
-                <p style={{ margin: 0, fontSize: "12px", color: "var(--credit)" }}>
+                <p
+                  style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}
+                >
                   📧 Auto email:{" "}
                   <strong style={{ color: "var(--text)" }}>
                     {newMember.email || "—"}
@@ -3189,6 +1757,379 @@ const AdminMembers = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Bulk Upload Preview Modal */}
+      {showBulkModal && (
+        <div className="modal-overlay">
+          <div className="modal-content modal-content-lg">
+            <div className="modal-header">
+              <h3 className="modal-title">📤 Bulk Upload Preview</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowBulkModal(false);
+                  setBulkRows([]);
+                  setBulkResults(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            {!bulkResults ? (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--accent-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "12px 14px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  Found <strong>{bulkRows.length}</strong> row(s).{" "}
+                  <strong style={{ color: "var(--credit)" }}>
+                    {bulkRows.filter((r) => !r.errors.length).length} valid
+                  </strong>
+                  {bulkRows.filter((r) => r.errors.length).length > 0 && (
+                    <>
+                      ,{" "}
+                      <strong style={{ color: "var(--rejected)" }}>
+                        {bulkRows.filter((r) => r.errors.length).length} with
+                        errors
+                      </strong>{" "}
+                      (will be skipped)
+                    </>
+                  )}
+                  <div style={{ marginTop: "6px", fontSize: "12px" }}>
+                    🏢 Will be created in{" "}
+                    <strong>{activeBranch?.name || "this branch"}</strong>
+                  </div>
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: "360px",
+                    overflowY: "auto",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <table className="bulk-table">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>First Name</th>
+                        <th>Last Name</th>
+                        <th>Password</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkRows.map((r, i) => (
+                        <tr
+                          key={i}
+                          className={r.errors.length ? "row-error" : "row-ok"}
+                        >
+                          <td>{r._row}</td>
+                          <td>{r.firstName || "—"}</td>
+                          <td>{r.lastName || "—"}</td>
+                          <td>{r.password || "—"}</td>
+                          <td>
+                            {r.errors.length ? (
+                              <span
+                                style={{
+                                  color: "var(--rejected)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ⚠️ {r.errors.join(", ")}
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  color: "var(--credit)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ✅ Ready
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
+                >
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 1, background: "#1d6f42" }}
+                    disabled={
+                      bulkUploading ||
+                      bulkRows.filter((r) => !r.errors.length).length === 0
+                    }
+                    onClick={handleBulkUpload}
+                  >
+                    {bulkUploading
+                      ? "Uploading..."
+                      : `Upload ${
+                          bulkRows.filter((r) => !r.errors.length).length
+                        } Member(s)`}
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setShowBulkModal(false);
+                      setBulkRows([]);
+                      setBulkResults(null);
+                    }}
+                    disabled={bulkUploading}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </>
+            ) : (
+              <>
+                <div
+                  style={{
+                    backgroundColor: "var(--approved-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                    padding: "12px 14px",
+                    marginBottom: "16px",
+                    fontSize: "13px",
+                    color: "var(--text)",
+                  }}
+                >
+                  ✅{" "}
+                  <strong>
+                    {bulkResults.filter((r) => r.status === "success").length}
+                  </strong>{" "}
+                  succeeded,{" "}
+                  <strong style={{ color: "var(--rejected)" }}>
+                    {bulkResults.filter((r) => r.status === "failed").length}
+                  </strong>{" "}
+                  failed.
+                </div>
+
+                <div
+                  style={{
+                    maxHeight: "360px",
+                    overflowY: "auto",
+                    border: "1px solid var(--border)",
+                    borderRadius: "8px",
+                  }}
+                >
+                  <table className="bulk-table">
+                    <thead>
+                      <tr>
+                        <th>Row</th>
+                        <th>Name</th>
+                        <th>Email</th>
+                        <th>Password</th>
+                        <th>Account No.</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bulkResults.map((r, i) => (
+                        <tr
+                          key={i}
+                          className={
+                            r.status === "failed" ? "row-error" : "row-ok"
+                          }
+                        >
+                          <td>{r.row}</td>
+                          <td>{r.name}</td>
+                          <td>{r.email || "—"}</td>
+                          <td>{r.password || "—"}</td>
+                          <td>{r.accountNumber || "—"}</td>
+                          <td>
+                            {r.status === "success" ? (
+                              <span
+                                style={{
+                                  color: "var(--credit)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ✅ Success
+                              </span>
+                            ) : (
+                              <span
+                                style={{
+                                  color: "var(--rejected)",
+                                  fontSize: "12px",
+                                }}
+                              >
+                                ❌ {r.error}
+                              </span>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+
+                <div
+                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
+                >
+                  <button
+                    className="btn-primary"
+                    style={{ flex: 1 }}
+                    onClick={downloadBulkResults}
+                  >
+                    📥 Download Results
+                  </button>
+                  <button
+                    type="button"
+                    className="btn-secondary"
+                    style={{ flex: 1 }}
+                    onClick={() => {
+                      setShowBulkModal(false);
+                      setBulkRows([]);
+                      setBulkResults(null);
+                    }}
+                  >
+                    Done
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Credentials Modal */}
+      {showCredentialsModal && createdCredentials && (
+        <div className="modal-overlay">
+          <div className="modal-content">
+            <div className="modal-header">
+              <h3 className="modal-title">🎉 Member Created!</h3>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCreatedCredentials(null);
+                }}
+              >
+                ×
+              </button>
+            </div>
+
+            <div
+              style={{
+                backgroundColor: "var(--approved-bg)",
+                border: "1px solid var(--border)",
+                borderRadius: "8px",
+                padding: "12px 14px",
+                marginBottom: "16px",
+              }}
+            >
+              <p
+                style={{
+                  margin: 0,
+                  fontSize: "13px",
+                  color: "var(--text)",
+                  lineHeight: 1.5,
+                }}
+              >
+                ⚠️ <strong>Share these credentials</strong> with{" "}
+                <strong>{createdCredentials.name}</strong>. They'll need them to
+                log in and complete their profile.
+              </p>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">📧 Email</div>
+                <div className="credential-value">
+                  {createdCredentials.email}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(createdCredentials.email, "Email")
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">🔑 Password</div>
+                <div className="credential-value">
+                  {createdCredentials.password}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(createdCredentials.password, "Password")
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div className="credential-row">
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div className="credential-label">💳 Account Number</div>
+                <div className="credential-value">
+                  {createdCredentials.accountNumber}
+                </div>
+              </div>
+              <button
+                className="cred-copy-btn"
+                onClick={() =>
+                  copyToClipboard(
+                    createdCredentials.accountNumber,
+                    "Account number",
+                  )
+                }
+              >
+                Copy
+              </button>
+            </div>
+
+            <div style={{ display: "flex", gap: "10px" }}>
+              <button
+                className="btn-primary"
+                style={{
+                  flex: 1,
+                  background:
+                    "linear-gradient(to right, var(--purple), #6d28d9)",
+                  color: "white",
+                }}
+                onClick={copyAllCredentials}
+              >
+                📋 Copy All
+              </button>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowCredentialsModal(false);
+                  setCreatedCredentials(null);
+                }}
+              >
+                Done
+              </button>
+            </div>
           </div>
         </div>
       )}
@@ -3418,7 +2359,11 @@ const AdminMembers = () => {
                 <button
                   type="submit"
                   className="btn-primary"
-                  style={{ flex: 1, background: "#8b5cf6" }}
+                  style={{
+                    flex: 1,
+                    background: "var(--purple)",
+                    color: "white",
+                  }}
                 >
                   Assign Role
                 </button>

@@ -1,6 +1,8 @@
 // src/pages/admin/AdminDashboard.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -8,6 +10,8 @@ const API_BASE_URL = "http://localhost:8000";
 const MEMBERS_PER_PAGE = 10;
 
 const AdminDashboard = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [adminUsername, setAdminUsername] = useState("Admin");
   const [members, setMembers] = useState([]);
   const [transactions, setTransactions] = useState([]);
@@ -198,7 +202,7 @@ const AdminDashboard = () => {
 
   const testApiConnection = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/admin.php`);
+      const response = await apiFetch("/api/admin.php");
       if (response.ok) return true;
       return false;
     } catch (error) {
@@ -230,7 +234,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/admin.php`);
+        const response = await apiFetch("/api/admin.php");
         const adminData = await response.json();
         if (adminData.username) setAdminUsername(adminData.username);
       } catch (profileError) {
@@ -238,7 +242,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/members.php`);
+        const response = await apiFetch("/api/members.php");
         const membersData = await response.json();
         if (membersData.members) setMembers(membersData.members);
       } catch (membersError) {
@@ -246,7 +250,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+        const response = await apiFetch("/api/transactions.php");
         const transactionsData = await response.json();
         if (transactionsData.transactions)
           setTransactions(transactionsData.transactions);
@@ -255,7 +259,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/loans.php`);
+        const response = await apiFetch("/api/loans.php");
         const loansData = await response.json();
         if (loansData.loans) {
           setLoans(loansData.loans);
@@ -270,7 +274,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await fetch(`${API_BASE_URL}/api/expenses.php`);
+        const response = await apiFetch("/api/expenses.php");
         const expensesData = await response.json();
         if (expensesData.expenses) {
           setExpenses(expensesData.expenses);
@@ -291,7 +295,7 @@ const AdminDashboard = () => {
   const handleApproveLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to approve this loan?")) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/loans.php`, {
+      const response = await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: loanId, status: "approved" }),
@@ -311,7 +315,7 @@ const AdminDashboard = () => {
   const handleRejectLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to reject this loan?")) return;
     try {
-      const response = await fetch(`${API_BASE_URL}/api/loans.php`, {
+      const response = await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ id: loanId, status: "rejected" }),
@@ -331,8 +335,8 @@ const AdminDashboard = () => {
   const handleApproveTransaction = async (transactionId) => {
     if (!window.confirm("Approve this transaction?")) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/approve`,
+      const response = await apiFetch(
+        `/api/transactions.php/${transactionId}/approve`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
       const data = await response.json();
@@ -352,8 +356,8 @@ const AdminDashboard = () => {
   const handleRejectTransaction = async (transactionId) => {
     if (!window.confirm("Reject this transaction?")) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/reject`,
+      const response = await apiFetch(
+        `/api/transactions.php/${transactionId}/reject`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
       const data = await response.json();
@@ -371,8 +375,8 @@ const AdminDashboard = () => {
   const handleApproveExpense = async (expenseId) => {
     if (!window.confirm("Approve this expense?")) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/expenses.php/${expenseId}/approve`,
+      const response = await apiFetch(
+        `/api/expenses.php/${expenseId}/approve`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
       const data = await response.json();
@@ -390,10 +394,10 @@ const AdminDashboard = () => {
   const handleRejectExpense = async (expenseId) => {
     if (!window.confirm("Reject this expense?")) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/expenses.php/${expenseId}/reject`,
-        { method: "PUT", headers: { "Content-Type": "application/json" } },
-      );
+      const response = await apiFetch(`/api/expenses.php/${expenseId}/reject`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
       const data = await response.json();
       if (response.ok && data.success) {
         toast.success("❌ Expense rejected!");
@@ -409,10 +413,10 @@ const AdminDashboard = () => {
   const handleDeleteExpense = async (expenseId) => {
     if (!window.confirm("⚠️ Delete this expense record permanently?")) return;
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/expenses.php/${expenseId}`,
-        { method: "DELETE", headers: { "Content-Type": "application/json" } },
-      );
+      const response = await apiFetch(`/api/expenses.php/${expenseId}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
       if (response.ok) {
         toast.success("✅ Expense deleted!");
         await fetchAllData();
@@ -448,7 +452,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/expenses.php`, {
+      const response = await apiFetch("/api/expenses.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(expense),
@@ -488,7 +492,8 @@ const AdminDashboard = () => {
       }
     };
     loadData();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]); // 🆕 refetch when the branch changes
 
   const handleSelectAll = () => {
     if (selectAll) {
@@ -524,7 +529,7 @@ const AdminDashboard = () => {
       for (const id of selectedMembers) {
         const member = members.find((m) => m.id === id);
         if (member) {
-          await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+          await apiFetch(`/api/members.php/${id}`, {
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -560,7 +565,7 @@ const AdminDashboard = () => {
 
     try {
       for (const id of selectedMembers) {
-        await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+        await apiFetch(`/api/members.php/${id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
         });
@@ -653,13 +658,11 @@ const AdminDashboard = () => {
   const goToPage = (p) => {
     const clamped = Math.max(1, Math.min(p, totalMemberPages));
     setMembersPage(clamped);
-    // Scroll the table into view for better UX
     if (typeof window !== "undefined") {
       window.scrollTo({ top: 0, behavior: "smooth" });
     }
   };
 
-  // Compact set of page numbers to render
   const getPageNumbers = () => {
     const total = totalMemberPages;
     const current = currentMembersPage;
@@ -704,7 +707,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`, {
+      const response = await apiFetch("/api/members.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(memberData),
@@ -722,7 +725,7 @@ const AdminDashboard = () => {
           balance: "",
         });
         alert(
-          `✅ Member created successfully!\nAccount Number: ${accountNumber}`,
+          `✅ Member created successfully!\nAccount Number: ${accountNumber}\nBranch: ${activeBranch?.name || "N/A"}`,
         );
       } else {
         alert(data.message || "Failed to create member");
@@ -777,7 +780,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
+      const response = await apiFetch("/api/transactions.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -857,7 +860,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transfers.php`, {
+      const response = await apiFetch("/api/transfers.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -923,14 +926,11 @@ const AdminDashboard = () => {
   const handleUpdateMember = async (e) => {
     e.preventDefault();
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(selectedMember),
-        },
-      );
+      const response = await apiFetch(`/api/members.php/${selectedMember.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(selectedMember),
+      });
       const data = await response.json();
       if (response.ok) {
         const updatedMembers = members.map((member) =>
@@ -954,13 +954,13 @@ const AdminDashboard = () => {
   const handleDeleteMember = async (id) => {
     if (window.confirm("⚠️ Are you sure you want to delete this member?")) {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/members.php/${id}`, {
+        const response = await apiFetch(`/api/members.php/${id}`, {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
         });
         if (response.ok) {
           setMembers(members.filter((member) => member.id !== id));
-          toast.success("✅ Member deleted successfully!");
+          toast.success("Member deleted successfully!");
           refreshData();
         } else {
           const data = await response.json();
@@ -1267,10 +1267,6 @@ const AdminDashboard = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleListening]);
-
-  // ============================================================
-  // ===== END VOICE RECOGNITION =====
-  // ============================================================
 
   if (error) {
     return (
@@ -1596,7 +1592,6 @@ const AdminDashboard = () => {
         .sound-wave span:nth-child(4) { animation-delay: 0.45s; }
         .sound-wave span:nth-child(5) { animation-delay: 0.6s; }
 
-        /* ===== PAGINATION ===== */
         .pagination-wrap {
           display: flex;
           justify-content: space-between;
@@ -1656,7 +1651,6 @@ const AdminDashboard = () => {
           user-select: none;
         }
 
-        /* ===== MEMBER DETAIL VIEW ===== */
         .detail-section {
           border: 1px solid var(--border);
           border-radius: 12px;
@@ -1780,7 +1774,6 @@ const AdminDashboard = () => {
           margin-top: 4px;
         }
 
-        /* ===== SAVINGS PLAN CARD ===== */
         .savings-plan-card {
           border: 1px solid rgba(16, 185, 129, 0.35);
           border-radius: 14px;
@@ -1871,6 +1864,64 @@ const AdminDashboard = () => {
           transition: width 0.6s ease;
         }
       `}</style>
+
+      {/* 🆕 BRANCH BANNER — shows which group is active */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "12px 16px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+          <span style={{ fontSize: "22px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Members in this branch:{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {members.length}
+              </strong>
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active group
+        </span>
+      </div>
 
       {/* Header */}
       <div
@@ -2208,7 +2259,6 @@ const AdminDashboard = () => {
       {/* Members Tab */}
       {activeTab === "members" && (
         <>
-          {/* Search + total count */}
           <div
             style={{
               backgroundColor: "transparent",
@@ -2470,7 +2520,12 @@ const AdminDashboard = () => {
                           >
                             📭
                           </div>
-                          <p>No members found</p>
+                          <p>
+                            No members in{" "}
+                            <strong>
+                              {activeBranch?.name || "this branch"}
+                            </strong>
+                          </p>
                         </div>
                       </td>
                     </tr>
@@ -2479,7 +2534,6 @@ const AdminDashboard = () => {
               </table>
             </div>
 
-            {/* ===== PAGINATION ===== */}
             <div className="pagination-wrap">
               <div className="pagination-info">
                 {filteredMembers.length === 0
@@ -3159,7 +3213,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== CREATE MEMBER MODAL ===== */}
+      {/* CREATE MEMBER MODAL */}
       {showCreateModal && (
         <div
           className="modal-overlay"
@@ -3262,7 +3316,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== VIEW MEMBER MODAL — FULL DETAILS WITH SAVINGS PLAN ===== */}
+      {/* VIEW MEMBER MODAL */}
       {showViewModal &&
         selectedMember &&
         (() => {
@@ -3310,8 +3364,6 @@ const AdminDashboard = () => {
             memberTotalTransfersOut -
             memberTotalCharges;
 
-          // ===== SAVINGS PLAN DATA =====
-          // Read from member record; fall back to sensible defaults
           const planType =
             selectedMember.savingsPlan ||
             selectedMember.savings_plan ||
@@ -3386,7 +3438,6 @@ const AdminDashboard = () => {
                   </button>
                 </div>
 
-                {/* Header with avatar */}
                 <div
                   style={{
                     display: "flex",
@@ -3426,7 +3477,6 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* ===== SAVINGS PLAN CARD ===== */}
                 <div className="savings-plan-card">
                   <div className="savings-plan-header">
                     <div className="savings-plan-title">💼 My Savings Plan</div>
@@ -3466,7 +3516,6 @@ const AdminDashboard = () => {
                     </div>
                   </div>
 
-                  {/* Progress bar */}
                   <div className="savings-plan-progress-wrap">
                     <div className="savings-plan-progress-label">
                       <span>
@@ -3488,7 +3537,6 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Personal Information */}
                 <div className="detail-section">
                   <div className="detail-section-title">
                     <span>📋</span> Personal Information
@@ -3536,37 +3584,9 @@ const AdminDashboard = () => {
                         {selectedMember.status || "Active"}
                       </div>
                     </div>
-                    {selectedMember.address && (
-                      <div
-                        className="detail-item"
-                        style={{ gridColumn: "1 / -1" }}
-                      >
-                        <div className="detail-label">Address</div>
-                        <div className="detail-value">
-                          {selectedMember.address}
-                        </div>
-                      </div>
-                    )}
-                    {selectedMember.suspension_reason && (
-                      <div
-                        className="detail-item"
-                        style={{ gridColumn: "1 / -1" }}
-                      >
-                        <div
-                          className="detail-label"
-                          style={{ color: "var(--warning)" }}
-                        >
-                          Suspension Reason
-                        </div>
-                        <div className="detail-value">
-                          {selectedMember.suspension_reason}
-                        </div>
-                      </div>
-                    )}
                   </div>
                 </div>
 
-                {/* Savings & Balance Summary */}
                 <div className="detail-section">
                   <div className="detail-section-title">
                     <span>💰</span> Savings & Balance
@@ -3651,7 +3671,6 @@ const AdminDashboard = () => {
                   </div>
                 </div>
 
-                {/* Loan Summary */}
                 <div className="detail-section">
                   <div className="detail-section-title">
                     <span>🏦</span> Loan Summary
@@ -3743,7 +3762,6 @@ const AdminDashboard = () => {
                   )}
                 </div>
 
-                {/* Transaction History */}
                 <div className="detail-section">
                   <div className="detail-section-title">
                     <span>📊</span> Transaction History
@@ -3850,7 +3868,7 @@ const AdminDashboard = () => {
           );
         })()}
 
-      {/* ===== EDIT MEMBER MODAL ===== */}
+      {/* EDIT MEMBER MODAL */}
       {showEditModal && selectedMember && (
         <div
           className="modal-overlay"
@@ -4059,77 +4077,6 @@ const AdminDashboard = () => {
                   required
                 />
               </div>
-
-              {transactionData.type === "deposit" &&
-                transactionData.amount &&
-                parseFloat(transactionData.amount) > 0 &&
-                (() => {
-                  const amt = parseFloat(transactionData.amount);
-                  const rate = amt > 200000 ? 0.004 : 0.01;
-                  const charge = Math.round(amt * rate * 100) / 100;
-                  const net = Math.round((amt - charge) * 100) / 100;
-                  return (
-                    <div
-                      style={{
-                        backgroundColor: "transparent",
-                        border: "1px solid rgba(6, 182, 212, 0.3)",
-                        borderRadius: "8px",
-                        padding: "12px 16px",
-                        marginBottom: "16px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: "13px",
-                          color: "var(--text-muted)",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <span>Deposit Amount</span>
-                        <span style={{ color: "var(--text)" }}>
-                          {formatCurrency(amt)}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: "13px",
-                          color: "var(--text-muted)",
-                          marginBottom: "6px",
-                        }}
-                      >
-                        <span>
-                          Charge ({(rate * 100).toFixed(1)}%{" "}
-                          {amt > 200000 ? "> ₦200k" : "≤ ₦200k"})
-                        </span>
-                        <span style={{ color: "var(--warning)" }}>
-                          −{formatCurrency(charge)}
-                        </span>
-                      </div>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          fontSize: "14px",
-                          color: "var(--text)",
-                          fontWeight: "600",
-                          borderTop: "1px solid rgba(6, 182, 212, 0.2)",
-                          paddingTop: "8px",
-                          marginTop: "4px",
-                        }}
-                      >
-                        <span>Member Receives</span>
-                        <span style={{ color: "var(--credit)" }}>
-                          {formatCurrency(net)}
-                        </span>
-                      </div>
-                    </div>
-                  );
-                })()}
-
               <div className="form-group">
                 <label className="form-label">Description (Optional)</label>
                 <input
@@ -4201,88 +4148,7 @@ const AdminDashboard = () => {
                   }}
                   required
                 />
-                {fromMemberLookup ? (
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      padding: "12px 14px",
-                      border: "1px solid rgba(16, 185, 129, 0.3)",
-                      borderRadius: "10px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "12px",
-                    }}
-                  >
-                    <MemberAvatar member={fromMemberLookup} size={48} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          color: "var(--text)",
-                          fontWeight: "600",
-                          fontSize: "14px",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {fromMemberLookup.name}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "12px",
-                          marginTop: "2px",
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {fromMemberLookup.accountNumber}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "11px",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {fromMemberLookup.phone || "No phone"}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "10px",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        Balance
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--credit)",
-                          fontWeight: "700",
-                          fontSize: "15px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatCurrency(fromMemberLookup.balance)}
-                      </div>
-                    </div>
-                  </div>
-                ) : fromMemberError ? (
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      color: "var(--debit)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    ⚠️ {fromMemberError}
-                  </div>
-                ) : null}
               </div>
-
               <div className="form-group">
                 <label className="form-label">To Member (Account Number)</label>
                 <input
@@ -4309,89 +4175,7 @@ const AdminDashboard = () => {
                   }}
                   required
                 />
-                {toMemberLookup ? (
-                  <div
-                    style={{
-                      marginTop: "10px",
-                      padding: "12px 14px",
-                      border: "1px solid rgba(139, 92, 246, 0.4)",
-                      borderRadius: "10px",
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "14px",
-                      background: "rgba(139, 92, 246, 0.05)",
-                    }}
-                  >
-                    <MemberAvatar member={toMemberLookup} size={56} />
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          color: "var(--text)",
-                          fontWeight: "700",
-                          fontSize: "15px",
-                          whiteSpace: "nowrap",
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                        }}
-                      >
-                        {toMemberLookup.name}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "12px",
-                          marginTop: "2px",
-                          fontFamily: "monospace",
-                        }}
-                      >
-                        {toMemberLookup.accountNumber}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "11px",
-                          marginTop: "2px",
-                        }}
-                      >
-                        {toMemberLookup.phone || "No phone"}
-                      </div>
-                    </div>
-                    <div style={{ textAlign: "right", flexShrink: 0 }}>
-                      <div
-                        style={{
-                          color: "var(--text-muted)",
-                          fontSize: "10px",
-                          textTransform: "uppercase",
-                          letterSpacing: "0.5px",
-                        }}
-                      >
-                        Balance
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--credit)",
-                          fontWeight: "700",
-                          fontSize: "15px",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {formatCurrency(toMemberLookup.balance)}
-                      </div>
-                    </div>
-                  </div>
-                ) : toMemberError ? (
-                  <div
-                    style={{
-                      marginTop: "8px",
-                      color: "var(--debit)",
-                      fontSize: "12px",
-                    }}
-                  >
-                    ⚠️ {toMemberError}
-                  </div>
-                ) : null}
               </div>
-
               <div className="form-group">
                 <label className="form-label">Amount (₦)</label>
                 <input
@@ -4577,7 +4361,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* ===== VOICE FEEDBACK TOAST ===== */}
+      {/* Voice Feedback Toast */}
       {voiceFeedback && (
         <div className="voice-toast">
           <div

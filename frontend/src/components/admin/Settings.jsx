@@ -1,13 +1,3267 @@
+// // src/components/admin/Settings.jsx
+// import React, { useState, useEffect, useCallback, useMemo } from "react";
+// import toast from "react-hot-toast";
+// import { useBranch } from "../../context/BranchContext";
+// import { usePermission } from "../../context/PermissionsContext";
+// import { useAuth } from "../../context/AuthContext";
+
+// const API_BASE_URL = "http://localhost:8000";
+
+// const AdminSettings = () => {
+//   const { activeBranch, activeBranchId } = useBranch();
+//   const { can } = usePermission() || {};
+//   const { user } = useAuth();
+
+//   // ============================================================
+//   // 🆕 Role detection
+//   // ============================================================
+//   const roleStr = String(user?.role || "")
+//     .trim()
+//     .toLowerCase();
+//   const isAdmin = roleStr === "admin" || roleStr === "administrator";
+//   const isManager = roleStr === "manager" || roleStr === "branch_manager";
+
+//   // ============================================================
+//   // Permission flags
+//   // ============================================================
+//   const canViewBranches =
+//     typeof can === "function" ? can("view_branches") : false;
+//   const canCreateBranch =
+//     typeof can === "function" ? can("create_branch") : false;
+//   const canEditBranch = typeof can === "function" ? can("edit_branch") : false;
+//   const canDeleteBranch =
+//     typeof can === "function" ? can("delete_branch") : false;
+//   const canToggleBranch =
+//     typeof can === "function" ? can("toggle_branch_status") : false;
+//   const canCopyLink =
+//     typeof can === "function" ? can("copy_registration_link") : false;
+
+//   const [activeTab, setActiveTab] = useState("general");
+//   const [saving, setSaving] = useState(false);
+//   const [loading, setLoading] = useState(true);
+//   const [refreshing, setRefreshing] = useState(false);
+
+//   // General Settings
+//   const [generalSettings, setGeneralSettings] = useState({
+//     shop_name: "",
+//     shop_email: "",
+//     shop_phone: "",
+//     shop_address: "",
+//     currency: "NGN",
+//     timezone: "Africa/Lagos",
+//     date_format: "DD/MM/YYYY",
+//   });
+
+//   // Contribution Settings
+//   const [contributionSettings, setContributionSettings] = useState({
+//     daily_limit: 100000,
+//     min_deposit: 500,
+//     max_deposit: 50000,
+//     allow_multiple_deposits: true,
+//     max_daily_deposits: 3,
+//     contribution_frequency: "daily",
+//     default_contribution_amount: 5000,
+//     enable_auto_contribution: false,
+//     auto_contribution_time: "09:00",
+//   });
+
+//   // Commission Settings
+//   const [commissionSettings, setCommissionSettings] = useState({
+//     enable_commission: true,
+//     commission_type: "percentage",
+//     commission_rate: 5,
+//     commission_fixed_amount: 500,
+//     min_commission_amount: 100,
+//     max_commission_amount: 10000,
+//     commission_period: "daily",
+//     apply_commission_on: "deposit",
+//     commission_account: "admin",
+//     enable_tiered_commission: false,
+//     tiers: [],
+//     enable_referral_commission: false,
+//     referral_commission_rate: 2,
+//     enable_loyalty_commission: false,
+//     loyalty_commission_rate: 1,
+//   });
+
+//   // Payment Settings
+//   const [paymentSettings, setPaymentSettings] = useState({
+//     payment_percentage: 80,
+//     allow_partial_payment: true,
+//     max_payment_count: 2,
+//     enable_refunds: true,
+//     require_admin_approval: true,
+//   });
+
+//   // Discount Settings
+//   const [discountSettings, setDiscountSettings] = useState({
+//     enable_discounts: true,
+//     discount_type: "percentage",
+//     default_discount_percentage: 10,
+//     default_discount_fixed: 1000,
+//     max_discount_percentage: 50,
+//     max_discount_amount: 10000,
+//     require_admin_approval: false,
+//     loyalty_discount_enabled: true,
+//     loyalty_discount_percentage: 5,
+//     bulk_discount_enabled: true,
+//     bulk_discount_min_qty: 10,
+//     bulk_discount_percentage: 15,
+//     seasonal_discount_enabled: false,
+//     seasonal_discount_percentage: 20,
+//     seasonal_start_date: "",
+//     seasonal_end_date: "",
+//   });
+
+//   // Security Settings
+//   const [securitySettings, setSecuritySettings] = useState({
+//     two_factor_auth: false,
+//     session_timeout: 30,
+//     max_login_attempts: 5,
+//     password_expiry_days: 90,
+//     require_strong_password: true,
+//   });
+
+//   // Suspension Settings
+//   const [suspensionSettings, setSuspensionSettings] = useState({
+//     auto_suspend_inactive: false,
+//     inactive_days: 30,
+//     suspend_on_negative_balance: true,
+//     negative_balance_threshold: 5000,
+//     require_admin_approval_for_reactivation: true,
+//     send_notification_on_suspension: true,
+//     notify_admin_on_suspension: true,
+//   });
+
+//   // Loan Settings
+//   const [loanSettings, setLoanSettings] = useState({
+//     min_membership_days: 180,
+//     interest_rate: 5,
+//     max_duration_months: 6,
+//     enable_loan_requests: true,
+//     require_admin_approval: true,
+//     auto_approve_small_loans: false,
+//     small_loan_threshold: 5000,
+//     late_payment_penalty: 10,
+//     grace_period_days: 7,
+//     max_loans_per_member: 3,
+//     loan_cooldown_days: 30,
+//   });
+
+//   // Data from database
+//   const [members, setMembers] = useState([]);
+//   const [suspendedAccounts, setSuspendedAccounts] = useState([]);
+//   const [transactions, setTransactions] = useState([]);
+
+//   // Branches
+//   const [branches, setBranches] = useState([]);
+//   const [branchesLoading, setBranchesLoading] = useState(false);
+//   const [branchesSaving, setBranchesSaving] = useState(false);
+//   const [showBranchModal, setShowBranchModal] = useState(false);
+//   const [editingBranch, setEditingBranch] = useState(false);
+//   const [branchForm, setBranchForm] = useState({
+//     id: null,
+//     code: "",
+//     name: "",
+//     address: "",
+//     phone: "",
+//     email: "",
+//     manager_id: "",
+//     manager: "",
+//     status: "active",
+//   });
+
+//   const [showSuspendModal, setShowSuspendModal] = useState(false);
+//   const [showReactivateModal, setShowReactivateModal] = useState(false);
+//   const [selectedMember, setSelectedMember] = useState(null);
+//   const [suspensionReason, setSuspensionReason] = useState("");
+//   const [suspensionDuration, setSuspensionDuration] = useState("permanent");
+//   const [searchTerm, setSearchTerm] = useState("");
+//   const [showAddTierModal, setShowAddTierModal] = useState(false);
+//   const [newTier, setNewTier] = useState({
+//     min_amount: "",
+//     max_amount: "",
+//     rate: "",
+//   });
+
+//   // ============================================================
+//   // 🆕 Branch ownership — the branch a manager may edit
+//   // ============================================================
+//   const myBranchId =
+//     user?.branch_id ?? user?.branchId ?? activeBranchId ?? null;
+
+//   // Is this the branch the current user is allowed to edit?
+//   const canEditThisBranch = (branch) => {
+//     if (!branch) return false;
+//     if (isAdmin) return canEditBranch === true;
+//     if (!isManager) return false;
+//     if (!myBranchId) return false;
+//     return String(branch.id) === String(myBranchId);
+//   };
+
+//   // 🆕 Only show branches this user should see
+//   const visibleBranches = useMemo(() => {
+//     if (isAdmin) return branches;
+//     if (isManager && myBranchId) {
+//       return branches.filter((b) => String(b.id) === String(myBranchId));
+//     }
+//     return [];
+//   }, [branches, isAdmin, isManager, myBranchId]);
+
+//   // ============================================================
+//   // Initial mount — load global data once
+//   // ============================================================
+//   useEffect(() => {
+//     (async () => {
+//       setLoading(true);
+//       try {
+//         await Promise.all([fetchSettings(), fetchBranches(), fetchMembers()]);
+//       } catch (error) {
+//         console.error("Error fetching settings data:", error);
+//         toast.error("Failed to load settings");
+//       } finally {
+//         setLoading(false);
+//       }
+//     })();
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//   }, []);
+
+//   // ============================================================
+//   // 🆕 Reload settings + branch-scoped data when branch changes.
+//   //    Reset the form BEFORE fetching so stale values never leak.
+//   // ============================================================
+//   useEffect(() => {
+//     setGeneralSettings({
+//       shop_name: "",
+//       shop_email: "",
+//       shop_phone: "",
+//       shop_address: "",
+//       currency: "NGN",
+//       timezone: "Africa/Lagos",
+//       date_format: "DD/MM/YYYY",
+//     });
+//     setSearchTerm("");
+//     fetchSettings();
+//     fetchMembers();
+//     fetchTransactions();
+//     fetchSuspendedAccounts();
+//     // eslint-disable-next-line react-hooks/exhaustive-deps
+//   }, [activeBranchId]);
+
+//   // ============================================================
+//   // Auto-switch away from branches tab if not allowed
+//   // ============================================================
+//   useEffect(() => {
+//     if (activeTab === "branches" && !canViewBranches) {
+//       setActiveTab("general");
+//     }
+//     if (activeTab === "branches" && isManager && !myBranchId) {
+//       setActiveTab("general");
+//     }
+//   }, [activeTab, canViewBranches, isManager, myBranchId]);
+
+//   // ============================================================
+//   // Only users with role "manager" can be branch managers
+//   // ============================================================
+//   const managers = useMemo(() => {
+//     return members.filter((m) => {
+//       const r = String(m.role || "")
+//         .trim()
+//         .toLowerCase();
+//       return (
+//         r === "manager" ||
+//         r === "branch_manager" ||
+//         r === "branch-manager" ||
+//         r === "branchmanager"
+//       );
+//     });
+//   }, [members]);
+
+//   // ============================================================
+//   // MANUAL REFRESH
+//   // ============================================================
+//   const handleRefreshAll = async () => {
+//     setRefreshing(true);
+//     try {
+//       await Promise.all([
+//         fetchSettings(),
+//         fetchMembers(),
+//         fetchTransactions(),
+//         fetchSuspendedAccounts(),
+//         fetchBranches(),
+//       ]);
+//       toast.success("✅ Data refreshed");
+//     } catch (error) {
+//       console.error("Error refreshing data:", error);
+//       toast.error("Failed to refresh data");
+//     } finally {
+//       setRefreshing(false);
+//     }
+//   };
+
+//   // ============================================================
+//   // FETCH BRANCHES
+//   // ============================================================
+//   const fetchBranches = useCallback(async () => {
+//     setBranchesLoading(true);
+//     try {
+//       const res = await fetch(`${API_BASE_URL}/api/branches.php`, {
+//         method: "GET",
+//         headers: { Accept: "application/json" },
+//       });
+
+//       const text = await res.text();
+//       let data;
+//       try {
+//         data = text ? JSON.parse(text) : {};
+//       } catch {
+//         console.error("[branches] Non-JSON response:", text);
+//         throw new Error(
+//           `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+//         );
+//       }
+
+//       if (!res.ok) {
+//         console.error("[branches] HTTP error:", res.status, data);
+//         throw new Error(
+//           data.error || `Failed to load branches (HTTP ${res.status})`,
+//         );
+//       }
+
+//       setBranches(Array.isArray(data.branches) ? data.branches : []);
+//     } catch (err) {
+//       console.error("Error fetching branches:", err);
+//       toast.error(err.message || "Failed to load branches");
+//       setBranches([]);
+//     } finally {
+//       setBranchesLoading(false);
+//     }
+//   }, []);
+
+//   // ============================================================
+//   // BRANCH MODAL HANDLERS
+//   // ============================================================
+//   const emptyBranchForm = {
+//     id: null,
+//     code: "",
+//     name: "",
+//     address: "",
+//     phone: "",
+//     email: "",
+//     manager_id: "",
+//     manager: "",
+//     status: "active",
+//   };
+
+//   const openCreateBranch = () => {
+//     if (!isAdmin) {
+//       toast.error("Only admins can create branches");
+//       return;
+//     }
+//     setBranchForm(emptyBranchForm);
+//     setEditingBranch(false);
+//     setShowBranchModal(true);
+//   };
+
+//   const openEditBranch = (b) => {
+//     if (!canEditThisBranch(b)) {
+//       toast.error("You can only edit your own branch");
+//       return;
+//     }
+
+//     let matchedManager = null;
+//     if (b.manager_id) {
+//       matchedManager = managers.find(
+//         (m) => String(m.id) === String(b.manager_id),
+//       );
+//     }
+//     if (!matchedManager && b.manager) {
+//       const target = b.manager.trim().toLowerCase();
+//       matchedManager = managers.find(
+//         (m) => (m.name || "").trim().toLowerCase() === target,
+//       );
+//     }
+
+//     setBranchForm({
+//       id: b.id,
+//       code: b.code || "",
+//       name: b.name || "",
+//       address: b.address || "",
+//       phone: b.phone || "",
+//       email: b.email || "",
+//       manager_id: matchedManager ? matchedManager.id : "",
+//       manager: b.manager || "",
+//       status: b.status || "active",
+//     });
+//     setEditingBranch(true);
+//     setShowBranchModal(true);
+//   };
+
+//   const closeBranchModal = () => {
+//     if (branchesSaving) return;
+//     setShowBranchModal(false);
+//     setBranchForm(emptyBranchForm);
+//     setEditingBranch(false);
+//   };
+
+//   // ============================================================
+//   // COPY REGISTRATION LINK (admin only)
+//   // ============================================================
+//   const copyRegistrationLink = (branch) => {
+//     if (!isAdmin) {
+//       toast.error("Only admins can share registration links");
+//       return;
+//     }
+//     if (!branch || !branch.id) {
+//       toast.error("Branch ID is missing");
+//       return;
+//     }
+//     const link = `${window.location.origin}/register-member?branch=${branch.id}`;
+
+//     if (navigator.clipboard && navigator.clipboard.writeText) {
+//       navigator.clipboard
+//         .writeText(link)
+//         .then(() => {
+//           toast.success(`📋 Link copied for ${branch.name}`, {
+//             duration: 4000,
+//           });
+//         })
+//         .catch(() => fallbackCopy(link, branch));
+//     } else {
+//       fallbackCopy(link, branch);
+//     }
+//   };
+
+//   const fallbackCopy = (link, branch) => {
+//     try {
+//       const ta = document.createElement("textarea");
+//       ta.value = link;
+//       ta.style.position = "fixed";
+//       ta.style.opacity = "0";
+//       document.body.appendChild(ta);
+//       ta.select();
+//       const ok = document.execCommand("copy");
+//       document.body.removeChild(ta);
+//       if (ok) {
+//         toast.success(`📋 Link copied for ${branch.name}`, { duration: 4000 });
+//       } else {
+//         window.prompt("Copy this registration link:", link);
+//       }
+//     } catch {
+//       window.prompt("Copy this registration link:", link);
+//     }
+//   };
+
+//   // ============================================================
+//   // SAVE BRANCH
+//   // ============================================================
+//   const handleSaveBranch = async (e) => {
+//     e.preventDefault();
+//     if (!branchForm.name.trim()) {
+//       toast.error("Branch name is required");
+//       return;
+//     }
+
+//     // For admins, code is required. For managers, code is unchanged.
+//     if (isAdmin && !branchForm.code.trim()) {
+//       toast.error("Branch code is required");
+//       return;
+//     }
+
+//     setBranchesSaving(true);
+//     try {
+//       const selectedManager =
+//         isAdmin && branchForm.manager_id
+//           ? managers.find((m) => String(m.id) === String(branchForm.manager_id))
+//           : null;
+
+//       // 🆕 Manager: only descriptive fields. Admin: everything.
+//       const basePayload = {
+//         name: branchForm.name.trim(),
+//         address: branchForm.address.trim(),
+//         phone: branchForm.phone.trim(),
+//         email: branchForm.email.trim(),
+//       };
+
+//       const payload = isAdmin
+//         ? {
+//             ...basePayload,
+//             code: branchForm.code.trim(),
+//             manager_id: selectedManager ? selectedManager.id : null,
+//             manager: selectedManager ? selectedManager.name : "",
+//           }
+//         : basePayload;
+
+//       let url = `${API_BASE_URL}/api/branches.php`;
+//       let method = "POST";
+
+//       if (editingBranch) {
+//         method = "PUT";
+//         payload.id = branchForm.id;
+//         if (isAdmin) {
+//           payload.status = branchForm.status;
+//         }
+//         url = `${API_BASE_URL}/api/branches.php/${branchForm.id}`;
+//       }
+
+//       const res = await fetch(url, {
+//         method,
+//         headers: {
+//           "Content-Type": "application/json",
+//           // 🆕 Send role + branch so the backend can enforce ownership
+//           "X-User-Role": user?.role || "",
+//           "X-User-Branch-Id": String(myBranchId || ""),
+//         },
+//         body: JSON.stringify(payload),
+//       });
+
+//       const text = await res.text();
+//       let data;
+//       try {
+//         data = text ? JSON.parse(text) : {};
+//       } catch {
+//         console.error("[branches] Non-JSON save response:", text);
+//         throw new Error(
+//           `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+//         );
+//       }
+
+//       if (!res.ok) {
+//         throw new Error(data.error || "Failed to save branch");
+//       }
+
+//       toast.success(editingBranch ? "✅ Branch updated" : "✅ Branch created");
+//       setShowBranchModal(false);
+//       setBranchForm(emptyBranchForm);
+//       setEditingBranch(false);
+//       await fetchBranches();
+
+//       if (!editingBranch && data.branch?.id) {
+//         const newLink = `${window.location.origin}/register-member?branch=${data.branch.id}`;
+//         setTimeout(() => {
+//           if (
+//             window.confirm(
+//               `Branch "${data.branch.name}" created.\n\nCopy the registration link now?\n\n${newLink}`,
+//             )
+//           ) {
+//             copyRegistrationLink(data.branch);
+//           }
+//         }, 300);
+//       }
+//     } catch (err) {
+//       toast.error(err.message || "Failed to save branch");
+//     } finally {
+//       setBranchesSaving(false);
+//     }
+//   };
+
+//   // ============================================================
+//   // TOGGLE STATUS (admin only)
+//   // ============================================================
+//   const handleToggleBranchStatus = async (b) => {
+//     if (!isAdmin) {
+//       toast.error("Only admins can activate/deactivate branches");
+//       return;
+//     }
+//     const next = b.status === "active" ? "inactive" : "active";
+//     if (!window.confirm(`Change "${b.name}" to ${next.toUpperCase()}?`)) return;
+
+//     try {
+//       const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
+//         method: "PUT",
+//         headers: {
+//           "Content-Type": "application/json",
+//           "X-User-Role": user?.role || "",
+//           "X-User-Branch-Id": String(myBranchId || ""),
+//         },
+//         body: JSON.stringify({ id: b.id, status: next }),
+//       });
+
+//       const text = await res.text();
+//       let data;
+//       try {
+//         data = text ? JSON.parse(text) : {};
+//       } catch {
+//         throw new Error(`Server returned non-JSON (HTTP ${res.status})`);
+//       }
+
+//       if (!res.ok) {
+//         throw new Error(data.error || "Failed to update status");
+//       }
+
+//       toast.success(`Branch is now ${next}`);
+//       await fetchBranches();
+//     } catch (err) {
+//       toast.error(err.message || "Failed to update status");
+//     }
+//   };
+
+//   // ============================================================
+//   // DELETE (admin only)
+//   // ============================================================
+//   const handleDeleteBranch = async (b) => {
+//     if (!isAdmin) {
+//       toast.error("Only admins can delete branches");
+//       return;
+//     }
+//     if (
+//       !window.confirm(
+//         `⚠️ Delete branch "${b.name}" (${b.code})?\n\nThis cannot be undone.`,
+//       )
+//     )
+//       return;
+
+//     try {
+//       const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
+//         method: "DELETE",
+//         headers: {
+//           Accept: "application/json",
+//           "X-User-Role": user?.role || "",
+//           "X-User-Branch-Id": String(myBranchId || ""),
+//         },
+//       });
+
+//       const text = await res.text();
+//       let data;
+//       try {
+//         data = text ? JSON.parse(text) : {};
+//       } catch {
+//         throw new Error(
+//           `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+//         );
+//       }
+
+//       if (!res.ok) {
+//         throw new Error(data.error || "Failed to delete branch");
+//       }
+
+//       toast.success("🗑️ Branch deleted");
+//       await fetchBranches();
+//     } catch (err) {
+//       toast.error(err.message || "Failed to delete branch");
+//     }
+//   };
+
+//   // ============================================================
+//   // SETTINGS FETCH — branch-scoped, uses REPLACE (not merge)
+//   // ============================================================
+//   const fetchSettings = async () => {
+//     try {
+//       const url = activeBranchId
+//         ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
+//         : `${API_BASE_URL}/api/settings.php`;
+
+//       const response = await fetch(url);
+//       const data = await response.json();
+
+//       if (data.status && data.data) {
+//         const s = data.data;
+
+//         setGeneralSettings({
+//           shop_name: "",
+//           shop_email: "",
+//           shop_phone: "",
+//           shop_address: "",
+//           currency: "NGN",
+//           timezone: "Africa/Lagos",
+//           date_format: "DD/MM/YYYY",
+//           ...(s.general || {}),
+//         });
+
+//         setContributionSettings((prev) => ({
+//           ...prev,
+//           ...(s.contribution || {}),
+//         }));
+//         setCommissionSettings((prev) => ({
+//           ...prev,
+//           ...(s.commission || {}),
+//         }));
+//         setPaymentSettings((prev) => ({
+//           ...prev,
+//           ...(s.payment || {}),
+//         }));
+//         setDiscountSettings((prev) => ({
+//           ...prev,
+//           ...(s.discount || {}),
+//         }));
+//         setSecuritySettings((prev) => ({
+//           ...prev,
+//           ...(s.security || {}),
+//         }));
+//         setSuspensionSettings((prev) => ({
+//           ...prev,
+//           ...(s.suspension || {}),
+//         }));
+//         setLoanSettings((prev) => ({
+//           ...prev,
+//           ...(s.loan || {}),
+//         }));
+//       }
+//     } catch (error) {
+//       console.error("Error fetching settings:", error);
+//     }
+//   };
+
+//   const fetchMembers = async () => {
+//     try {
+//       const response = await fetch(`${API_BASE_URL}/api/members.php`);
+//       const data = await response.json();
+
+//       if (data.members) {
+//         const activeMembers = data.members.filter(
+//           (m) => m.status !== "Suspended",
+//         );
+//         setMembers(activeMembers);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching members:", error);
+//       toast.error("Failed to fetch members");
+//     }
+//   };
+
+//   const fetchTransactions = async () => {
+//     try {
+//       const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+//       const data = await response.json();
+
+//       if (data.transactions) {
+//         setTransactions(data.transactions);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching transactions:", error);
+//     }
+//   };
+
+//   const fetchSuspendedAccounts = async () => {
+//     try {
+//       const response = await fetch(`${API_BASE_URL}/api/members.php`);
+//       const data = await response.json();
+
+//       if (data.members) {
+//         const suspended = data.members
+//           .filter((m) => m.status === "Suspended")
+//           .map((m) => ({
+//             id: m.id,
+//             name: m.name,
+//             email: m.email,
+//             phone: m.phone || "N/A",
+//             reason: m.suspension_reason || "Suspended by admin",
+//             suspended_date:
+//               m.suspended_date || new Date().toISOString().split("T")[0],
+//             suspended_by: m.suspended_by || "Admin",
+//             balance: m.balance || 0,
+//             duration: m.suspension_duration || "permanent",
+//           }));
+//         setSuspendedAccounts(suspended);
+//       }
+//     } catch (error) {
+//       console.error("Error fetching suspended accounts:", error);
+//     }
+//   };
+
+//   const formatNaira = (amount) => {
+//     if (!amount && amount !== 0) return "₦0.00";
+//     return new Intl.NumberFormat("en-NG", {
+//       style: "currency",
+//       currency: "NGN",
+//       minimumFractionDigits: 0,
+//       maximumFractionDigits: 0,
+//     })
+//       .format(amount)
+//       .replace("NGN", "₦");
+//   };
+
+//   const formatDate = (dateString) => {
+//     if (!dateString) return "N/A";
+//     try {
+//       return new Date(dateString).toLocaleDateString("en-NG", {
+//         day: "2-digit",
+//         month: "short",
+//         year: "numeric",
+//       });
+//     } catch {
+//       return dateString;
+//     }
+//   };
+
+//   const getDaysToMonthsDisplay = (days) => {
+//     if (days < 30) {
+//       return `${days} day${days !== 1 ? "s" : ""}`;
+//     }
+//     const months = Math.floor(days / 30);
+//     const remainingDays = days % 30;
+//     if (remainingDays === 0) {
+//       return `${months} month${months !== 1 ? "s" : ""}`;
+//     }
+//     return `${months} month${months !== 1 ? "s" : ""}, ${remainingDays} day${remainingDays !== 1 ? "s" : ""}`;
+//   };
+
+//   // ============================================================
+//   // SAVE SETTINGS — branch-scoped
+//   // ============================================================
+//   const handleSaveSettings = async () => {
+//     setSaving(true);
+//     try {
+//       const settings = {
+//         branch_id: activeBranchId || 0,
+//         general: generalSettings,
+//         contribution: contributionSettings,
+//         commission: commissionSettings,
+//         payment: paymentSettings,
+//         discount: discountSettings,
+//         security: securitySettings,
+//         suspension: suspensionSettings,
+//         loan: loanSettings,
+//       };
+
+//       const url = activeBranchId
+//         ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
+//         : `${API_BASE_URL}/api/settings.php`;
+
+//       const response = await fetch(url, {
+//         method: "POST",
+//         headers: { "Content-Type": "application/json" },
+//         body: JSON.stringify(settings),
+//       });
+
+//       const text = await response.text();
+//       let data;
+//       try {
+//         data = text ? JSON.parse(text) : {};
+//       } catch {
+//         throw new Error(`Server returned non-JSON: ${text.slice(0, 200)}`);
+//       }
+
+//       if (response.ok && data.status) {
+//         toast.success(
+//           `Settings saved for ${activeBranch?.name || "this branch"}`,
+//         );
+//         await fetchSettings();
+//       } else {
+//         toast.error(data.error || data.message || "Failed to save settings");
+//       }
+//     } catch (error) {
+//       console.error("Error saving settings:", error);
+//       toast.error(`❌ ${error.message || "Failed to save settings"}`);
+//     } finally {
+//       setSaving(false);
+//     }
+//   };
+
+//   const handleSuspendAccount = (member) => {
+//     setSelectedMember(member);
+//     setSuspensionReason("");
+//     setSuspensionDuration("permanent");
+//     setShowSuspendModal(true);
+//   };
+
+//   const confirmSuspend = async () => {
+//     if (!suspensionReason.trim()) {
+//       toast.error("Please provide a reason for suspension");
+//       return;
+//     }
+
+//     try {
+//       const payload = {
+//         name: selectedMember.name || selectedMember.full_name,
+//         email: selectedMember.email,
+//         phone: selectedMember.phone || "",
+//         balance: selectedMember.balance || 0,
+//         role: selectedMember.role || "member",
+//         status: "Suspended",
+//         suspension_reason: suspensionReason,
+//         suspension_duration: suspensionDuration,
+//         suspended_date: new Date().toISOString().split("T")[0],
+//         suspended_by: "Admin",
+//         ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+//       };
+
+//       const response = await fetch(
+//         `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
+//         {
+//           method: "PUT",
+//           headers: { "Content-Type": "application/json" },
+//           body: JSON.stringify(payload),
+//         },
+//       );
+
+//       const data = await response.json();
+
+//       if (response.ok) {
+//         toast.success(`Account for ${selectedMember.name} has been suspended!`);
+//         setShowSuspendModal(false);
+//         setSelectedMember(null);
+//         setSuspensionReason("");
+//         await fetchMembers();
+//         await fetchSuspendedAccounts();
+//       } else {
+//         toast.error(data.message || "Failed to suspend account");
+//       }
+//     } catch (error) {
+//       console.error("Error suspending account:", error);
+//       toast.error("Failed to suspend account");
+//     }
+//   };
+
+//   const handleReactivateAccount = (account) => {
+//     setSelectedMember(account);
+//     setShowReactivateModal(true);
+//   };
+
+//   const confirmReactivate = async () => {
+//     try {
+//       const payload = {
+//         name: selectedMember.name || selectedMember.full_name,
+//         email: selectedMember.email,
+//         phone: selectedMember.phone || "",
+//         balance: selectedMember.balance || 0,
+//         role: selectedMember.role || "member",
+//         status: "Active",
+//         suspension_reason: null,
+//         suspension_duration: null,
+//         suspended_date: null,
+//         suspended_by: null,
+//         ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+//       };
+
+//       const response = await fetch(
+//         `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
+//         {
+//           method: "PUT",
+//           headers: { "Content-Type": "application/json" },
+//           body: JSON.stringify(payload),
+//         },
+//       );
+
+//       const data = await response.json();
+
+//       if (response.ok) {
+//         toast.success(
+//           `Account for ${selectedMember.name} has been reactivated!`,
+//         );
+//         setShowReactivateModal(false);
+//         setSelectedMember(null);
+//         await fetchMembers();
+//         await fetchSuspendedAccounts();
+//       } else {
+//         toast.error(data.message || "Failed to reactivate account");
+//       }
+//     } catch (error) {
+//       console.error("Error reactivating account:", error);
+//       toast.error("Failed to reactivate account");
+//     }
+//   };
+
+//   const handleAddTier = () => {
+//     if (!newTier.min_amount || !newTier.max_amount || !newTier.rate) {
+//       toast.error("Please fill in all tier fields");
+//       return;
+//     }
+//     const tier = {
+//       min_amount: parseFloat(newTier.min_amount),
+//       max_amount: parseFloat(newTier.max_amount),
+//       rate: parseFloat(newTier.rate),
+//     };
+//     setCommissionSettings({
+//       ...commissionSettings,
+//       tiers: [...commissionSettings.tiers, tier].sort(
+//         (a, b) => a.min_amount - b.min_amount,
+//       ),
+//     });
+//     setNewTier({ min_amount: "", max_amount: "", rate: "" });
+//     setShowAddTierModal(false);
+//     toast.success("Tier added successfully!");
+//   };
+
+//   const handleRemoveTier = (index) => {
+//     const updatedTiers = commissionSettings.tiers.filter((_, i) => i !== index);
+//     setCommissionSettings({ ...commissionSettings, tiers: updatedTiers });
+//     toast.success("Tier removed successfully!");
+//   };
+
+//   const filteredSuspended = suspendedAccounts.filter((account) => {
+//     if (!searchTerm) return true;
+//     const term = searchTerm.toLowerCase();
+//     const name = (account.name || "").toLowerCase();
+//     const email = (account.email || "").toLowerCase();
+//     const phone = account.phone || "";
+//     return name.includes(term) || email.includes(term) || phone.includes(term);
+//   });
+
+//   const getBranchManagerName = (b) => {
+//     if (b.manager) return b.manager;
+//     if (b.manager_id) {
+//       const m =
+//         managers.find((mm) => String(mm.id) === String(b.manager_id)) ||
+//         members.find((mm) => String(mm.id) === String(b.manager_id));
+//       if (m) return m.name;
+//     }
+//     return "—";
+//   };
+
+//   if (loading) {
+//     return (
+//       <div
+//         style={{
+//           padding: "24px",
+//           color: "var(--text)",
+//           backgroundColor: "var(--bg-app)",
+//           minHeight: "100vh",
+//           display: "flex",
+//           alignItems: "center",
+//           justifyContent: "center",
+//         }}
+//       >
+//         <div
+//           style={{
+//             width: "48px",
+//             height: "48px",
+//             border: "4px solid var(--border)",
+//             borderTopColor: "var(--accent)",
+//             borderRadius: "50%",
+//             animation: "spin 1s linear infinite",
+//           }}
+//         />
+//         <style>{`
+//           @keyframes spin {
+//             to { transform: rotate(360deg); }
+//           }
+//         `}</style>
+//       </div>
+//     );
+//   }
+
+//   return (
+//     <div
+//       style={{
+//         padding: "24px",
+//         color: "var(--text)",
+//         backgroundColor: "var(--bg-app)",
+//         minHeight: "100vh",
+//       }}
+//     >
+//       <style>{`
+//         @keyframes spin { to { transform: rotate(360deg); } }
+//         .settings-container { max-width: 1200px; margin: 0 auto; }
+//         .settings-header {
+//           display: flex; justify-content: space-between; align-items: center;
+//           margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
+//         }
+//         .tabs-container {
+//           display: flex; gap: 4px;
+//           background-color: var(--bg-surface-2);
+//           border: 1px solid var(--border);
+//           border-radius: 12px; padding: 4px;
+//           margin-bottom: 24px; flex-wrap: wrap;
+//         }
+//         .tab-btn {
+//           padding: 10px 16px; border-radius: 8px; border: none;
+//           background: transparent; color: var(--text-muted);
+//           cursor: pointer; font-size: 13px; font-weight: 500;
+//           transition: all 0.2s; flex: 1; min-width: 80px;
+//         }
+//         .tab-btn:hover { color: var(--text); background: var(--bg-surface-3); }
+//         .tab-btn.active { background: var(--accent); color: #ffffff; }
+//         .tab-btn-branches {
+//           background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(59,130,246,0.18));
+//           border: 1px solid var(--accent);
+//           color: var(--accent-text, #10b981);
+//           font-weight: 700; display: inline-flex;
+//           align-items: center; justify-content: center; gap: 6px;
+//         }
+//         .tab-btn-branches.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+//         .branch-tab-badge {
+//           background: var(--accent); color: #ffffff;
+//           font-size: 11px; font-weight: 700;
+//           padding: 1px 7px; border-radius: 10px;
+//           line-height: 1.4; min-width: 18px; text-align: center;
+//         }
+//         .tab-btn-branches.active .branch-tab-badge { background: #ffffff; color: var(--accent); }
+//         .settings-card {
+//           background-color: var(--bg-surface);
+//           border: 1px solid var(--border);
+//           border-radius: 12px; padding: 20px; margin-bottom: 20px;
+//         }
+//         .settings-card-title {
+//           font-size: 16px; font-weight: 600; margin-bottom: 16px;
+//           display: flex; align-items: center; gap: 8px; color: var(--text);
+//         }
+//         .form-group { margin-bottom: 16px; }
+//         .form-label {
+//           display: block; font-size: 13px; font-weight: 500;
+//           color: var(--text-muted); margin-bottom: 6px;
+//         }
+//         .form-input, .form-select {
+//           width: 100%; padding: 10px 14px; border-radius: 8px;
+//           border: 1px solid var(--border);
+//           background: var(--bg-surface-2); color: var(--text);
+//           font-size: 14px; outline: none;
+//           transition: border-color 0.2s; box-sizing: border-box;
+//         }
+//         .form-input:focus, .form-select:focus { border-color: var(--accent); }
+//         .form-input::placeholder { color: var(--text-dim); }
+//         .form-input:disabled {
+//           opacity: 0.55;
+//           cursor: not-allowed;
+//           background: var(--bg-surface-3, rgba(0,0,0,0.05));
+//         }
+//         .form-select option { background: var(--bg-surface); color: var(--text); }
+//         .form-checkbox {
+//           display: flex; align-items: center; gap: 10px;
+//           margin-bottom: 10px; cursor: pointer;
+//         }
+//         .form-checkbox input[type="checkbox"] {
+//           width: 18px; height: 18px;
+//           accent-color: var(--accent); cursor: pointer;
+//         }
+//         .form-checkbox-label { font-size: 14px; color: var(--text); }
+//         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+//         .btn-save {
+//           padding: 10px 32px; border-radius: 8px; border: none;
+//           background: var(--accent); color: #ffffff; cursor: pointer;
+//           font-size: 14px; font-weight: 500; transition: all 0.2s;
+//         }
+//         .btn-save:hover { background: var(--accent-hover); }
+//         .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+//         .btn-refresh-settings {
+//           padding: 10px 20px; border-radius: 8px;
+//           border: 1px solid var(--info); background: transparent;
+//           color: var(--info); cursor: pointer;
+//           font-size: 14px; font-weight: 600;
+//           transition: all 0.2s; display: inline-flex;
+//           align-items: center; gap: 8px;
+//         }
+//         .btn-refresh-settings:hover:not(:disabled) { background: var(--bg-surface-2); }
+//         .btn-refresh-settings:disabled { opacity: 0.6; cursor: not-allowed; }
+//         .btn-refresh-settings .spinning { display: inline-block; animation: spin 1s linear infinite; }
+//         .btn-suspend {
+//           padding: 6px 16px; border-radius: 6px; border: none;
+//           background: var(--debit); color: #ffffff;
+//           cursor: pointer; font-size: 12px; font-weight: 500;
+//           transition: all 0.2s;
+//         }
+//         .btn-suspend:hover { opacity: 0.85; }
+//         .btn-reactivate {
+//           padding: 6px 16px; border-radius: 6px; border: none;
+//           background: var(--accent); color: #ffffff;
+//           cursor: pointer; font-size: 12px; font-weight: 500;
+//           transition: all 0.2s;
+//         }
+//         .btn-reactivate:hover { background: var(--accent-hover); }
+//         .suspended-table { width: 100%; border-collapse: collapse; }
+//         .suspended-table th {
+//           text-align: left; padding: 10px 12px;
+//           font-size: 11px; font-weight: 600;
+//           color: var(--text-muted); text-transform: uppercase;
+//           letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
+//         }
+//         .suspended-table td {
+//           padding: 10px 12px; border-bottom: 1px solid var(--border);
+//           font-size: 13px; color: var(--text);
+//         }
+//         .suspended-table tr:hover { background-color: var(--bg-surface-2); }
+//         .badge {
+//           display: inline-block; padding: 3px 10px;
+//           border-radius: 9999px; font-size: 11px; font-weight: 500;
+//         }
+//         .badge-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
+//         .badge-permanent { background-color: var(--rejected-bg); color: var(--debit); border: 1px solid var(--border); }
+//         .badge-temporary { background-color: var(--pending-bg); color: var(--warning); border: 1px solid var(--border); }
+//         .badge-branch-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
+//         .badge-branch-inactive { background-color: var(--bg-surface-2); color: var(--text-muted); border: 1px solid var(--border); }
+//         .search-input {
+//           width: 100%; max-width: 300px;
+//           padding: 8px 14px; border-radius: 8px;
+//           border: 1px solid var(--border);
+//           background: var(--bg-surface-2); color: var(--text);
+//           font-size: 13px; outline: none;
+//           transition: border-color 0.2s; box-sizing: border-box;
+//         }
+//         .search-input:focus { border-color: var(--accent); }
+//         .search-input::placeholder { color: var(--text-dim); }
+//         .modal-overlay {
+//           position: fixed; inset: 0;
+//           background-color: var(--bg-overlay);
+//           backdrop-filter: blur(4px);
+//           display: flex; align-items: center; justify-content: center;
+//           z-index: 999; padding: 16px;
+//         }
+//         .modal-content {
+//           background-color: var(--bg-surface);
+//           border-radius: 16px; padding: 24px;
+//           max-width: 500px; width: 100%;
+//           max-height: 90vh; overflow-y: auto;
+//           border: 1px solid var(--border); color: var(--text);
+//         }
+//         .modal-header {
+//           display: flex; justify-content: space-between;
+//           align-items: center; margin-bottom: 16px;
+//         }
+//         .modal-title { font-size: 18px; font-weight: bold; color: var(--text); }
+//         .modal-close {
+//           background: none; border: none;
+//           color: var(--text-muted); cursor: pointer;
+//           padding: 4px; font-size: 24px;
+//         }
+//         .modal-close:hover { color: var(--text); }
+//         .btn-cancel {
+//           flex: 1; padding: 10px; border-radius: 8px;
+//           border: 1px solid var(--border);
+//           background: transparent; color: var(--text);
+//           cursor: pointer; font-size: 13px; font-weight: 500;
+//           transition: all 0.2s;
+//         }
+//         .btn-cancel:hover { background: var(--bg-surface-2); }
+//         .btn-confirm {
+//           flex: 1; padding: 10px; border-radius: 8px;
+//           border: none; cursor: pointer;
+//           font-size: 13px; font-weight: 500;
+//           transition: all 0.2s;
+//         }
+//         .btn-confirm-success { background: var(--accent); color: #ffffff; }
+//         .btn-confirm-success:hover { background: var(--accent-hover); }
+//         .info-box {
+//           background: var(--accent-bg);
+//           border: 1px solid var(--border);
+//           border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
+//         }
+//         .info-box p { margin: 0; font-size: 13px; color: var(--text); }
+//         .rule-box {
+//           background: var(--approved-bg);
+//           border: 1px solid var(--border);
+//           border-radius: 8px; padding: 16px; margin-top: 16px;
+//         }
+//         .rule-box h4 { font-size: 13px; color: var(--credit); margin: 0 0 8px 0; }
+//         .rule-box p { font-size: 12px; color: var(--text-muted); margin: 0; }
+//         .loan-restriction-box {
+//           background: var(--accent-bg);
+//           border: 1px solid var(--border);
+//           border-radius: 8px; padding: 16px; margin-top: 16px;
+//         }
+//         .branch-summary {
+//           display: grid;
+//           grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+//           gap: 14px; margin-bottom: 20px;
+//         }
+//         .branch-summary-card {
+//           background: var(--bg-surface-2);
+//           border: 1px solid var(--border);
+//           border-radius: 12px; padding: 16px;
+//         }
+//         .branch-summary-label {
+//           font-size: 12px; color: var(--text-muted);
+//           text-transform: uppercase; letter-spacing: 0.05em;
+//         }
+//         .branch-summary-value {
+//           font-size: 22px; font-weight: 700;
+//           color: var(--text); margin-top: 4px;
+//         }
+//         .branch-summary-value.credit { color: var(--credit); }
+//         .branch-summary-value.muted  { color: var(--text-muted); }
+//         .btn-branch-action {
+//           padding: 6px 12px; border-radius: 6px;
+//           border: 1px solid var(--border);
+//           background: transparent; color: var(--text);
+//           font-size: 12px; font-weight: 500;
+//           cursor: pointer; transition: all 0.2s;
+//         }
+//         .btn-branch-action:hover { background: var(--bg-surface-2); }
+//         .btn-branch-action.danger { color: var(--debit); border-color: var(--debit); }
+//         .btn-branch-action.danger:hover { background: var(--rejected-bg); }
+//         .btn-branch-action.warning { color: var(--warning); border-color: var(--warning); }
+//         .btn-branch-action.warning:hover { background: var(--pending-bg); }
+//         .btn-branch-action.success { color: var(--credit); border-color: var(--credit); }
+//         .btn-branch-action.success:hover { background: var(--approved-bg); }
+//         .btn-branch-action.info { color: var(--info); border-color: var(--info); }
+//         .btn-branch-action.info:hover { background: rgba(59, 130, 246, 0.1); }
+//         @media (max-width: 768px) {
+//           .form-row { grid-template-columns: 1fr; }
+//           .tabs-container { flex-direction: column; }
+//           .tab-btn { flex: none; min-width: auto; }
+//           .settings-header { flex-direction: column; align-items: stretch; }
+//           .search-input { max-width: 100%; }
+//         }
+//       `}</style>
+
+//       <div className="settings-container">
+//         {/* BRANCH BANNER */}
+//         <div
+//           style={{
+//             display: "flex",
+//             alignItems: "center",
+//             justifyContent: "space-between",
+//             gap: "12px",
+//             padding: "14px 18px",
+//             marginBottom: "20px",
+//             borderRadius: "12px",
+//             border: "1px solid rgba(16, 185, 129, 0.35)",
+//             background: "rgba(16, 185, 129, 0.06)",
+//             flexWrap: "wrap",
+//           }}
+//         >
+//           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+//             <span style={{ fontSize: "26px" }}>🏢</span>
+//             <div>
+//               <div
+//                 style={{
+//                   color: "var(--text)",
+//                   fontSize: "15px",
+//                   fontWeight: "700",
+//                 }}
+//               >
+//                 {activeBranch?.name || "Branch"}
+//               </div>
+//               <div
+//                 style={{
+//                   color: "var(--text-muted)",
+//                   fontSize: "12px",
+//                   marginTop: "2px",
+//                 }}
+//               >
+//                 {activeBranch?.code || "—"} · Settings apply to this branch ·{" "}
+//                 <strong style={{ color: "var(--credit)" }}>
+//                   {members.length}
+//                 </strong>{" "}
+//                 members ·{" "}
+//                 <strong style={{ color: "var(--info)" }}>
+//                   {isAdmin ? branches.length : visibleBranches.length}
+//                 </strong>{" "}
+//                 branches
+//               </div>
+//             </div>
+//           </div>
+//           <span
+//             style={{
+//               padding: "4px 12px",
+//               borderRadius: "20px",
+//               fontSize: "11px",
+//               fontWeight: "700",
+//               textTransform: "uppercase",
+//               letterSpacing: "0.5px",
+//               background: "rgba(16, 185, 129, 0.2)",
+//               color: "var(--credit)",
+//               border: "1px solid rgba(16, 185, 129, 0.4)",
+//             }}
+//           >
+//             ● active branch
+//           </span>
+//         </div>
+
+//         {/* Header */}
+//         <div className="settings-header">
+//           <div>
+//             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
+//               ⚙️ Settings
+//             </h2>
+//             <p
+//               style={{
+//                 fontSize: "14px",
+//                 color: "var(--text-muted)",
+//                 marginTop: "4px",
+//               }}
+//             >
+//               Configure application settings — scoped to{" "}
+//               <strong>{activeBranch?.name || "this branch"}</strong>
+//             </p>
+//           </div>
+//           <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+//             <button
+//               className="btn-refresh-settings"
+//               onClick={handleRefreshAll}
+//               disabled={refreshing}
+//             >
+//               <span className={refreshing ? "spinning" : ""}>🔄</span>
+//               {refreshing ? "Refreshing…" : "Refresh"}
+//             </button>
+
+//             {canViewBranches && (
+//               <button
+//                 className="btn-save"
+//                 style={{
+//                   background:
+//                     activeTab === "branches"
+//                       ? "var(--accent)"
+//                       : "linear-gradient(135deg, #059669, #0d9488)",
+//                   display: "inline-flex",
+//                   alignItems: "center",
+//                   gap: 8,
+//                 }}
+//                 onClick={() => setActiveTab("branches")}
+//               >
+//                 🏢{" "}
+//                 {activeTab === "branches"
+//                   ? "Branches (current)"
+//                   : isAdmin
+//                     ? "Manage Branches"
+//                     : "My Branch"}
+//               </button>
+//             )}
+
+//             {activeTab !== "branches" && (
+//               <button
+//                 className="btn-save"
+//                 onClick={handleSaveSettings}
+//                 disabled={saving}
+//               >
+//                 {saving ? "Saving..." : "💾 Save Settings"}
+//               </button>
+//             )}
+//           </div>
+//         </div>
+
+//         {/* Tabs */}
+//         <div className="tabs-container">
+//           <button
+//             className={`tab-btn ${activeTab === "general" ? "active" : ""}`}
+//             onClick={() => setActiveTab("general")}
+//           >
+//             ⚙️ General
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "loan" ? "active" : ""}`}
+//             onClick={() => setActiveTab("loan")}
+//           >
+//             💰 Loan
+//           </button>
+//           <button
+//             className={`tab-btn ${
+//               activeTab === "contribution" ? "active" : ""
+//             }`}
+//             onClick={() => setActiveTab("contribution")}
+//           >
+//             💰 Contribution
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "commission" ? "active" : ""}`}
+//             onClick={() => setActiveTab("commission")}
+//           >
+//             💸 Commission
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "payment" ? "active" : ""}`}
+//             onClick={() => setActiveTab("payment")}
+//           >
+//             💳 Payment
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "discount" ? "active" : ""}`}
+//             onClick={() => setActiveTab("discount")}
+//           >
+//             🏷️ Discount
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "security" ? "active" : ""}`}
+//             onClick={() => setActiveTab("security")}
+//           >
+//             🔒 Security
+//           </button>
+//           <button
+//             className={`tab-btn ${activeTab === "suspension" ? "active" : ""}`}
+//             onClick={() => setActiveTab("suspension")}
+//           >
+//             🚫 Suspension
+//           </button>
+//           {canViewBranches && (
+//             <button
+//               className={`tab-btn tab-btn-branches ${
+//                 activeTab === "branches" ? "active" : ""
+//               }`}
+//               onClick={() => setActiveTab("branches")}
+//             >
+//               🏢 {isAdmin ? "Branches" : "My Branch"}
+//               {isAdmin && branches.length > 0 && (
+//                 <span className="branch-tab-badge">{branches.length}</span>
+//               )}
+//             </button>
+//           )}
+//         </div>
+
+//         {/* General Settings */}
+//         {activeTab === "general" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">
+//                 🏢 General Settings for{" "}
+//                 <span style={{ color: "var(--accent)" }}>
+//                   {activeBranch?.name || "this branch"}
+//                 </span>
+//               </div>
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Shop Name</label>
+//                   <input
+//                     type="text"
+//                     className="form-input"
+//                     value={generalSettings.shop_name}
+//                     onChange={(e) =>
+//                       setGeneralSettings({
+//                         ...generalSettings,
+//                         shop_name: e.target.value,
+//                       })
+//                     }
+//                     placeholder="Enter shop name for this branch"
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Shop Email</label>
+//                   <input
+//                     type="email"
+//                     className="form-input"
+//                     value={generalSettings.shop_email}
+//                     onChange={(e) =>
+//                       setGeneralSettings({
+//                         ...generalSettings,
+//                         shop_email: e.target.value,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Shop Phone</label>
+//                   <input
+//                     type="text"
+//                     className="form-input"
+//                     value={generalSettings.shop_phone}
+//                     onChange={(e) =>
+//                       setGeneralSettings({
+//                         ...generalSettings,
+//                         shop_phone: e.target.value,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Currency</label>
+//                   <select
+//                     className="form-select"
+//                     value={generalSettings.currency}
+//                     onChange={(e) =>
+//                       setGeneralSettings({
+//                         ...generalSettings,
+//                         currency: e.target.value,
+//                       })
+//                     }
+//                   >
+//                     <option value="NGN">NGN (₦)</option>
+//                     <option value="USD">USD ($)</option>
+//                     <option value="EUR">EUR (€)</option>
+//                     <option value="GBP">GBP (£)</option>
+//                   </select>
+//                 </div>
+//               </div>
+//               <div className="form-group">
+//                 <label className="form-label">Shop Address</label>
+//                 <input
+//                   type="text"
+//                   className="form-input"
+//                   value={generalSettings.shop_address}
+//                   onChange={(e) =>
+//                     setGeneralSettings({
+//                       ...generalSettings,
+//                       shop_address: e.target.value,
+//                     })
+//                   }
+//                 />
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* BRANCHES TAB */}
+//         {activeTab === "branches" && canViewBranches && (
+//           <div>
+//             <div
+//               style={{
+//                 display: "flex",
+//                 justifyContent: "space-between",
+//                 alignItems: "center",
+//                 flexWrap: "wrap",
+//                 gap: 12,
+//                 marginBottom: 16,
+//               }}
+//             >
+//               <div>
+//                 <h3 style={{ margin: 0, color: "var(--text)", fontSize: 18 }}>
+//                   {isAdmin ? "🏢 Branch Management" : "🏢 My Branch"}
+//                 </h3>
+//                 <p
+//                   style={{
+//                     margin: "4px 0 0 0",
+//                     color: "var(--text-muted)",
+//                     fontSize: 13,
+//                   }}
+//                 >
+//                   {isAdmin
+//                     ? "Create branches and share registration links with new members"
+//                     : "Update your branch's contact and address details"}
+//                 </p>
+//               </div>
+//               <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+//                 <button
+//                   className="btn-refresh-settings"
+//                   onClick={fetchBranches}
+//                   disabled={branchesLoading}
+//                 >
+//                   <span className={branchesLoading ? "spinning" : ""}>🔄</span>
+//                   {branchesLoading ? "Loading…" : "Refresh"}
+//                 </button>
+//                 {canCreateBranch && isAdmin && (
+//                   <button className="btn-save" onClick={openCreateBranch}>
+//                     ➕ New Branch
+//                   </button>
+//                 )}
+//               </div>
+//             </div>
+
+//             {isAdmin && (
+//               <div
+//                 style={{
+//                   background: "var(--accent-bg)",
+//                   border: "1px solid var(--border)",
+//                   borderRadius: "10px",
+//                   padding: "12px 16px",
+//                   marginBottom: 16,
+//                   fontSize: 13,
+//                   color: "var(--text)",
+//                   lineHeight: 1.5,
+//                 }}
+//               >
+//                 💡 <strong>How registration links work:</strong> each branch has
+//                 its own link like{" "}
+//                 <code
+//                   style={{
+//                     fontFamily: "monospace",
+//                     background: "var(--bg-surface-2)",
+//                     padding: "2px 6px",
+//                     borderRadius: 4,
+//                   }}
+//                 >
+//                   {window.location.origin}/register-member?branch=1
+//                 </code>
+//                 . Copy a branch's link and send it to anyone who should register
+//                 into that branch.
+//               </div>
+//             )}
+
+//             {isAdmin && (
+//               <div className="branch-summary">
+//                 <div className="branch-summary-card">
+//                   <div className="branch-summary-label">Total Branches</div>
+//                   <div className="branch-summary-value">{branches.length}</div>
+//                 </div>
+//                 <div className="branch-summary-card">
+//                   <div className="branch-summary-label">Active</div>
+//                   <div className="branch-summary-value credit">
+//                     {branches.filter((b) => b.status === "active").length}
+//                   </div>
+//                 </div>
+//                 <div className="branch-summary-card">
+//                   <div className="branch-summary-label">Inactive</div>
+//                   <div className="branch-summary-value muted">
+//                     {branches.filter((b) => b.status !== "active").length}
+//                   </div>
+//                 </div>
+//               </div>
+//             )}
+
+//             <div
+//               className="settings-card"
+//               style={{ padding: 0, overflow: "hidden" }}
+//             >
+//               <div style={{ overflowX: "auto" }}>
+//                 <table className="suspended-table">
+//                   <thead>
+//                     <tr>
+//                       <th>ID</th>
+//                       <th>Code</th>
+//                       <th>Name</th>
+//                       <th>Manager</th>
+//                       <th>Contact</th>
+//                       <th>Status</th>
+//                       <th>Created</th>
+//                       <th style={{ textAlign: "center" }}>Actions</th>
+//                     </tr>
+//                   </thead>
+//                   <tbody>
+//                     {branchesLoading ? (
+//                       <tr>
+//                         <td
+//                           colSpan={8}
+//                           style={{
+//                             padding: 30,
+//                             textAlign: "center",
+//                             color: "var(--text-muted)",
+//                           }}
+//                         >
+//                           Loading branches…
+//                         </td>
+//                       </tr>
+//                     ) : visibleBranches.length === 0 ? (
+//                       <tr>
+//                         <td
+//                           colSpan={8}
+//                           style={{
+//                             padding: 40,
+//                             textAlign: "center",
+//                             color: "var(--text-muted)",
+//                           }}
+//                         >
+//                           <div style={{ fontSize: 40, marginBottom: 8 }}>
+//                             🏢
+//                           </div>
+//                           <div style={{ marginBottom: 6 }}>
+//                             {isManager
+//                               ? "You don't have a branch assigned yet."
+//                               : "No branches yet."}
+//                           </div>
+//                           {canCreateBranch && isAdmin && (
+//                             <button
+//                               className="btn-save"
+//                               onClick={openCreateBranch}
+//                               style={{ padding: "8px 20px", marginTop: 14 }}
+//                             >
+//                               ➕ Create First Branch
+//                             </button>
+//                           )}
+//                         </td>
+//                       </tr>
+//                     ) : (
+//                       visibleBranches.map((b) => (
+//                         <tr key={b.id}>
+//                           <td
+//                             style={{
+//                               color: "var(--info)",
+//                               fontFamily: "monospace",
+//                               fontSize: 13,
+//                             }}
+//                           >
+//                             {b.id}
+//                           </td>
+//                           <td style={{ fontWeight: 600 }}>{b.code}</td>
+//                           <td>{b.name}</td>
+//                           <td style={{ color: "var(--text-muted)" }}>
+//                             {getBranchManagerName(b)}
+//                           </td>
+//                           <td
+//                             style={{
+//                               color: "var(--text-muted)",
+//                               fontSize: 12,
+//                             }}
+//                           >
+//                             <div>{b.phone || "—"}</div>
+//                             <div style={{ color: "var(--text-dim)" }}>
+//                               {b.email || ""}
+//                             </div>
+//                           </td>
+//                           <td>
+//                             <span
+//                               className={`badge ${
+//                                 b.status === "active"
+//                                   ? "badge-branch-active"
+//                                   : "badge-branch-inactive"
+//                               }`}
+//                             >
+//                               {b.status}
+//                             </span>
+//                           </td>
+//                           <td
+//                             style={{
+//                               color: "var(--text-muted)",
+//                               fontSize: 13,
+//                               whiteSpace: "nowrap",
+//                             }}
+//                           >
+//                             {b.created_at
+//                               ? new Date(b.created_at).toLocaleDateString()
+//                               : "—"}
+//                           </td>
+//                           <td style={{ textAlign: "center" }}>
+//                             <div
+//                               style={{
+//                                 display: "flex",
+//                                 gap: 6,
+//                                 justifyContent: "center",
+//                                 flexWrap: "wrap",
+//                               }}
+//                             >
+//                               {canCopyLink && isAdmin && (
+//                                 <button
+//                                   className="btn-branch-action info"
+//                                   onClick={() => copyRegistrationLink(b)}
+//                                   title="Copy the registration link for this branch"
+//                                 >
+//                                   🔗 Copy Link
+//                                 </button>
+//                               )}
+
+//                               {canEditThisBranch(b) && (
+//                                 <button
+//                                   className="btn-branch-action"
+//                                   onClick={() => openEditBranch(b)}
+//                                   title={
+//                                     isAdmin ? "Edit branch" : "Edit your branch"
+//                                   }
+//                                 >
+//                                   ✏️ Edit
+//                                 </button>
+//                               )}
+
+//                               {canToggleBranch && isAdmin && (
+//                                 <button
+//                                   className={`btn-branch-action ${
+//                                     b.status === "active"
+//                                       ? "warning"
+//                                       : "success"
+//                                   }`}
+//                                   onClick={() => handleToggleBranchStatus(b)}
+//                                   title={
+//                                     b.status === "active"
+//                                       ? "Deactivate"
+//                                       : "Activate"
+//                                   }
+//                                 >
+//                                   {b.status === "active"
+//                                     ? "⏸ Deactivate"
+//                                     : "▶ Activate"}
+//                                 </button>
+//                               )}
+
+//                               {canDeleteBranch && isAdmin && (
+//                                 <button
+//                                   className="btn-branch-action danger"
+//                                   onClick={() => handleDeleteBranch(b)}
+//                                   title="Delete branch"
+//                                 >
+//                                   🗑 Delete
+//                                 </button>
+//                               )}
+//                             </div>
+//                           </td>
+//                         </tr>
+//                       ))
+//                     )}
+//                   </tbody>
+//                 </table>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Loan Settings */}
+//         {activeTab === "loan" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">💰 Loan Settings</div>
+
+//               <div className="info-box">
+//                 <p>
+//                   💡 Configure loan eligibility criteria, interest rates, and
+//                   borrowing limits. Members can borrow up to{" "}
+//                   <strong>50% of their total savings</strong>.
+//                 </p>
+//               </div>
+
+//               <div
+//                 style={{
+//                   marginBottom: "20px",
+//                   paddingBottom: "16px",
+//                   borderBottom: "1px solid var(--border)",
+//                 }}
+//               >
+//                 <h4
+//                   style={{
+//                     fontSize: "14px",
+//                     color: "var(--info)",
+//                     marginBottom: "12px",
+//                   }}
+//                 >
+//                   📋 Eligibility Requirements
+//                 </h4>
+
+//                 <div className="form-group">
+//                   <label className="form-label">
+//                     Minimum Membership Days for Loan Eligibility
+//                   </label>
+//                   <div className="form-row">
+//                     <div style={{ flex: 1 }}>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={loanSettings.min_membership_days}
+//                         onChange={(e) =>
+//                           setLoanSettings({
+//                             ...loanSettings,
+//                             min_membership_days: parseInt(e.target.value) || 0,
+//                           })
+//                         }
+//                         min="0"
+//                       />
+//                     </div>
+//                     <div style={{ flex: 1 }}>
+//                       <input
+//                         type="text"
+//                         className="form-input"
+//                         value={getDaysToMonthsDisplay(
+//                           loanSettings.min_membership_days,
+//                         )}
+//                         disabled
+//                         style={{ opacity: 0.6 }}
+//                       />
+//                     </div>
+//                   </div>
+//                 </div>
+
+//                 <div className="form-checkbox">
+//                   <input
+//                     type="checkbox"
+//                     checked={loanSettings.enable_loan_requests}
+//                     onChange={(e) =>
+//                       setLoanSettings({
+//                         ...loanSettings,
+//                         enable_loan_requests: e.target.checked,
+//                       })
+//                     }
+//                   />
+//                   <span className="form-checkbox-label">
+//                     Enable Loan Requests
+//                   </span>
+//                 </div>
+
+//                 <div className="form-checkbox">
+//                   <input
+//                     type="checkbox"
+//                     checked={loanSettings.require_admin_approval}
+//                     onChange={(e) =>
+//                       setLoanSettings({
+//                         ...loanSettings,
+//                         require_admin_approval: e.target.checked,
+//                       })
+//                     }
+//                   />
+//                   <span className="form-checkbox-label">
+//                     Require Admin Approval for Loans
+//                   </span>
+//                 </div>
+
+//                 <div className="form-checkbox">
+//                   <input
+//                     type="checkbox"
+//                     checked={loanSettings.auto_approve_small_loans}
+//                     onChange={(e) =>
+//                       setLoanSettings({
+//                         ...loanSettings,
+//                         auto_approve_small_loans: e.target.checked,
+//                       })
+//                     }
+//                   />
+//                   <span className="form-checkbox-label">
+//                     Auto-Approve Small Loans
+//                   </span>
+//                 </div>
+
+//                 {loanSettings.auto_approve_small_loans && (
+//                   <div className="form-group">
+//                     <label className="form-label">
+//                       Small Loan Threshold (₦)
+//                     </label>
+//                     <input
+//                       type="number"
+//                       className="form-input"
+//                       value={loanSettings.small_loan_threshold}
+//                       onChange={(e) =>
+//                         setLoanSettings({
+//                           ...loanSettings,
+//                           small_loan_threshold: parseInt(e.target.value) || 0,
+//                         })
+//                       }
+//                     />
+//                   </div>
+//                 )}
+//               </div>
+
+//               <div
+//                 style={{
+//                   marginBottom: "20px",
+//                   paddingBottom: "16px",
+//                   borderBottom: "1px solid var(--border)",
+//                 }}
+//               >
+//                 <h4
+//                   style={{
+//                     fontSize: "14px",
+//                     color: "var(--warning)",
+//                     marginBottom: "12px",
+//                   }}
+//                 >
+//                   💰 Interest & Duration
+//                 </h4>
+
+//                 <div className="form-row">
+//                   <div className="form-group">
+//                     <label className="form-label">Interest Rate (%)</label>
+//                     <input
+//                       type="number"
+//                       className="form-input"
+//                       value={loanSettings.interest_rate}
+//                       onChange={(e) =>
+//                         setLoanSettings({
+//                           ...loanSettings,
+//                           interest_rate: parseFloat(e.target.value) || 0,
+//                         })
+//                       }
+//                       min="0"
+//                       step="0.5"
+//                     />
+//                   </div>
+
+//                   <div className="form-group">
+//                     <label className="form-label">
+//                       Maximum Loan Duration (Months)
+//                     </label>
+//                     <input
+//                       type="number"
+//                       className="form-input"
+//                       value={loanSettings.max_duration_months}
+//                       onChange={(e) =>
+//                         setLoanSettings({
+//                           ...loanSettings,
+//                           max_duration_months: parseInt(e.target.value) || 1,
+//                         })
+//                       }
+//                       min="1"
+//                     />
+//                   </div>
+//                 </div>
+
+//                 <div className="form-row">
+//                   <div className="form-group">
+//                     <label className="form-label">
+//                       Late Payment Penalty (%)
+//                     </label>
+//                     <input
+//                       type="number"
+//                       className="form-input"
+//                       value={loanSettings.late_payment_penalty}
+//                       onChange={(e) =>
+//                         setLoanSettings({
+//                           ...loanSettings,
+//                           late_payment_penalty: parseFloat(e.target.value) || 0,
+//                         })
+//                       }
+//                       min="0"
+//                       step="0.5"
+//                     />
+//                   </div>
+
+//                   <div className="form-group">
+//                     <label className="form-label">Grace Period (Days)</label>
+//                     <input
+//                       type="number"
+//                       className="form-input"
+//                       value={loanSettings.grace_period_days}
+//                       onChange={(e) =>
+//                         setLoanSettings({
+//                           ...loanSettings,
+//                           grace_period_days: parseInt(e.target.value) || 0,
+//                         })
+//                       }
+//                       min="0"
+//                     />
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div
+//                 style={{
+//                   marginBottom: "20px",
+//                   paddingBottom: "16px",
+//                   borderBottom: "1px solid var(--border)",
+//                 }}
+//               >
+//                 <h4
+//                   style={{
+//                     fontSize: "14px",
+//                     color: "var(--accent-text)",
+//                     marginBottom: "12px",
+//                   }}
+//                 >
+//                   🔒 Loan Restrictions
+//                 </h4>
+
+//                 <div className="loan-restriction-box">
+//                   <div className="form-row">
+//                     <div className="form-group">
+//                       <label className="form-label">
+//                         Maximum Loans Per Member
+//                       </label>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={loanSettings.max_loans_per_member}
+//                         onChange={(e) =>
+//                           setLoanSettings({
+//                             ...loanSettings,
+//                             max_loans_per_member: parseInt(e.target.value) || 1,
+//                           })
+//                         }
+//                         min="1"
+//                       />
+//                     </div>
+
+//                     <div className="form-group">
+//                       <label className="form-label">
+//                         Loan Cooldown Period (Days)
+//                       </label>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={loanSettings.loan_cooldown_days}
+//                         onChange={(e) =>
+//                           setLoanSettings({
+//                             ...loanSettings,
+//                             loan_cooldown_days: parseInt(e.target.value) || 0,
+//                           })
+//                         }
+//                         min="0"
+//                       />
+//                     </div>
+//                   </div>
+//                 </div>
+//               </div>
+
+//               <div className="rule-box">
+//                 <h4>💰 Borrowing Rule: 50% of Savings</h4>
+//                 <p>
+//                   Members can borrow <strong>50%</strong> of their total
+//                   savings.
+//                 </p>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Contribution Settings */}
+//         {activeTab === "contribution" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">
+//                 💰 Contribution Settings
+//               </div>
+
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Daily Contribution Limit</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={contributionSettings.daily_limit}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         daily_limit: parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Minimum Deposit</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={contributionSettings.min_deposit}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         min_deposit: parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               </div>
+
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Maximum Deposit</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={contributionSettings.max_deposit}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         max_deposit: parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">
+//                     Default Contribution Amount
+//                   </label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={contributionSettings.default_contribution_amount}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         default_contribution_amount:
+//                           parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               </div>
+
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Max Daily Deposits</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={contributionSettings.max_daily_deposits}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         max_daily_deposits: parseInt(e.target.value) || 1,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Contribution Frequency</label>
+//                   <select
+//                     className="form-select"
+//                     value={contributionSettings.contribution_frequency}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         contribution_frequency: e.target.value,
+//                       })
+//                     }
+//                   >
+//                     <option value="daily">Daily</option>
+//                     <option value="weekly">Weekly</option>
+//                     <option value="monthly">Monthly</option>
+//                     <option value="custom">Custom</option>
+//                   </select>
+//                 </div>
+//               </div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={contributionSettings.allow_multiple_deposits}
+//                   onChange={(e) =>
+//                     setContributionSettings({
+//                       ...contributionSettings,
+//                       allow_multiple_deposits: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Allow Multiple Deposits per Day
+//                 </span>
+//               </div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={contributionSettings.enable_auto_contribution}
+//                   onChange={(e) =>
+//                     setContributionSettings({
+//                       ...contributionSettings,
+//                       enable_auto_contribution: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Enable Auto-Contribution
+//                 </span>
+//               </div>
+
+//               {contributionSettings.enable_auto_contribution && (
+//                 <div className="form-group">
+//                   <label className="form-label">Auto-Contribution Time</label>
+//                   <input
+//                     type="time"
+//                     className="form-input"
+//                     value={contributionSettings.auto_contribution_time}
+//                     onChange={(e) =>
+//                       setContributionSettings({
+//                         ...contributionSettings,
+//                         auto_contribution_time: e.target.value,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               )}
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Commission Settings */}
+//         {activeTab === "commission" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">💸 Commission Settings</div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={commissionSettings.enable_commission}
+//                   onChange={(e) =>
+//                     setCommissionSettings({
+//                       ...commissionSettings,
+//                       enable_commission: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">Enable Commission</span>
+//               </div>
+
+//               {commissionSettings.enable_commission && (
+//                 <>
+//                   <div className="form-row">
+//                     <div className="form-group">
+//                       <label className="form-label">Commission Type</label>
+//                       <select
+//                         className="form-select"
+//                         value={commissionSettings.commission_type}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             commission_type: e.target.value,
+//                           })
+//                         }
+//                       >
+//                         <option value="percentage">Percentage</option>
+//                         <option value="fixed">Fixed Amount</option>
+//                         <option value="both">Both</option>
+//                       </select>
+//                     </div>
+//                     <div className="form-group">
+//                       <label className="form-label">Commission Rate</label>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={commissionSettings.commission_rate}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             commission_rate: parseFloat(e.target.value) || 0,
+//                           })
+//                         }
+//                       />
+//                     </div>
+//                   </div>
+
+//                   <div className="form-row">
+//                     <div className="form-group">
+//                       <label className="form-label">
+//                         Min Commission Amount
+//                       </label>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={commissionSettings.min_commission_amount}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             min_commission_amount:
+//                               parseInt(e.target.value) || 0,
+//                           })
+//                         }
+//                       />
+//                     </div>
+//                     <div className="form-group">
+//                       <label className="form-label">
+//                         Max Commission Amount
+//                       </label>
+//                       <input
+//                         type="number"
+//                         className="form-input"
+//                         value={commissionSettings.max_commission_amount}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             max_commission_amount:
+//                               parseInt(e.target.value) || 0,
+//                           })
+//                         }
+//                       />
+//                     </div>
+//                   </div>
+
+//                   <div className="form-row">
+//                     <div className="form-group">
+//                       <label className="form-label">Commission Period</label>
+//                       <select
+//                         className="form-select"
+//                         value={commissionSettings.commission_period}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             commission_period: e.target.value,
+//                           })
+//                         }
+//                       >
+//                         <option value="daily">Daily</option>
+//                         <option value="weekly">Weekly</option>
+//                         <option value="monthly">Monthly</option>
+//                         <option value="per_transaction">Per Transaction</option>
+//                       </select>
+//                     </div>
+//                     <div className="form-group">
+//                       <label className="form-label">Apply Commission On</label>
+//                       <select
+//                         className="form-select"
+//                         value={commissionSettings.apply_commission_on}
+//                         onChange={(e) =>
+//                           setCommissionSettings({
+//                             ...commissionSettings,
+//                             apply_commission_on: e.target.value,
+//                           })
+//                         }
+//                       >
+//                         <option value="deposit">Deposits</option>
+//                         <option value="withdrawal">Withdrawals</option>
+//                         <option value="transfer">Transfers</option>
+//                         <option value="all">All Transactions</option>
+//                       </select>
+//                     </div>
+//                   </div>
+
+//                   <div className="form-group">
+//                     <label className="form-label">Commission Account</label>
+//                     <select
+//                       className="form-select"
+//                       value={commissionSettings.commission_account}
+//                       onChange={(e) =>
+//                         setCommissionSettings({
+//                           ...commissionSettings,
+//                           commission_account: e.target.value,
+//                         })
+//                       }
+//                     >
+//                       <option value="admin">Admin Account</option>
+//                       <option value="company">Company Account</option>
+//                       <option value="branch">Branch Account</option>
+//                     </select>
+//                   </div>
+//                 </>
+//               )}
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Payment Settings */}
+//         {activeTab === "payment" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">💳 Payment Settings</div>
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Payment Percentage (%)</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={paymentSettings.payment_percentage}
+//                     onChange={(e) =>
+//                       setPaymentSettings({
+//                         ...paymentSettings,
+//                         payment_percentage: parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Max Payment Count</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={paymentSettings.max_payment_count}
+//                     onChange={(e) =>
+//                       setPaymentSettings({
+//                         ...paymentSettings,
+//                         max_payment_count: parseInt(e.target.value) || 1,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={paymentSettings.allow_partial_payment}
+//                   onChange={(e) =>
+//                     setPaymentSettings({
+//                       ...paymentSettings,
+//                       allow_partial_payment: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Allow Partial Payment
+//                 </span>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={paymentSettings.enable_refunds}
+//                   onChange={(e) =>
+//                     setPaymentSettings({
+//                       ...paymentSettings,
+//                       enable_refunds: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">Enable Refunds</span>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={paymentSettings.require_admin_approval}
+//                   onChange={(e) =>
+//                     setPaymentSettings({
+//                       ...paymentSettings,
+//                       require_admin_approval: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Require Admin Approval for Refunds
+//                 </span>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Discount Settings */}
+//         {activeTab === "discount" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">🏷️ Discount Settings</div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={discountSettings.enable_discounts}
+//                   onChange={(e) =>
+//                     setDiscountSettings({
+//                       ...discountSettings,
+//                       enable_discounts: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">Enable Discounts</span>
+//               </div>
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Default Discount (%)</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={discountSettings.default_discount_percentage}
+//                     onChange={(e) =>
+//                       setDiscountSettings({
+//                         ...discountSettings,
+//                         default_discount_percentage:
+//                           parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Max Discount (%)</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={discountSettings.max_discount_percentage}
+//                     onChange={(e) =>
+//                       setDiscountSettings({
+//                         ...discountSettings,
+//                         max_discount_percentage: parseInt(e.target.value) || 0,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={discountSettings.loyalty_discount_enabled}
+//                   onChange={(e) =>
+//                     setDiscountSettings({
+//                       ...discountSettings,
+//                       loyalty_discount_enabled: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Enable Loyalty Discount
+//                 </span>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={discountSettings.bulk_discount_enabled}
+//                   onChange={(e) =>
+//                     setDiscountSettings({
+//                       ...discountSettings,
+//                       bulk_discount_enabled: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Enable Bulk Discount
+//                 </span>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Security Settings */}
+//         {activeTab === "security" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">🔒 Security Settings</div>
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">
+//                     Session Timeout (minutes)
+//                   </label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={securitySettings.session_timeout}
+//                     onChange={(e) =>
+//                       setSecuritySettings({
+//                         ...securitySettings,
+//                         session_timeout: parseInt(e.target.value) || 10,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Max Login Attempts</label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={securitySettings.max_login_attempts}
+//                     onChange={(e) =>
+//                       setSecuritySettings({
+//                         ...securitySettings,
+//                         max_login_attempts: parseInt(e.target.value) || 3,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={securitySettings.two_factor_auth}
+//                   onChange={(e) =>
+//                     setSecuritySettings({
+//                       ...securitySettings,
+//                       two_factor_auth: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Enable Two-Factor Authentication
+//                 </span>
+//               </div>
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={securitySettings.require_strong_password}
+//                   onChange={(e) =>
+//                     setSecuritySettings({
+//                       ...securitySettings,
+//                       require_strong_password: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Require Strong Password
+//                 </span>
+//               </div>
+//             </div>
+//           </div>
+//         )}
+
+//         {/* Suspension Settings */}
+//         {activeTab === "suspension" && (
+//           <div>
+//             <div className="settings-card">
+//               <div className="settings-card-title">
+//                 🚫 Account Suspension Settings
+//               </div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={suspensionSettings.auto_suspend_inactive}
+//                   onChange={(e) =>
+//                     setSuspensionSettings({
+//                       ...suspensionSettings,
+//                       auto_suspend_inactive: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Auto-suspend inactive accounts
+//                 </span>
+//               </div>
+
+//               {suspensionSettings.auto_suspend_inactive && (
+//                 <div className="form-group">
+//                   <label className="form-label">
+//                     Inactive Days Before Suspension
+//                   </label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={suspensionSettings.inactive_days}
+//                     onChange={(e) =>
+//                       setSuspensionSettings({
+//                         ...suspensionSettings,
+//                         inactive_days: parseInt(e.target.value) || 30,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               )}
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={suspensionSettings.suspend_on_negative_balance}
+//                   onChange={(e) =>
+//                     setSuspensionSettings({
+//                       ...suspensionSettings,
+//                       suspend_on_negative_balance: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Suspend accounts with negative balance
+//                 </span>
+//               </div>
+
+//               {suspensionSettings.suspend_on_negative_balance && (
+//                 <div className="form-group">
+//                   <label className="form-label">
+//                     Negative Balance Threshold
+//                   </label>
+//                   <input
+//                     type="number"
+//                     className="form-input"
+//                     value={suspensionSettings.negative_balance_threshold}
+//                     onChange={(e) =>
+//                       setSuspensionSettings({
+//                         ...suspensionSettings,
+//                         negative_balance_threshold:
+//                           parseInt(e.target.value) || 5000,
+//                       })
+//                     }
+//                   />
+//                 </div>
+//               )}
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={
+//                     suspensionSettings.require_admin_approval_for_reactivation
+//                   }
+//                   onChange={(e) =>
+//                     setSuspensionSettings({
+//                       ...suspensionSettings,
+//                       require_admin_approval_for_reactivation: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Require Admin Approval for Reactivation
+//                 </span>
+//               </div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={suspensionSettings.send_notification_on_suspension}
+//                   onChange={(e) =>
+//                     setSuspensionSettings({
+//                       ...suspensionSettings,
+//                       send_notification_on_suspension: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Send Notification to Member on Suspension
+//                 </span>
+//               </div>
+
+//               <div className="form-checkbox">
+//                 <input
+//                   type="checkbox"
+//                   checked={suspensionSettings.notify_admin_on_suspension}
+//                   onChange={(e) =>
+//                     setSuspensionSettings({
+//                       ...suspensionSettings,
+//                       notify_admin_on_suspension: e.target.checked,
+//                     })
+//                   }
+//                 />
+//                 <span className="form-checkbox-label">
+//                   Notify Admin on Suspension
+//                 </span>
+//               </div>
+//             </div>
+
+//             {/* Active Members List */}
+//             <div className="settings-card">
+//               <div className="settings-card-title">👥 Active Members</div>
+//               <div style={{ marginBottom: "16px" }}>
+//                 <input
+//                   type="text"
+//                   className="search-input"
+//                   placeholder="Search members..."
+//                   value={searchTerm}
+//                   onChange={(e) => setSearchTerm(e.target.value)}
+//                 />
+//               </div>
+//               <div style={{ overflowX: "auto" }}>
+//                 <table className="suspended-table">
+//                   <thead>
+//                     <tr>
+//                       <th>Name</th>
+//                       <th>Email</th>
+//                       <th>Phone</th>
+//                       <th>Balance</th>
+//                       <th>Status</th>
+//                       <th style={{ textAlign: "center" }}>Action</th>
+//                     </tr>
+//                   </thead>
+//                   <tbody>
+//                     {members
+//                       .filter((m) => {
+//                         if (!searchTerm) return true;
+//                         const term = searchTerm.toLowerCase();
+//                         return (
+//                           (m.name || "").toLowerCase().includes(term) ||
+//                           (m.email || "").toLowerCase().includes(term) ||
+//                           (m.phone && m.phone.includes(term))
+//                         );
+//                       })
+//                       .map((member) => (
+//                         <tr key={member.id}>
+//                           <td style={{ fontWeight: "500" }}>{member.name}</td>
+//                           <td style={{ color: "var(--text-muted)" }}>
+//                             {member.email}
+//                           </td>
+//                           <td style={{ color: "var(--text-muted)" }}>
+//                             {member.phone || "N/A"}
+//                           </td>
+//                           <td
+//                             style={{
+//                               color: "var(--credit)",
+//                               fontWeight: "600",
+//                             }}
+//                           >
+//                             {formatNaira(member.balance)}
+//                           </td>
+//                           <td>
+//                             <span className="badge badge-active">
+//                               {member.status || "Active"}
+//                             </span>
+//                           </td>
+//                           <td style={{ textAlign: "center" }}>
+//                             <button
+//                               className="btn-suspend"
+//                               onClick={() => handleSuspendAccount(member)}
+//                             >
+//                               Suspend
+//                             </button>
+//                           </td>
+//                         </tr>
+//                       ))}
+//                   </tbody>
+//                 </table>
+//                 {members.length === 0 && (
+//                   <div
+//                     style={{
+//                       textAlign: "center",
+//                       padding: "24px",
+//                       color: "var(--text-muted)",
+//                     }}
+//                   >
+//                     No active members found in{" "}
+//                     {activeBranch?.name || "this branch"}
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+
+//             {/* Suspended Accounts List */}
+//             <div className="settings-card">
+//               <div className="settings-card-title">🚫 Suspended Accounts</div>
+//               <div style={{ overflowX: "auto" }}>
+//                 <table className="suspended-table">
+//                   <thead>
+//                     <tr>
+//                       <th>Name</th>
+//                       <th>Email</th>
+//                       <th>Reason</th>
+//                       <th>Date</th>
+//                       <th>Balance</th>
+//                       <th>Duration</th>
+//                       <th style={{ textAlign: "center" }}>Action</th>
+//                     </tr>
+//                   </thead>
+//                   <tbody>
+//                     {filteredSuspended.map((account) => (
+//                       <tr key={account.id}>
+//                         <td style={{ fontWeight: "500" }}>{account.name}</td>
+//                         <td style={{ color: "var(--text-muted)" }}>
+//                           {account.email}
+//                         </td>
+//                         <td style={{ color: "var(--debit)", fontSize: "12px" }}>
+//                           {account.reason}
+//                         </td>
+//                         <td style={{ color: "var(--text-muted)" }}>
+//                           {formatDate(account.suspended_date)}
+//                         </td>
+//                         <td
+//                           style={{
+//                             color:
+//                               account.balance < 0
+//                                 ? "var(--debit)"
+//                                 : "var(--credit)",
+//                             fontWeight: "600",
+//                           }}
+//                         >
+//                           {formatNaira(account.balance)}
+//                         </td>
+//                         <td>
+//                           <span
+//                             className={`badge ${
+//                               account.duration === "permanent"
+//                                 ? "badge-permanent"
+//                                 : "badge-temporary"
+//                             }`}
+//                           >
+//                             {account.duration}
+//                           </span>
+//                         </td>
+//                         <td style={{ textAlign: "center" }}>
+//                           <button
+//                             className="btn-reactivate"
+//                             onClick={() => handleReactivateAccount(account)}
+//                           >
+//                             Reactivate
+//                           </button>
+//                         </td>
+//                       </tr>
+//                     ))}
+//                   </tbody>
+//                 </table>
+//                 {filteredSuspended.length === 0 && (
+//                   <div
+//                     style={{
+//                       textAlign: "center",
+//                       padding: "24px",
+//                       color: "var(--text-muted)",
+//                     }}
+//                   >
+//                     No suspended accounts
+//                   </div>
+//                 )}
+//               </div>
+//             </div>
+//           </div>
+//         )}
+//       </div>
+
+//       {/* BRANCH MODAL */}
+//       {showBranchModal && (
+//         <div className="modal-overlay" onClick={closeBranchModal}>
+//           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
+//             <div className="modal-header">
+//               <h3 className="modal-title">
+//                 {editingBranch
+//                   ? isAdmin
+//                     ? "✏️ Edit Branch"
+//                     : "✏️ Edit My Branch"
+//                   : "➕ New Branch"}
+//               </h3>
+//               <button className="modal-close" onClick={closeBranchModal}>
+//                 ✕
+//               </button>
+//             </div>
+
+//             <form onSubmit={handleSaveBranch}>
+//               {!isAdmin && editingBranch && (
+//                 <div
+//                   style={{
+//                     background: "var(--accent-bg)",
+//                     border: "1px solid var(--border)",
+//                     borderRadius: 8,
+//                     padding: "10px 14px",
+//                     marginBottom: 14,
+//                     fontSize: 12,
+//                     color: "var(--text)",
+//                   }}
+//                 >
+//                   🔒 You can update the <strong>name</strong>,{" "}
+//                   <strong>address</strong>, <strong>phone</strong> and{" "}
+//                   <strong>email</strong> of your branch. Code, status, and
+//                   manager assignment are admin-only.
+//                 </div>
+//               )}
+
+//               <div className="form-group">
+//                 <label className="form-label">
+//                   Branch Code *{" "}
+//                   {!isAdmin && (
+//                     <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>
+//                       (admin only)
+//                     </span>
+//                   )}
+//                 </label>
+//                 <input
+//                   type="text"
+//                   className="form-input"
+//                   value={branchForm.code}
+//                   onChange={(e) =>
+//                     setBranchForm({ ...branchForm, code: e.target.value })
+//                   }
+//                   placeholder="e.g. BR-A, BR-B"
+//                   disabled={!isAdmin}
+//                   required
+//                 />
+//                 <p
+//                   style={{
+//                     fontSize: "11px",
+//                     color: "var(--text-dim)",
+//                     marginTop: "4px",
+//                   }}
+//                 >
+//                   Short unique identifier for the branch
+//                 </p>
+//               </div>
+
+//               <div className="form-group">
+//                 <label className="form-label">Branch Name *</label>
+//                 <input
+//                   type="text"
+//                   className="form-input"
+//                   value={branchForm.name}
+//                   onChange={(e) =>
+//                     setBranchForm({ ...branchForm, name: e.target.value })
+//                   }
+//                   placeholder="e.g. Branch A — Lagos"
+//                   required
+//                 />
+//               </div>
+
+//               {isAdmin && (
+//                 <div className="form-group">
+//                   <label className="form-label">Branch Manager</label>
+//                   <select
+//                     className="form-select"
+//                     value={branchForm.manager_id || ""}
+//                     onChange={(e) => {
+//                       const id = e.target.value;
+//                       const picked = id
+//                         ? managers.find((m) => String(m.id) === String(id))
+//                         : null;
+//                       setBranchForm({
+//                         ...branchForm,
+//                         manager_id: id,
+//                         manager: picked ? picked.name : "",
+//                       });
+//                     }}
+//                   >
+//                     <option value="">— No manager assigned —</option>
+
+//                     {branchForm.manager_id &&
+//                       !managers.some(
+//                         (m) => String(m.id) === String(branchForm.manager_id),
+//                       ) &&
+//                       branchForm.manager && (
+//                         <option value={branchForm.manager_id}>
+//                           {branchForm.manager} (no longer a Manager)
+//                         </option>
+//                       )}
+
+//                     {managers.length === 0 ? (
+//                       <option value="" disabled>
+//                         No managers available — promote a member to Manager
+//                         first
+//                       </option>
+//                     ) : (
+//                       managers.map((m) => (
+//                         <option key={m.id} value={m.id}>
+//                           {m.name}
+//                           {m.email ? ` (${m.email})` : ""}
+//                         </option>
+//                       ))
+//                     )}
+//                   </select>
+//                   <p
+//                     style={{
+//                       fontSize: "11px",
+//                       color: "var(--text-dim)",
+//                       marginTop: "4px",
+//                     }}
+//                   >
+//                     Only users with the <strong>Manager</strong> role can be
+//                     assigned as a branch manager. Optional.
+//                   </p>
+//                 </div>
+//               )}
+
+//               <div className="form-row">
+//                 <div className="form-group">
+//                   <label className="form-label">Phone</label>
+//                   <input
+//                     type="tel"
+//                     className="form-input"
+//                     value={branchForm.phone}
+//                     onChange={(e) =>
+//                       setBranchForm({ ...branchForm, phone: e.target.value })
+//                     }
+//                     placeholder="Optional"
+//                   />
+//                 </div>
+//                 <div className="form-group">
+//                   <label className="form-label">Email</label>
+//                   <input
+//                     type="email"
+//                     className="form-input"
+//                     value={branchForm.email}
+//                     onChange={(e) =>
+//                       setBranchForm({ ...branchForm, email: e.target.value })
+//                     }
+//                     placeholder="Optional"
+//                   />
+//                 </div>
+//               </div>
+
+//               <div className="form-group">
+//                 <label className="form-label">Address</label>
+//                 <input
+//                   type="text"
+//                   className="form-input"
+//                   value={branchForm.address}
+//                   onChange={(e) =>
+//                     setBranchForm({ ...branchForm, address: e.target.value })
+//                   }
+//                   placeholder="Optional"
+//                 />
+//               </div>
+
+//               {editingBranch && isAdmin && (
+//                 <div className="form-group">
+//                   <label className="form-label">Status</label>
+//                   <select
+//                     className="form-select"
+//                     value={branchForm.status}
+//                     onChange={(e) =>
+//                       setBranchForm({ ...branchForm, status: e.target.value })
+//                     }
+//                   >
+//                     <option value="active">Active</option>
+//                     <option value="inactive">Inactive</option>
+//                   </select>
+//                 </div>
+//               )}
+
+//               <div
+//                 style={{
+//                   display: "flex",
+//                   gap: "8px",
+//                   marginTop: "16px",
+//                   paddingTop: "16px",
+//                   borderTop: "1px solid var(--border)",
+//                 }}
+//               >
+//                 <button
+//                   type="button"
+//                   className="btn-cancel"
+//                   onClick={closeBranchModal}
+//                   disabled={branchesSaving}
+//                 >
+//                   Cancel
+//                 </button>
+//                 <button
+//                   type="submit"
+//                   className="btn-confirm btn-confirm-success"
+//                   disabled={branchesSaving}
+//                 >
+//                   {branchesSaving
+//                     ? "Saving…"
+//                     : editingBranch
+//                       ? "Save Changes"
+//                       : "Create Branch"}
+//                 </button>
+//               </div>
+//             </form>
+//           </div>
+//         </div>
+//       )}
+//     </div>
+//   );
+// };
+
+// export default AdminSettings;
+
+
 // src/components/admin/Settings.jsx
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
+import { useBranch } from "../../context/BranchContext";
+import { usePermission } from "../../context/PermissionsContext";
+import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const AdminSettings = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+  const { can } = usePermission() || {};
+  const { user } = useAuth();
+
+  // ============================================================
+  // 🆕 Role detection
+  // ============================================================
+  const roleStr = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = roleStr === "admin" || roleStr === "administrator";
+  const isManager = roleStr === "manager" || roleStr === "branch_manager";
+
+  // ============================================================
+  // Permission flags
+  // ============================================================
+  const canViewBranches =
+    typeof can === "function" ? can("view_branches") : false;
+  const canCreateBranch =
+    typeof can === "function" ? can("create_branch") : false;
+  const canEditBranch = typeof can === "function" ? can("edit_branch") : false;
+  const canDeleteBranch =
+    typeof can === "function" ? can("delete_branch") : false;
+  const canToggleBranch =
+    typeof can === "function" ? can("toggle_branch_status") : false;
+  const canCopyLink =
+    typeof can === "function" ? can("copy_registration_link") : false;
+
   const [activeTab, setActiveTab] = useState("general");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
 
   // General Settings
   const [generalSettings, setGeneralSettings] = useState({
@@ -121,6 +3375,27 @@ const AdminSettings = () => {
   const [suspendedAccounts, setSuspendedAccounts] = useState([]);
   const [transactions, setTransactions] = useState([]);
 
+  // 🆕 All managers across ALL branches (used for the branch-manager dropdown)
+  const [allManagers, setAllManagers] = useState([]);
+
+  // Branches
+  const [branches, setBranches] = useState([]);
+  const [branchesLoading, setBranchesLoading] = useState(false);
+  const [branchesSaving, setBranchesSaving] = useState(false);
+  const [showBranchModal, setShowBranchModal] = useState(false);
+  const [editingBranch, setEditingBranch] = useState(false);
+  const [branchForm, setBranchForm] = useState({
+    id: null,
+    code: "",
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    manager_id: "",
+    manager: "",
+    status: "active",
+  });
+
   const [showSuspendModal, setShowSuspendModal] = useState(false);
   const [showReactivateModal, setShowReactivateModal] = useState(false);
   const [selectedMember, setSelectedMember] = useState(null);
@@ -134,77 +3409,535 @@ const AdminSettings = () => {
     rate: "",
   });
 
+  // ============================================================
+  // 🆕 Branch ownership — the branch a manager may edit
+  // ============================================================
+  const myBranchId =
+    user?.branch_id ?? user?.branchId ?? activeBranchId ?? null;
+
+  const canEditThisBranch = (branch) => {
+    if (!branch) return false;
+    if (isAdmin) return canEditBranch === true;
+    if (!isManager) return false;
+    if (!myBranchId) return false;
+    return String(branch.id) === String(myBranchId);
+  };
+
+  const visibleBranches = useMemo(() => {
+    if (isAdmin) return branches;
+    if (isManager && myBranchId) {
+      return branches.filter((b) => String(b.id) === String(myBranchId));
+    }
+    return [];
+  }, [branches, isAdmin, isManager, myBranchId]);
+
+  // ============================================================
+  // Managers for the dropdown.
+  // - For admins, use allManagers (across all branches) so a
+  //   manager from any branch can be assigned to any branch.
+  // - For non-admins, fall back to members (branch-scoped).
+  // ============================================================
+  const managers = useMemo(() => {
+    const source = isAdmin ? allManagers : members;
+    return source.filter((m) => {
+      const r = String(m.role || "")
+        .trim()
+        .toLowerCase();
+      return (
+        r === "manager" ||
+        r === "branch_manager" ||
+        r === "branch-manager" ||
+        r === "branchmanager"
+      );
+    });
+  }, [allManagers, members, isAdmin]);
+
+  // ============================================================
+  // Initial mount — load global data once
+  // ============================================================
   useEffect(() => {
-    fetchAllData();
+    (async () => {
+      setLoading(true);
+      try {
+        await Promise.all([
+          fetchSettings(),
+          fetchBranches(),
+          fetchMembers(),
+          fetchAllManagers(),
+        ]);
+      } catch (error) {
+        console.error("Error fetching settings data:", error);
+        toast.error("Failed to load settings");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const fetchAllData = async () => {
-    setLoading(true);
+  // ============================================================
+  // Reload settings + branch-scoped data when branch changes.
+  // ============================================================
+  useEffect(() => {
+    setGeneralSettings({
+      shop_name: "",
+      shop_email: "",
+      shop_phone: "",
+      shop_address: "",
+      currency: "NGN",
+      timezone: "Africa/Lagos",
+      date_format: "DD/MM/YYYY",
+    });
+    setSearchTerm("");
+    fetchSettings();
+    fetchMembers();
+    fetchTransactions();
+    fetchSuspendedAccounts();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]);
+
+  // ============================================================
+  // Auto-switch away from branches tab if not allowed
+  // ============================================================
+  useEffect(() => {
+    if (activeTab === "branches" && !canViewBranches) {
+      setActiveTab("general");
+    }
+    if (activeTab === "branches" && isManager && !myBranchId) {
+      setActiveTab("general");
+    }
+  }, [activeTab, canViewBranches, isManager, myBranchId]);
+
+  // ============================================================
+  // MANUAL REFRESH
+  // ============================================================
+  const handleRefreshAll = async () => {
+    setRefreshing(true);
     try {
       await Promise.all([
         fetchSettings(),
         fetchMembers(),
         fetchTransactions(),
         fetchSuspendedAccounts(),
+        fetchBranches(),
+        fetchAllManagers(),
       ]);
+      toast.success("✅ Data refreshed");
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load data");
+      console.error("Error refreshing data:", error);
+      toast.error("Failed to refresh data");
     } finally {
-      setLoading(false);
+      setRefreshing(false);
     }
   };
 
+  // ============================================================
+  // FETCH BRANCHES
+  // ============================================================
+  const fetchBranches = useCallback(async () => {
+    setBranchesLoading(true);
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/branches.php`, {
+        method: "GET",
+        headers: { Accept: "application/json" },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("[branches] Non-JSON response:", text);
+        throw new Error(
+          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+        );
+      }
+
+      if (!res.ok) {
+        console.error("[branches] HTTP error:", res.status, data);
+        throw new Error(
+          data.error || `Failed to load branches (HTTP ${res.status})`,
+        );
+      }
+
+      setBranches(Array.isArray(data.branches) ? data.branches : []);
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+      toast.error(err.message || "Failed to load branches");
+      setBranches([]);
+    } finally {
+      setBranchesLoading(false);
+    }
+  }, []);
+
+  // ============================================================
+  // BRANCH MODAL HANDLERS
+  // ============================================================
+  const emptyBranchForm = {
+    id: null,
+    code: "",
+    name: "",
+    address: "",
+    phone: "",
+    email: "",
+    manager_id: "",
+    manager: "",
+    status: "active",
+  };
+
+  const openCreateBranch = () => {
+    if (!isAdmin) {
+      toast.error("Only admins can create branches");
+      return;
+    }
+    setBranchForm(emptyBranchForm);
+    setEditingBranch(false);
+    setShowBranchModal(true);
+  };
+
+  const openEditBranch = (b) => {
+    if (!canEditThisBranch(b)) {
+      toast.error("You can only edit your own branch");
+      return;
+    }
+
+    let matchedManager = null;
+    if (b.manager_id) {
+      matchedManager = managers.find(
+        (m) => String(m.id) === String(b.manager_id),
+      );
+    }
+    if (!matchedManager && b.manager) {
+      const target = b.manager.trim().toLowerCase();
+      matchedManager = managers.find(
+        (m) => (m.name || "").trim().toLowerCase() === target,
+      );
+    }
+
+    setBranchForm({
+      id: b.id,
+      code: b.code || "",
+      name: b.name || "",
+      address: b.address || "",
+      phone: b.phone || "",
+      email: b.email || "",
+      manager_id: matchedManager ? matchedManager.id : "",
+      manager: b.manager || "",
+      status: b.status || "active",
+    });
+    setEditingBranch(true);
+    setShowBranchModal(true);
+  };
+
+  const closeBranchModal = () => {
+    if (branchesSaving) return;
+    setShowBranchModal(false);
+    setBranchForm(emptyBranchForm);
+    setEditingBranch(false);
+  };
+
+  // ============================================================
+  // COPY REGISTRATION LINK (admin only)
+  // ============================================================
+  const copyRegistrationLink = (branch) => {
+    if (!isAdmin) {
+      toast.error("Only admins can share registration links");
+      return;
+    }
+    if (!branch || !branch.id) {
+      toast.error("Branch ID is missing");
+      return;
+    }
+    const link = `${window.location.origin}/register-member?branch=${branch.id}`;
+
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard
+        .writeText(link)
+        .then(() => {
+          toast.success(`📋 Link copied for ${branch.name}`, {
+            duration: 4000,
+          });
+        })
+        .catch(() => fallbackCopy(link, branch));
+    } else {
+      fallbackCopy(link, branch);
+    }
+  };
+
+  const fallbackCopy = (link, branch) => {
+    try {
+      const ta = document.createElement("textarea");
+      ta.value = link;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.select();
+      const ok = document.execCommand("copy");
+      document.body.removeChild(ta);
+      if (ok) {
+        toast.success(`📋 Link copied for ${branch.name}`, { duration: 4000 });
+      } else {
+        window.prompt("Copy this registration link:", link);
+      }
+    } catch {
+      window.prompt("Copy this registration link:", link);
+    }
+  };
+
+  // ============================================================
+  // SAVE BRANCH
+  // ============================================================
+  const handleSaveBranch = async (e) => {
+    e.preventDefault();
+    if (!branchForm.name.trim()) {
+      toast.error("Branch name is required");
+      return;
+    }
+
+    if (isAdmin && !branchForm.code.trim()) {
+      toast.error("Branch code is required");
+      return;
+    }
+
+    setBranchesSaving(true);
+    try {
+      const selectedManager =
+        isAdmin && branchForm.manager_id
+          ? managers.find((m) => String(m.id) === String(branchForm.manager_id))
+          : null;
+
+      const basePayload = {
+        name: branchForm.name.trim(),
+        address: branchForm.address.trim(),
+        phone: branchForm.phone.trim(),
+        email: branchForm.email.trim(),
+      };
+
+      const payload = isAdmin
+        ? {
+            ...basePayload,
+            code: branchForm.code.trim(),
+            manager_id: selectedManager ? selectedManager.id : null,
+            manager: selectedManager ? selectedManager.name : "",
+          }
+        : basePayload;
+
+      let url = `${API_BASE_URL}/api/branches.php`;
+      let method = "POST";
+
+      if (editingBranch) {
+        method = "PUT";
+        payload.id = branchForm.id;
+        if (isAdmin) {
+          payload.status = branchForm.status;
+        }
+        url = `${API_BASE_URL}/api/branches.php/${branchForm.id}`;
+      }
+
+      const res = await fetch(url, {
+        method,
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Role": user?.role || "",
+          "X-User-Branch-Id": String(myBranchId || ""),
+        },
+        body: JSON.stringify(payload),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        console.error("[branches] Non-JSON save response:", text);
+        throw new Error(
+          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to save branch");
+      }
+
+      toast.success(editingBranch ? "✅ Branch updated" : "✅ Branch created");
+      setShowBranchModal(false);
+      setBranchForm(emptyBranchForm);
+      setEditingBranch(false);
+      await fetchBranches();
+
+      if (!editingBranch && data.branch?.id) {
+        const newLink = `${window.location.origin}/register-member?branch=${data.branch.id}`;
+        setTimeout(() => {
+          if (
+            window.confirm(
+              `Branch "${data.branch.name}" created.\n\nCopy the registration link now?\n\n${newLink}`,
+            )
+          ) {
+            copyRegistrationLink(data.branch);
+          }
+        }, 300);
+      }
+    } catch (err) {
+      toast.error(err.message || "Failed to save branch");
+    } finally {
+      setBranchesSaving(false);
+    }
+  };
+
+  // ============================================================
+  // TOGGLE STATUS (admin only)
+  // ============================================================
+  const handleToggleBranchStatus = async (b) => {
+    if (!isAdmin) {
+      toast.error("Only admins can activate/deactivate branches");
+      return;
+    }
+    const next = b.status === "active" ? "inactive" : "active";
+    if (!window.confirm(`Change "${b.name}" to ${next.toUpperCase()}?`)) return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "X-User-Role": user?.role || "",
+          "X-User-Branch-Id": String(myBranchId || ""),
+        },
+        body: JSON.stringify({ id: b.id, status: next }),
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Server returned non-JSON (HTTP ${res.status})`);
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to update status");
+      }
+
+      toast.success(`Branch is now ${next}`);
+      await fetchBranches();
+    } catch (err) {
+      toast.error(err.message || "Failed to update status");
+    }
+  };
+
+  // ============================================================
+  // DELETE (admin only)
+  // ============================================================
+  const handleDeleteBranch = async (b) => {
+    if (!isAdmin) {
+      toast.error("Only admins can delete branches");
+      return;
+    }
+    if (
+      !window.confirm(
+        `⚠️ Delete branch "${b.name}" (${b.code})?\n\nThis cannot be undone.`,
+      )
+    )
+      return;
+
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
+        method: "DELETE",
+        headers: {
+          Accept: "application/json",
+          "X-User-Role": user?.role || "",
+          "X-User-Branch-Id": String(myBranchId || ""),
+        },
+      });
+
+      const text = await res.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
+        );
+      }
+
+      if (!res.ok) {
+        throw new Error(data.error || "Failed to delete branch");
+      }
+
+      toast.success("🗑️ Branch deleted");
+      await fetchBranches();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete branch");
+    }
+  };
+
+  // ============================================================
+  // SETTINGS FETCH — branch-scoped
+  // ============================================================
   const fetchSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/settings.php`);
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/settings.php`;
+
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.status && data.data) {
-        const settings = data.data;
+        const s = data.data;
 
-        if (settings.general) {
-          setGeneralSettings((prev) => ({ ...prev, ...settings.general }));
-        }
-        if (settings.contribution) {
-          setContributionSettings((prev) => ({
-            ...prev,
-            ...settings.contribution,
-          }));
-        }
-        if (settings.commission) {
-          setCommissionSettings((prev) => ({
-            ...prev,
-            ...settings.commission,
-          }));
-        }
-        if (settings.payment) {
-          setPaymentSettings((prev) => ({ ...prev, ...settings.payment }));
-        }
-        if (settings.discount) {
-          setDiscountSettings((prev) => ({ ...prev, ...settings.discount }));
-        }
-        if (settings.security) {
-          setSecuritySettings((prev) => ({ ...prev, ...settings.security }));
-        }
-        if (settings.suspension) {
-          setSuspensionSettings((prev) => ({
-            ...prev,
-            ...settings.suspension,
-          }));
-        }
-        if (settings.loan) {
-          setLoanSettings((prev) => ({ ...prev, ...settings.loan }));
-        }
+        setGeneralSettings({
+          shop_name: "",
+          shop_email: "",
+          shop_phone: "",
+          shop_address: "",
+          currency: "NGN",
+          timezone: "Africa/Lagos",
+          date_format: "DD/MM/YYYY",
+          ...(s.general || {}),
+        });
+
+        setContributionSettings((prev) => ({
+          ...prev,
+          ...(s.contribution || {}),
+        }));
+        setCommissionSettings((prev) => ({
+          ...prev,
+          ...(s.commission || {}),
+        }));
+        setPaymentSettings((prev) => ({
+          ...prev,
+          ...(s.payment || {}),
+        }));
+        setDiscountSettings((prev) => ({
+          ...prev,
+          ...(s.discount || {}),
+        }));
+        setSecuritySettings((prev) => ({
+          ...prev,
+          ...(s.security || {}),
+        }));
+        setSuspensionSettings((prev) => ({
+          ...prev,
+          ...(s.suspension || {}),
+        }));
+        setLoanSettings((prev) => ({
+          ...prev,
+          ...(s.loan || {}),
+        }));
       }
     } catch (error) {
       console.error("Error fetching settings:", error);
     }
   };
 
+  // 🆕 Branch-scoped members
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/members.php`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.members) {
@@ -219,9 +3952,13 @@ const AdminSettings = () => {
     }
   };
 
+  // 🆕 Branch-scoped transactions
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/transactions.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/transactions.php`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.transactions) {
@@ -232,9 +3969,13 @@ const AdminSettings = () => {
     }
   };
 
+  // 🆕 Branch-scoped suspended accounts
   const fetchSuspendedAccounts = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/members.php`;
+      const response = await fetch(url);
       const data = await response.json();
 
       if (data.members) {
@@ -256,6 +3997,37 @@ const AdminSettings = () => {
       }
     } catch (error) {
       console.error("Error fetching suspended accounts:", error);
+    }
+  };
+
+  // 🆕 NEW — fetch managers across ALL branches (for the dropdown)
+  const fetchAllManagers = async () => {
+    try {
+      // Preferred: API supports ?all=1 to return every member regardless
+      // of branch. If it doesn't, this still returns the first branch's
+      // members and the dropdown simply won't show other branches' managers.
+      const res = await fetch(`${API_BASE_URL}/api/members.php?all=1`, {
+        headers: {
+          Accept: "application/json",
+          "X-User-Role": user?.role || "",
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (!data.members) return;
+
+      const mgrs = data.members.filter((m) => {
+        const r = String(m.role || "").trim().toLowerCase();
+        return (
+          r === "manager" ||
+          r === "branch_manager" ||
+          r === "branch-manager" ||
+          r === "branchmanager"
+        );
+      });
+      setAllManagers(mgrs);
+    } catch (err) {
+      console.error("[Settings] fetchAllManagers error:", err);
     }
   };
 
@@ -296,10 +4068,14 @@ const AdminSettings = () => {
     return `${months} month${months !== 1 ? "s" : ""}, ${remainingDays} day${remainingDays !== 1 ? "s" : ""}`;
   };
 
+  // ============================================================
+  // SAVE SETTINGS — branch-scoped
+  // ============================================================
   const handleSaveSettings = async () => {
     setSaving(true);
     try {
       const settings = {
+        branch_id: activeBranchId || 0,
         general: generalSettings,
         contribution: contributionSettings,
         commission: commissionSettings,
@@ -310,28 +4086,41 @@ const AdminSettings = () => {
         loan: loanSettings,
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/settings.php`, {
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/settings.php`;
+
+      const response = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(settings),
       });
 
-      const data = await response.json();
+      const text = await response.text();
+      let data;
+      try {
+        data = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(`Server returned non-JSON: ${text.slice(0, 200)}`);
+      }
 
       if (response.ok && data.status) {
-        toast.success("Settings saved successfully!");
+        toast.success(
+          `Settings saved for ${activeBranch?.name || "this branch"}`,
+        );
+        await fetchSettings();
       } else {
-        toast.error(data.message || "Failed to save settings");
+        toast.error(data.error || data.message || "Failed to save settings");
       }
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast.error("Failed to save settings");
+      toast.error(`❌ ${error.message || "Failed to save settings"}`);
     } finally {
       setSaving(false);
     }
   };
 
-  const handleSuspendAccount = async (member) => {
+  const handleSuspendAccount = (member) => {
     setSelectedMember(member);
     setSuspensionReason("");
     setSuspensionDuration("permanent");
@@ -345,21 +4134,30 @@ const AdminSettings = () => {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...selectedMember,
-            status: "Suspended",
-            suspension_reason: suspensionReason,
-            suspension_duration: suspensionDuration,
-            suspended_date: new Date().toISOString().split("T")[0],
-            suspended_by: "Admin",
-          }),
-        },
-      );
+      const payload = {
+        name: selectedMember.name || selectedMember.full_name,
+        email: selectedMember.email,
+        phone: selectedMember.phone || "",
+        balance: selectedMember.balance || 0,
+        role: selectedMember.role || "member",
+        status: "Suspended",
+        suspension_reason: suspensionReason,
+        suspension_duration: suspensionDuration,
+        suspended_date: new Date().toISOString().split("T")[0],
+        suspended_by: "Admin",
+        ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+      };
+
+      // 🆕 branch_id in the URL so members.php scopes the PUT correctly
+      const url = `${API_BASE_URL}/api/members.php/${selectedMember.id}${
+        activeBranchId ? `?branch_id=${activeBranchId}` : ""
+      }`;
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -368,7 +4166,8 @@ const AdminSettings = () => {
         setShowSuspendModal(false);
         setSelectedMember(null);
         setSuspensionReason("");
-        await fetchAllData();
+        await fetchMembers();
+        await fetchSuspendedAccounts();
       } else {
         toast.error(data.message || "Failed to suspend account");
       }
@@ -385,21 +4184,30 @@ const AdminSettings = () => {
 
   const confirmReactivate = async () => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php/${selectedMember.id}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            ...selectedMember,
-            status: "Active",
-            suspension_reason: null,
-            suspension_duration: null,
-            suspended_date: null,
-            suspended_by: null,
-          }),
-        },
-      );
+      const payload = {
+        name: selectedMember.name || selectedMember.full_name,
+        email: selectedMember.email,
+        phone: selectedMember.phone || "",
+        balance: selectedMember.balance || 0,
+        role: selectedMember.role || "member",
+        status: "Active",
+        suspension_reason: null,
+        suspension_duration: null,
+        suspended_date: null,
+        suspended_by: null,
+        ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+      };
+
+      // 🆕 branch_id in the URL so members.php scopes the PUT correctly
+      const url = `${API_BASE_URL}/api/members.php/${selectedMember.id}${
+        activeBranchId ? `?branch_id=${activeBranchId}` : ""
+      }`;
+
+      const response = await fetch(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
       const data = await response.json();
 
@@ -409,7 +4217,8 @@ const AdminSettings = () => {
         );
         setShowReactivateModal(false);
         setSelectedMember(null);
-        await fetchAllData();
+        await fetchMembers();
+        await fetchSuspendedAccounts();
       } else {
         toast.error(data.message || "Failed to reactivate account");
       }
@@ -449,12 +4258,22 @@ const AdminSettings = () => {
   const filteredSuspended = suspendedAccounts.filter((account) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
-    return (
-      account.name.toLowerCase().includes(term) ||
-      account.email.toLowerCase().includes(term) ||
-      account.phone.includes(term)
-    );
+    const name = (account.name || "").toLowerCase();
+    const email = (account.email || "").toLowerCase();
+    const phone = account.phone || "";
+    return name.includes(term) || email.includes(term) || phone.includes(term);
   });
+
+  const getBranchManagerName = (b) => {
+    if (b.manager) return b.manager;
+    if (b.manager_id) {
+      const m =
+        managers.find((mm) => String(mm.id) === String(b.manager_id)) ||
+        members.find((mm) => String(mm.id) === String(b.manager_id));
+      if (m) return m.name;
+    }
+    return "—";
+  };
 
   if (loading) {
     return (
@@ -498,494 +4317,312 @@ const AdminSettings = () => {
       }}
     >
       <style>{`
-        .settings-container {
-          max-width: 1200px;
-          margin: 0 auto;
-        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .settings-container { max-width: 1200px; margin: 0 auto; }
         .settings-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-          gap: 12px;
+          display: flex; justify-content: space-between; align-items: center;
+          margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
         }
         .tabs-container {
-          display: flex;
-          gap: 4px;
+          display: flex; gap: 4px;
           background-color: var(--bg-surface-2);
           border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 4px;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
+          border-radius: 12px; padding: 4px;
+          margin-bottom: 24px; flex-wrap: wrap;
         }
         .tab-btn {
-          padding: 10px 16px;
-          border-radius: 8px;
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          transition: all 0.2s;
-          flex: 1;
-          min-width: 80px;
+          padding: 10px 16px; border-radius: 8px; border: none;
+          background: transparent; color: var(--text-muted);
+          cursor: pointer; font-size: 13px; font-weight: 500;
+          transition: all 0.2s; flex: 1; min-width: 80px;
         }
-        .tab-btn:hover {
-          color: var(--text);
-          background: var(--bg-surface-3);
+        .tab-btn:hover { color: var(--text); background: var(--bg-surface-3); }
+        .tab-btn.active { background: var(--accent); color: #ffffff; }
+        .tab-btn-branches {
+          background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(59,130,246,0.18));
+          border: 1px solid var(--accent);
+          color: var(--accent-text, #10b981);
+          font-weight: 700; display: inline-flex;
+          align-items: center; justify-content: center; gap: 6px;
         }
-        .tab-btn.active {
-          background: var(--accent);
-          color: #ffffff;
+        .tab-btn-branches.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
+        .branch-tab-badge {
+          background: var(--accent); color: #ffffff;
+          font-size: 11px; font-weight: 700;
+          padding: 1px 7px; border-radius: 10px;
+          line-height: 1.4; min-width: 18px; text-align: center;
         }
+        .tab-btn-branches.active .branch-tab-badge { background: #ffffff; color: var(--accent); }
         .settings-card {
           background-color: var(--bg-surface);
           border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 20px;
+          border-radius: 12px; padding: 20px; margin-bottom: 20px;
         }
         .settings-card-title {
-          font-size: 16px;
-          font-weight: 600;
-          margin-bottom: 16px;
-          display: flex;
-          align-items: center;
-          gap: 8px;
-          color: var(--text);
+          font-size: 16px; font-weight: 600; margin-bottom: 16px;
+          display: flex; align-items: center; gap: 8px; color: var(--text);
         }
-        .form-group {
-          margin-bottom: 16px;
-        }
+        .form-group { margin-bottom: 16px; }
         .form-label {
-          display: block;
-          font-size: 13px;
-          font-weight: 500;
-          color: var(--text-muted);
-          margin-bottom: 6px;
+          display: block; font-size: 13px; font-weight: 500;
+          color: var(--text-muted); margin-bottom: 6px;
         }
-        .form-input {
-          width: 100%;
-          padding: 10px 14px;
-          border-radius: 8px;
+        .form-input, .form-select {
+          width: 100%; padding: 10px 14px; border-radius: 8px;
           border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          box-sizing: border-box;
+          background: var(--bg-surface-2); color: var(--text);
+          font-size: 14px; outline: none;
+          transition: border-color 0.2s; box-sizing: border-box;
         }
-        .form-input:focus {
-          border-color: var(--accent);
-        }
-        .form-input::placeholder {
-          color: var(--text-dim);
-        }
+        .form-input:focus, .form-select:focus { border-color: var(--accent); }
+        .form-input::placeholder { color: var(--text-dim); }
         .form-input:disabled {
-          opacity: 0.6;
+          opacity: 0.55;
+          cursor: not-allowed;
+          background: var(--bg-surface-3, rgba(0,0,0,0.05));
         }
-        .form-select {
-          width: 100%;
-          padding: 10px 14px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          cursor: pointer;
-          transition: border-color 0.2s;
-        }
-        .form-select:focus {
-          border-color: var(--accent);
-        }
-        .form-select option {
-          background: var(--bg-surface);
-          color: var(--text);
-        }
+        .form-select option { background: var(--bg-surface); color: var(--text); }
         .form-checkbox {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-          margin-bottom: 10px;
-          cursor: pointer;
+          display: flex; align-items: center; gap: 10px;
+          margin-bottom: 10px; cursor: pointer;
         }
         .form-checkbox input[type="checkbox"] {
-          width: 18px;
-          height: 18px;
-          accent-color: var(--accent);
-          cursor: pointer;
+          width: 18px; height: 18px;
+          accent-color: var(--accent); cursor: pointer;
         }
-        .form-checkbox-label {
-          font-size: 14px;
-          color: var(--text);
-        }
-        .form-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 16px;
-        }
+        .form-checkbox-label { font-size: 14px; color: var(--text); }
+        .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
         .btn-save {
-          padding: 10px 32px;
-          border-radius: 8px;
-          border: none;
-          background: var(--accent);
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s;
+          padding: 10px 32px; border-radius: 8px; border: none;
+          background: var(--accent); color: #ffffff; cursor: pointer;
+          font-size: 14px; font-weight: 500; transition: all 0.2s;
         }
-        .btn-save:hover {
-          background: var(--accent-hover);
+        .btn-save:hover { background: var(--accent-hover); }
+        .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
+        .btn-refresh-settings {
+          padding: 10px 20px; border-radius: 8px;
+          border: 1px solid var(--info); background: transparent;
+          color: var(--info); cursor: pointer;
+          font-size: 14px; font-weight: 600;
+          transition: all 0.2s; display: inline-flex;
+          align-items: center; gap: 8px;
         }
-        .btn-save:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
+        .btn-refresh-settings:hover:not(:disabled) { background: var(--bg-surface-2); }
+        .btn-refresh-settings:disabled { opacity: 0.6; cursor: not-allowed; }
+        .btn-refresh-settings .spinning { display: inline-block; animation: spin 1s linear infinite; }
         .btn-suspend {
-          padding: 6px 16px;
-          border-radius: 6px;
-          border: none;
-          background: var(--debit);
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
+          padding: 6px 16px; border-radius: 6px; border: none;
+          background: var(--debit); color: #ffffff;
+          cursor: pointer; font-size: 12px; font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-suspend:hover {
-          opacity: 0.85;
-        }
+        .btn-suspend:hover { opacity: 0.85; }
         .btn-reactivate {
-          padding: 6px 16px;
-          border-radius: 6px;
-          border: none;
-          background: var(--accent);
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
+          padding: 6px 16px; border-radius: 6px; border: none;
+          background: var(--accent); color: #ffffff;
+          cursor: pointer; font-size: 12px; font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-reactivate:hover {
-          background: var(--accent-hover);
-        }
-        .btn-add-tier {
-          padding: 8px 20px;
-          border-radius: 6px;
-          border: none;
-          background: var(--info);
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .btn-add-tier:hover {
-          opacity: 0.85;
-        }
-        .btn-remove-tier {
-          padding: 4px 12px;
-          border-radius: 4px;
-          border: none;
-          background: var(--debit);
-          color: #ffffff;
-          cursor: pointer;
-          font-size: 11px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .btn-remove-tier:hover {
-          opacity: 0.85;
-        }
-        .suspended-table {
-          width: 100%;
-          border-collapse: collapse;
-        }
+        .btn-reactivate:hover { background: var(--accent-hover); }
+        .suspended-table { width: 100%; border-collapse: collapse; }
         .suspended-table th {
-          text-align: left;
-          padding: 10px 12px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border-bottom: 1px solid var(--border);
+          text-align: left; padding: 10px 12px;
+          font-size: 11px; font-weight: 600;
+          color: var(--text-muted); text-transform: uppercase;
+          letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
         }
         .suspended-table td {
-          padding: 10px 12px;
-          border-bottom: 1px solid var(--border);
-          font-size: 13px;
-          color: var(--text);
+          padding: 10px 12px; border-bottom: 1px solid var(--border);
+          font-size: 13px; color: var(--text);
         }
-        .suspended-table tr:hover {
-          background-color: var(--bg-surface-2);
-        }
+        .suspended-table tr:hover { background-color: var(--bg-surface-2); }
         .badge {
-          display: inline-block;
-          padding: 3px 10px;
-          border-radius: 9999px;
-          font-size: 11px;
-          font-weight: 500;
+          display: inline-block; padding: 3px 10px;
+          border-radius: 9999px; font-size: 11px; font-weight: 500;
         }
-        .badge-suspended {
-          background-color: var(--rejected-bg);
-          color: var(--debit);
-          border: 1px solid var(--border);
-        }
-        .badge-active {
-          background-color: var(--approved-bg);
-          color: var(--credit);
-          border: 1px solid var(--border);
-        }
-        .badge-permanent {
-          background-color: var(--rejected-bg);
-          color: var(--debit);
-          border: 1px solid var(--border);
-        }
-        .badge-temporary {
-          background-color: var(--pending-bg);
-          color: var(--warning);
-          border: 1px solid var(--border);
-        }
+        .badge-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
+        .badge-permanent { background-color: var(--rejected-bg); color: var(--debit); border: 1px solid var(--border); }
+        .badge-temporary { background-color: var(--pending-bg); color: var(--warning); border: 1px solid var(--border); }
+        .badge-branch-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
+        .badge-branch-inactive { background-color: var(--bg-surface-2); color: var(--text-muted); border: 1px solid var(--border); }
         .search-input {
-          width: 100%;
-          max-width: 300px;
-          padding: 8px 14px;
-          border-radius: 8px;
+          width: 100%; max-width: 300px;
+          padding: 8px 14px; border-radius: 8px;
           border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 13px;
-          outline: none;
-          transition: border-color 0.2s;
-          box-sizing: border-box;
+          background: var(--bg-surface-2); color: var(--text);
+          font-size: 13px; outline: none;
+          transition: border-color 0.2s; box-sizing: border-box;
         }
-        .search-input:focus {
-          border-color: var(--accent);
-        }
-        .search-input::placeholder {
-          color: var(--text-dim);
-        }
+        .search-input:focus { border-color: var(--accent); }
+        .search-input::placeholder { color: var(--text-dim); }
         .modal-overlay {
-          position: fixed;
-          inset: 0;
+          position: fixed; inset: 0;
           background-color: var(--bg-overlay);
           backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 999;
-          padding: 16px;
+          display: flex; align-items: center; justify-content: center;
+          z-index: 999; padding: 16px;
         }
         .modal-content {
           background-color: var(--bg-surface);
-          border-radius: 16px;
-          padding: 24px;
-          max-width: 500px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: 1px solid var(--border);
-          color: var(--text);
+          border-radius: 16px; padding: 24px;
+          max-width: 500px; width: 100%;
+          max-height: 90vh; overflow-y: auto;
+          border: 1px solid var(--border); color: var(--text);
         }
         .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
+          display: flex; justify-content: space-between;
+          align-items: center; margin-bottom: 16px;
         }
-        .modal-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: var(--text);
-        }
+        .modal-title { font-size: 18px; font-weight: bold; color: var(--text); }
         .modal-close {
-          background: none;
-          border: none;
-          color: var(--text-muted);
-          cursor: pointer;
-          padding: 4px;
-          font-size: 24px;
+          background: none; border: none;
+          color: var(--text-muted); cursor: pointer;
+          padding: 4px; font-size: 24px;
         }
-        .modal-close:hover {
-          color: var(--text);
-        }
+        .modal-close:hover { color: var(--text); }
         .btn-cancel {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
+          flex: 1; padding: 10px; border-radius: 8px;
           border: 1px solid var(--border);
-          background: transparent;
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
+          background: transparent; color: var(--text);
+          cursor: pointer; font-size: 13px; font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-cancel:hover {
-          background: var(--bg-surface-2);
-        }
+        .btn-cancel:hover { background: var(--bg-surface-2); }
         .btn-confirm {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
-          border: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
+          flex: 1; padding: 10px; border-radius: 8px;
+          border: none; cursor: pointer;
+          font-size: 13px; font-weight: 500;
           transition: all 0.2s;
         }
-        .btn-confirm-danger {
-          background: var(--debit);
-          color: #ffffff;
-        }
-        .btn-confirm-danger:hover {
-          opacity: 0.85;
-        }
-        .btn-confirm-success {
-          background: var(--accent);
-          color: #ffffff;
-        }
-        .btn-confirm-success:hover {
-          background: var(--accent-hover);
-        }
-        .textarea-input {
-          width: 100%;
-          padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          box-sizing: border-box;
-          resize: vertical;
-          min-height: 80px;
-          font-family: inherit;
-        }
-        .textarea-input:focus {
-          border-color: var(--debit);
-        }
-        .textarea-input::placeholder {
-          color: var(--text-dim);
-        }
-        .tier-item {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 8px 12px;
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          border-radius: 6px;
-          margin-bottom: 6px;
-        }
-        .tier-item span {
-          font-size: 13px;
-          color: var(--text);
-        }
+        .btn-confirm-success { background: var(--accent); color: #ffffff; }
+        .btn-confirm-success:hover { background: var(--accent-hover); }
         .info-box {
           background: var(--accent-bg);
           border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 12px 16px;
-          margin-bottom: 16px;
+          border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
         }
-        .info-box p {
-          margin: 0;
-          font-size: 13px;
-          color: var(--text);
-        }
-        .info-box strong {
-          color: var(--text);
-        }
+        .info-box p { margin: 0; font-size: 13px; color: var(--text); }
         .rule-box {
           background: var(--approved-bg);
           border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 16px;
-          margin-top: 16px;
+          border-radius: 8px; padding: 16px; margin-top: 16px;
         }
-        .rule-box h4 {
-          font-size: 13px;
-          color: var(--credit);
-          margin: 0 0 8px 0;
-        }
-        .rule-box p {
-          font-size: 12px;
-          color: var(--text-muted);
-          margin: 0;
-        }
-        .rule-box strong {
-          color: var(--credit);
-        }
-        .rule-example {
-          margin-top: 12px;
-          padding: 12px;
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          border-radius: 6px;
-        }
-        .rule-example p {
-          font-size: 12px;
-          color: var(--text-muted);
-          margin: 0;
-        }
-        .rule-example strong {
-          color: var(--credit);
-        }
+        .rule-box h4 { font-size: 13px; color: var(--credit); margin: 0 0 8px 0; }
+        .rule-box p { font-size: 12px; color: var(--text-muted); margin: 0; }
         .loan-restriction-box {
           background: var(--accent-bg);
           border: 1px solid var(--border);
-          border-radius: 8px;
-          padding: 16px;
-          margin-top: 16px;
+          border-radius: 8px; padding: 16px; margin-top: 16px;
         }
-        .loan-restriction-box h4 {
-          font-size: 13px;
-          color: var(--accent-text);
-          margin: 0 0 8px 0;
+        .branch-summary {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+          gap: 14px; margin-bottom: 20px;
         }
-        .loan-restriction-box p {
-          font-size: 12px;
-          color: var(--text-muted);
-          margin: 0;
+        .branch-summary-card {
+          background: var(--bg-surface-2);
+          border: 1px solid var(--border);
+          border-radius: 12px; padding: 16px;
         }
-        .loan-restriction-box strong {
-          color: var(--accent-text);
+        .branch-summary-label {
+          font-size: 12px; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.05em;
         }
-        .days-display {
-          color: var(--info);
-          font-weight: 500;
+        .branch-summary-value {
+          font-size: 22px; font-weight: 700;
+          color: var(--text); margin-top: 4px;
         }
+        .branch-summary-value.credit { color: var(--credit); }
+        .branch-summary-value.muted  { color: var(--text-muted); }
+        .btn-branch-action {
+          padding: 6px 12px; border-radius: 6px;
+          border: 1px solid var(--border);
+          background: transparent; color: var(--text);
+          font-size: 12px; font-weight: 500;
+          cursor: pointer; transition: all 0.2s;
+        }
+        .btn-branch-action:hover { background: var(--bg-surface-2); }
+        .btn-branch-action.danger { color: var(--debit); border-color: var(--debit); }
+        .btn-branch-action.danger:hover { background: var(--rejected-bg); }
+        .btn-branch-action.warning { color: var(--warning); border-color: var(--warning); }
+        .btn-branch-action.warning:hover { background: var(--pending-bg); }
+        .btn-branch-action.success { color: var(--credit); border-color: var(--credit); }
+        .btn-branch-action.success:hover { background: var(--approved-bg); }
+        .btn-branch-action.info { color: var(--info); border-color: var(--info); }
+        .btn-branch-action.info:hover { background: rgba(59, 130, 246, 0.1); }
         @media (max-width: 768px) {
-          .form-row {
-            grid-template-columns: 1fr;
-          }
-          .tabs-container {
-            flex-direction: column;
-          }
-          .tab-btn {
-            flex: none;
-            min-width: auto;
-          }
-          .settings-header {
-            flex-direction: column;
-            align-items: stretch;
-          }
-          .search-input {
-            max-width: 100%;
-          }
+          .form-row { grid-template-columns: 1fr; }
+          .tabs-container { flex-direction: column; }
+          .tab-btn { flex: none; min-width: auto; }
+          .settings-header { flex-direction: column; align-items: stretch; }
+          .search-input { max-width: 100%; }
         }
       `}</style>
 
       <div className="settings-container">
+        {/* BRANCH BANNER */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "14px 18px",
+            marginBottom: "20px",
+            borderRadius: "12px",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            background: "rgba(16, 185, 129, 0.06)",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "26px" }}>🏢</span>
+            <div>
+              <div
+                style={{
+                  color: "var(--text)",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                }}
+              >
+                {activeBranch?.name || "Branch"}
+              </div>
+              <div
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  marginTop: "2px",
+                }}
+              >
+                {activeBranch?.code || "—"} · Settings apply to this branch ·{" "}
+                <strong style={{ color: "var(--credit)" }}>
+                  {members.length}
+                </strong>{" "}
+                members ·{" "}
+                <strong style={{ color: "var(--info)" }}>
+                  {isAdmin ? branches.length : visibleBranches.length}
+                </strong>{" "}
+                branches
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "var(--credit)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            ● active branch
+          </span>
+        </div>
+
         {/* Header */}
         <div className="settings-header">
           <div>
@@ -999,16 +4636,53 @@ const AdminSettings = () => {
                 marginTop: "4px",
               }}
             >
-              Configure application settings and manage accounts
+              Configure application settings — scoped to{" "}
+              <strong>{activeBranch?.name || "this branch"}</strong>
             </p>
           </div>
-          <button
-            className="btn-save"
-            onClick={handleSaveSettings}
-            disabled={saving}
-          >
-            {saving ? "Saving..." : "💾 Save Settings"}
-          </button>
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+            <button
+              className="btn-refresh-settings"
+              onClick={handleRefreshAll}
+              disabled={refreshing}
+            >
+              <span className={refreshing ? "spinning" : ""}>🔄</span>
+              {refreshing ? "Refreshing…" : "Refresh"}
+            </button>
+
+            {canViewBranches && (
+              <button
+                className="btn-save"
+                style={{
+                  background:
+                    activeTab === "branches"
+                      ? "var(--accent)"
+                      : "linear-gradient(135deg, #059669, #0d9488)",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 8,
+                }}
+                onClick={() => setActiveTab("branches")}
+              >
+                🏢{" "}
+                {activeTab === "branches"
+                  ? "Branches (current)"
+                  : isAdmin
+                    ? "Manage Branches"
+                    : "My Branch"}
+              </button>
+            )}
+
+            {activeTab !== "branches" && (
+              <button
+                className="btn-save"
+                onClick={handleSaveSettings}
+                disabled={saving}
+              >
+                {saving ? "Saving..." : "💾 Save Settings"}
+              </button>
+            )}
+          </div>
         </div>
 
         {/* Tabs */}
@@ -1026,7 +4700,9 @@ const AdminSettings = () => {
             💰 Loan
           </button>
           <button
-            className={`tab-btn ${activeTab === "contribution" ? "active" : ""}`}
+            className={`tab-btn ${
+              activeTab === "contribution" ? "active" : ""
+            }`}
             onClick={() => setActiveTab("contribution")}
           >
             💰 Contribution
@@ -1061,13 +4737,31 @@ const AdminSettings = () => {
           >
             🚫 Suspension
           </button>
+          {canViewBranches && (
+            <button
+              className={`tab-btn tab-btn-branches ${
+                activeTab === "branches" ? "active" : ""
+              }`}
+              onClick={() => setActiveTab("branches")}
+            >
+              🏢 {isAdmin ? "Branches" : "My Branch"}
+              {isAdmin && branches.length > 0 && (
+                <span className="branch-tab-badge">{branches.length}</span>
+              )}
+            </button>
+          )}
         </div>
 
         {/* General Settings */}
         {activeTab === "general" && (
           <div>
             <div className="settings-card">
-              <div className="settings-card-title">🏢 General Settings</div>
+              <div className="settings-card-title">
+                🏢 General Settings for{" "}
+                <span style={{ color: "var(--accent)" }}>
+                  {activeBranch?.name || "this branch"}
+                </span>
+              </div>
               <div className="form-row">
                 <div className="form-group">
                   <label className="form-label">Shop Name</label>
@@ -1081,6 +4775,7 @@ const AdminSettings = () => {
                         shop_name: e.target.value,
                       })
                     }
+                    placeholder="Enter shop name for this branch"
                   />
                 </div>
                 <div className="form-group">
@@ -1148,6 +4843,286 @@ const AdminSettings = () => {
           </div>
         )}
 
+        {/* BRANCHES TAB */}
+        {activeTab === "branches" && canViewBranches && (
+          <div>
+            <div
+              style={{
+                display: "flex",
+                justifyContent: "space-between",
+                alignItems: "center",
+                flexWrap: "wrap",
+                gap: 12,
+                marginBottom: 16,
+              }}
+            >
+              <div>
+                <h3 style={{ margin: 0, color: "var(--text)", fontSize: 18 }}>
+                  {isAdmin ? "🏢 Branch Management" : "🏢 My Branch"}
+                </h3>
+                <p
+                  style={{
+                    margin: "4px 0 0 0",
+                    color: "var(--text-muted)",
+                    fontSize: 13,
+                  }}
+                >
+                  {isAdmin
+                    ? "Create branches and share registration links with new members"
+                    : "Update your branch's contact and address details"}
+                </p>
+              </div>
+              <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
+                <button
+                  className="btn-refresh-settings"
+                  onClick={fetchBranches}
+                  disabled={branchesLoading}
+                >
+                  <span className={branchesLoading ? "spinning" : ""}>🔄</span>
+                  {branchesLoading ? "Loading…" : "Refresh"}
+                </button>
+                {canCreateBranch && isAdmin && (
+                  <button className="btn-save" onClick={openCreateBranch}>
+                    ➕ New Branch
+                  </button>
+                )}
+              </div>
+            </div>
+
+            {isAdmin && (
+              <div
+                style={{
+                  background: "var(--accent-bg)",
+                  border: "1px solid var(--border)",
+                  borderRadius: "10px",
+                  padding: "12px 16px",
+                  marginBottom: 16,
+                  fontSize: 13,
+                  color: "var(--text)",
+                  lineHeight: 1.5,
+                }}
+              >
+                💡 <strong>How registration links work:</strong> each branch has
+                its own link like{" "}
+                <code
+                  style={{
+                    fontFamily: "monospace",
+                    background: "var(--bg-surface-2)",
+                    padding: "2px 6px",
+                    borderRadius: 4,
+                  }}
+                >
+                  {window.location.origin}/register-member?branch=1
+                </code>
+                . Copy a branch's link and send it to anyone who should register
+                into that branch.
+              </div>
+            )}
+
+            {isAdmin && (
+              <div className="branch-summary">
+                <div className="branch-summary-card">
+                  <div className="branch-summary-label">Total Branches</div>
+                  <div className="branch-summary-value">{branches.length}</div>
+                </div>
+                <div className="branch-summary-card">
+                  <div className="branch-summary-label">Active</div>
+                  <div className="branch-summary-value credit">
+                    {branches.filter((b) => b.status === "active").length}
+                  </div>
+                </div>
+                <div className="branch-summary-card">
+                  <div className="branch-summary-label">Inactive</div>
+                  <div className="branch-summary-value muted">
+                    {branches.filter((b) => b.status !== "active").length}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            <div
+              className="settings-card"
+              style={{ padding: 0, overflow: "hidden" }}
+            >
+              <div style={{ overflowX: "auto" }}>
+                <table className="suspended-table">
+                  <thead>
+                    <tr>
+                      <th>ID</th>
+                      <th>Code</th>
+                      <th>Name</th>
+                      <th>Manager</th>
+                      <th>Contact</th>
+                      <th>Status</th>
+                      <th>Created</th>
+                      <th style={{ textAlign: "center" }}>Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {branchesLoading ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            padding: 30,
+                            textAlign: "center",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          Loading branches…
+                        </td>
+                      </tr>
+                    ) : visibleBranches.length === 0 ? (
+                      <tr>
+                        <td
+                          colSpan={8}
+                          style={{
+                            padding: 40,
+                            textAlign: "center",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          <div style={{ fontSize: 40, marginBottom: 8 }}>
+                            🏢
+                          </div>
+                          <div style={{ marginBottom: 6 }}>
+                            {isManager
+                              ? "You don't have a branch assigned yet."
+                              : "No branches yet."}
+                          </div>
+                          {canCreateBranch && isAdmin && (
+                            <button
+                              className="btn-save"
+                              onClick={openCreateBranch}
+                              style={{ padding: "8px 20px", marginTop: 14 }}
+                            >
+                              ➕ Create First Branch
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ) : (
+                      visibleBranches.map((b) => (
+                        <tr key={b.id}>
+                          <td
+                            style={{
+                              color: "var(--info)",
+                              fontFamily: "monospace",
+                              fontSize: 13,
+                            }}
+                          >
+                            {b.id}
+                          </td>
+                          <td style={{ fontWeight: 600 }}>{b.code}</td>
+                          <td>{b.name}</td>
+                          <td style={{ color: "var(--text-muted)" }}>
+                            {getBranchManagerName(b)}
+                          </td>
+                          <td
+                            style={{
+                              color: "var(--text-muted)",
+                              fontSize: 12,
+                            }}
+                          >
+                            <div>{b.phone || "—"}</div>
+                            <div style={{ color: "var(--text-dim)" }}>
+                              {b.email || ""}
+                            </div>
+                          </td>
+                          <td>
+                            <span
+                              className={`badge ${
+                                b.status === "active"
+                                  ? "badge-branch-active"
+                                  : "badge-branch-inactive"
+                              }`}
+                            >
+                              {b.status}
+                            </span>
+                          </td>
+                          <td
+                            style={{
+                              color: "var(--text-muted)",
+                              fontSize: 13,
+                              whiteSpace: "nowrap",
+                            }}
+                          >
+                            {b.created_at
+                              ? new Date(b.created_at).toLocaleDateString()
+                              : "—"}
+                          </td>
+                          <td style={{ textAlign: "center" }}>
+                            <div
+                              style={{
+                                display: "flex",
+                                gap: 6,
+                                justifyContent: "center",
+                                flexWrap: "wrap",
+                              }}
+                            >
+                              {canCopyLink && isAdmin && (
+                                <button
+                                  className="btn-branch-action info"
+                                  onClick={() => copyRegistrationLink(b)}
+                                  title="Copy the registration link for this branch"
+                                >
+                                  🔗 Copy Link
+                                </button>
+                              )}
+
+                              {canEditThisBranch(b) && (
+                                <button
+                                  className="btn-branch-action"
+                                  onClick={() => openEditBranch(b)}
+                                  title={
+                                    isAdmin ? "Edit branch" : "Edit your branch"
+                                  }
+                                >
+                                  ✏️ Edit
+                                </button>
+                              )}
+
+                              {canToggleBranch && isAdmin && (
+                                <button
+                                  className={`btn-branch-action ${
+                                    b.status === "active"
+                                      ? "warning"
+                                      : "success"
+                                  }`}
+                                  onClick={() => handleToggleBranchStatus(b)}
+                                  title={
+                                    b.status === "active"
+                                      ? "Deactivate"
+                                      : "Activate"
+                                  }
+                                >
+                                  {b.status === "active"
+                                    ? "⏸ Deactivate"
+                                    : "▶ Activate"}
+                                </button>
+                              )}
+
+                              {canDeleteBranch && isAdmin && (
+                                <button
+                                  className="btn-branch-action danger"
+                                  onClick={() => handleDeleteBranch(b)}
+                                  title="Delete branch"
+                                >
+                                  🗑 Delete
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </div>
+        )}
+
         {/* Loan Settings */}
         {activeTab === "loan" && (
           <div>
@@ -1162,7 +5137,6 @@ const AdminSettings = () => {
                 </p>
               </div>
 
-              {/* Eligibility Section */}
               <div
                 style={{
                   marginBottom: "20px",
@@ -1211,24 +5185,6 @@ const AdminSettings = () => {
                       />
                     </div>
                   </div>
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Members must be active for at least this many days before
-                    they can request a loan.
-                    <span
-                      className="days-display"
-                      style={{ marginLeft: "4px" }}
-                    >
-                      (
-                      {getDaysToMonthsDisplay(loanSettings.min_membership_days)}
-                      )
-                    </span>
-                  </p>
                 </div>
 
                 <div className="form-checkbox">
@@ -1295,20 +5251,10 @@ const AdminSettings = () => {
                         })
                       }
                     />
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      Loans below this amount will be auto-approved
-                    </p>
                   </div>
                 )}
               </div>
 
-              {/* Interest & Duration Section */}
               <div
                 style={{
                   marginBottom: "20px",
@@ -1342,15 +5288,6 @@ const AdminSettings = () => {
                       min="0"
                       step="0.5"
                     />
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      Interest rate applied to each loan
-                    </p>
                   </div>
 
                   <div className="form-group">
@@ -1369,15 +5306,6 @@ const AdminSettings = () => {
                       }
                       min="1"
                     />
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      Maximum repayment period for loans
-                    </p>
                   </div>
                 </div>
 
@@ -1399,15 +5327,6 @@ const AdminSettings = () => {
                       min="0"
                       step="0.5"
                     />
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      Penalty percentage for late loan payments
-                    </p>
                   </div>
 
                   <div className="form-group">
@@ -1424,20 +5343,10 @@ const AdminSettings = () => {
                       }
                       min="0"
                     />
-                    <p
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      Days after due date before late payment penalty applies
-                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* Loan Restrictions Section */}
               <div
                 style={{
                   marginBottom: "20px",
@@ -1473,16 +5382,6 @@ const AdminSettings = () => {
                         }
                         min="1"
                       />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Maximum number of loans a member can take (active +
-                        completed)
-                      </p>
                     </div>
 
                     <div className="form-group">
@@ -1501,95 +5400,17 @@ const AdminSettings = () => {
                         }
                         min="0"
                       />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Days a member must wait after completing a loan before
-                        requesting another. Set to 0 for no cooldown.
-                        <span
-                          className="days-display"
-                          style={{ marginLeft: "4px" }}
-                        >
-                          {loanSettings.loan_cooldown_days > 0
-                            ? `(${getDaysToMonthsDisplay(loanSettings.loan_cooldown_days)})`
-                            : "(No cooldown)"}
-                        </span>
-                      </p>
                     </div>
-                  </div>
-
-                  <div
-                    style={{
-                      marginTop: "12px",
-                      padding: "12px",
-                      backgroundColor: "var(--bg-surface-2)",
-                      borderRadius: "6px",
-                      border: "1px solid var(--border)",
-                    }}
-                  >
-                    <p
-                      style={{
-                        fontSize: "12px",
-                        color: "var(--text-muted)",
-                        margin: 0,
-                      }}
-                    >
-                      <strong style={{ color: "var(--accent-text)" }}>
-                        Example:
-                      </strong>
-                      <br />
-                      If a member has taken{" "}
-                      <strong style={{ color: "var(--text)" }}>
-                        {loanSettings.max_loans_per_member || 3}
-                      </strong>{" "}
-                      loans already, they cannot request another until they
-                      complete one.
-                      {loanSettings.loan_cooldown_days > 0 && (
-                        <>
-                          <br />
-                          After completing a loan, they must wait{" "}
-                          <strong style={{ color: "var(--info)" }}>
-                            {loanSettings.loan_cooldown_days} days
-                          </strong>{" "}
-                          before requesting a new one.
-                        </>
-                      )}
-                    </p>
                   </div>
                 </div>
               </div>
 
-              {/* 50% Rule Information Box */}
               <div className="rule-box">
                 <h4>💰 Borrowing Rule: 50% of Savings</h4>
                 <p>
                   Members can borrow <strong>50%</strong> of their total
-                  savings. There is no fixed minimum or maximum amount - the
-                  borrow limit is <strong>automatically calculated</strong>{" "}
-                  based on each member's savings.
+                  savings.
                 </p>
-                <div className="rule-example">
-                  <p>
-                    <strong style={{ color: "var(--credit)" }}>Example:</strong>
-                    <br />
-                    If a member has{" "}
-                    <strong style={{ color: "var(--text)" }}>
-                      ₦100,000
-                    </strong>{" "}
-                    in savings, they can borrow up to{" "}
-                    <strong style={{ color: "var(--credit)" }}>₦50,000</strong>{" "}
-                    (50%).
-                  </p>
-                  <p style={{ marginTop: "4px" }}>
-                    <strong style={{ color: "var(--info)" }}>Formula:</strong>
-                    <br />
-                    Savings × 50% = Maximum Borrow Amount
-                  </p>
-                </div>
               </div>
             </div>
           </div>
@@ -1617,15 +5438,6 @@ const AdminSettings = () => {
                       })
                     }
                   />
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Maximum total contribution per member per day
-                  </p>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Minimum Deposit</label>
@@ -1640,15 +5452,6 @@ const AdminSettings = () => {
                       })
                     }
                   />
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Minimum amount a member can deposit at once
-                  </p>
                 </div>
               </div>
 
@@ -1666,15 +5469,6 @@ const AdminSettings = () => {
                       })
                     }
                   />
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Maximum amount a member can deposit at once
-                  </p>
                 </div>
                 <div className="form-group">
                   <label className="form-label">
@@ -1692,15 +5486,6 @@ const AdminSettings = () => {
                       })
                     }
                   />
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Default amount pre-filled when making contribution
-                  </p>
                 </div>
               </div>
 
@@ -1718,15 +5503,6 @@ const AdminSettings = () => {
                       })
                     }
                   />
-                  <p
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--text-dim)",
-                      marginTop: "4px",
-                    }}
-                  >
-                    Maximum number of deposits a member can make per day
-                  </p>
                 </div>
                 <div className="form-group">
                   <label className="form-label">Contribution Frequency</label>
@@ -1853,17 +5629,6 @@ const AdminSettings = () => {
                           })
                         }
                       />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {commissionSettings.commission_type === "percentage"
-                          ? "Percentage of transaction amount"
-                          : "Fixed amount per transaction"}
-                      </p>
                     </div>
                   </div>
 
@@ -1884,15 +5649,6 @@ const AdminSettings = () => {
                           })
                         }
                       />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Minimum commission to charge
-                      </p>
                     </div>
                     <div className="form-group">
                       <label className="form-label">
@@ -1910,15 +5666,6 @@ const AdminSettings = () => {
                           })
                         }
                       />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Maximum commission to charge
-                      </p>
                     </div>
                   </div>
 
@@ -1978,158 +5725,6 @@ const AdminSettings = () => {
                       <option value="branch">Branch Account</option>
                     </select>
                   </div>
-
-                  <div className="form-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={commissionSettings.enable_tiered_commission}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          enable_tiered_commission: e.target.checked,
-                        })
-                      }
-                    />
-                    <span className="form-checkbox-label">
-                      Enable Tiered Commission
-                    </span>
-                  </div>
-
-                  {commissionSettings.enable_tiered_commission && (
-                    <div style={{ marginTop: "12px" }}>
-                      <div
-                        style={{
-                          display: "flex",
-                          justifyContent: "space-between",
-                          alignItems: "center",
-                          marginBottom: "10px",
-                        }}
-                      >
-                        <span
-                          style={{
-                            fontSize: "13px",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          Commission Tiers
-                        </span>
-                        <button
-                          className="btn-add-tier"
-                          onClick={() => setShowAddTierModal(true)}
-                        >
-                          + Add Tier
-                        </button>
-                      </div>
-                      <div style={{ marginBottom: "10px" }}>
-                        {commissionSettings.tiers.map((tier, index) => (
-                          <div key={index} className="tier-item">
-                            <span>
-                              {formatNaira(tier.min_amount)} -{" "}
-                              {formatNaira(tier.max_amount)} → {tier.rate}%
-                            </span>
-                            <button
-                              className="btn-remove-tier"
-                              onClick={() => handleRemoveTier(index)}
-                            >
-                              Remove
-                            </button>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="form-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={commissionSettings.enable_referral_commission}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          enable_referral_commission: e.target.checked,
-                        })
-                      }
-                    />
-                    <span className="form-checkbox-label">
-                      Enable Referral Commission
-                    </span>
-                  </div>
-
-                  {commissionSettings.enable_referral_commission && (
-                    <div className="form-group">
-                      <label className="form-label">
-                        Referral Commission Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={commissionSettings.referral_commission_rate}
-                        onChange={(e) =>
-                          setCommissionSettings({
-                            ...commissionSettings,
-                            referral_commission_rate:
-                              parseFloat(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Commission earned by referrer for each referred member's
-                        transaction
-                      </p>
-                    </div>
-                  )}
-
-                  <div className="form-checkbox">
-                    <input
-                      type="checkbox"
-                      checked={commissionSettings.enable_loyalty_commission}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          enable_loyalty_commission: e.target.checked,
-                        })
-                      }
-                    />
-                    <span className="form-checkbox-label">
-                      Enable Loyalty Commission
-                    </span>
-                  </div>
-
-                  {commissionSettings.enable_loyalty_commission && (
-                    <div className="form-group">
-                      <label className="form-label">
-                        Loyalty Commission Rate (%)
-                      </label>
-                      <input
-                        type="number"
-                        className="form-input"
-                        value={commissionSettings.loyalty_commission_rate}
-                        onChange={(e) =>
-                          setCommissionSettings({
-                            ...commissionSettings,
-                            loyalty_commission_rate:
-                              parseFloat(e.target.value) || 0,
-                          })
-                        }
-                      />
-                      <p
-                        style={{
-                          fontSize: "11px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        Additional commission for loyal members based on
-                        transaction history
-                      </p>
-                    </div>
-                  )}
                 </>
               )}
             </div>
@@ -2532,8 +6127,8 @@ const AdminSettings = () => {
                         if (!searchTerm) return true;
                         const term = searchTerm.toLowerCase();
                         return (
-                          m.name.toLowerCase().includes(term) ||
-                          m.email.toLowerCase().includes(term) ||
+                          (m.name || "").toLowerCase().includes(term) ||
+                          (m.email || "").toLowerCase().includes(term) ||
                           (m.phone && m.phone.includes(term))
                         );
                       })
@@ -2579,7 +6174,8 @@ const AdminSettings = () => {
                       color: "var(--text-muted)",
                     }}
                   >
-                    No active members found
+                    No active members found in{" "}
+                    {activeBranch?.name || "this branch"}
                   </div>
                 )}
               </div>
@@ -2627,7 +6223,11 @@ const AdminSettings = () => {
                         </td>
                         <td>
                           <span
-                            className={`badge ${account.duration === "permanent" ? "badge-permanent" : "badge-temporary"}`}
+                            className={`badge ${
+                              account.duration === "permanent"
+                                ? "badge-permanent"
+                                : "badge-temporary"
+                            }`}
                           >
                             {account.duration}
                           </span>
@@ -2661,254 +6261,231 @@ const AdminSettings = () => {
         )}
       </div>
 
-      {/* Add Tier Modal */}
-      {showAddTierModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
+      {/* BRANCH MODAL */}
+      {showBranchModal && (
+        <div className="modal-overlay" onClick={closeBranchModal}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <div className="modal-header">
-              <h3 className="modal-title">➕ Add Commission Tier</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowAddTierModal(false);
-                  setNewTier({ min_amount: "", max_amount: "", rate: "" });
-                }}
-              >
+              <h3 className="modal-title">
+                {editingBranch
+                  ? isAdmin
+                    ? "✏️ Edit Branch"
+                    : "✏️ Edit My Branch"
+                  : "➕ New Branch"}
+              </h3>
+              <button className="modal-close" onClick={closeBranchModal}>
                 ✕
               </button>
             </div>
 
-            <div className="form-group">
-              <label className="form-label">Minimum Amount</label>
-              <input
-                type="number"
-                className="form-input"
-                value={newTier.min_amount}
-                onChange={(e) =>
-                  setNewTier({ ...newTier, min_amount: e.target.value })
-                }
-                placeholder="0"
-              />
-            </div>
+            <form onSubmit={handleSaveBranch}>
+              {!isAdmin && editingBranch && (
+                <div
+                  style={{
+                    background: "var(--accent-bg)",
+                    border: "1px solid var(--border)",
+                    borderRadius: 8,
+                    padding: "10px 14px",
+                    marginBottom: 14,
+                    fontSize: 12,
+                    color: "var(--text)",
+                  }}
+                >
+                  🔒 You can update the <strong>name</strong>,{" "}
+                  <strong>address</strong>, <strong>phone</strong> and{" "}
+                  <strong>email</strong> of your branch. Code, status, and
+                  manager assignment are admin-only.
+                </div>
+              )}
 
-            <div className="form-group">
-              <label className="form-label">Maximum Amount</label>
-              <input
-                type="number"
-                className="form-input"
-                value={newTier.max_amount}
-                onChange={(e) =>
-                  setNewTier({ ...newTier, max_amount: e.target.value })
-                }
-                placeholder="10000"
-              />
-            </div>
-
-            <div className="form-group">
-              <label className="form-label">Commission Rate (%)</label>
-              <input
-                type="number"
-                className="form-input"
-                value={newTier.rate}
-                onChange={(e) =>
-                  setNewTier({ ...newTier, rate: e.target.value })
-                }
-                placeholder="5"
-              />
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
-              <button
-                className="btn-cancel"
-                onClick={() => {
-                  setShowAddTierModal(false);
-                  setNewTier({ min_amount: "", max_amount: "", rate: "" });
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-confirm btn-confirm-success"
-                onClick={handleAddTier}
-              >
-                Add Tier
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Suspend Modal */}
-      {showSuspendModal && selectedMember && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">🚫 Suspend Account</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowSuspendModal(false);
-                  setSelectedMember(null);
-                  setSuspensionReason("");
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div
-              style={{
-                paddingBottom: "16px",
-                borderBottom: "1px solid var(--border)",
-                marginBottom: "16px",
-              }}
-            >
-              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Member:{" "}
-                <strong style={{ color: "var(--text)" }}>
-                  {selectedMember.name}
-                </strong>
+              <div className="form-group">
+                <label className="form-label">
+                  Branch Code *{" "}
+                  {!isAdmin && (
+                    <span style={{ color: "var(--text-dim)", fontWeight: 400 }}>
+                      (admin only)
+                    </span>
+                  )}
+                </label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={branchForm.code}
+                  onChange={(e) =>
+                    setBranchForm({ ...branchForm, code: e.target.value })
+                  }
+                  placeholder="e.g. BR-A, BR-B"
+                  disabled={!isAdmin}
+                  required
+                />
+                <p
+                  style={{
+                    fontSize: "11px",
+                    color: "var(--text-dim)",
+                    marginTop: "4px",
+                  }}
+                >
+                  Short unique identifier for the branch
+                </p>
               </div>
-              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Email:{" "}
-                <strong style={{ color: "var(--text)" }}>
-                  {selectedMember.email}
-                </strong>
+
+              <div className="form-group">
+                <label className="form-label">Branch Name *</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={branchForm.name}
+                  onChange={(e) =>
+                    setBranchForm({ ...branchForm, name: e.target.value })
+                  }
+                  placeholder="e.g. Branch A — Lagos"
+                  required
+                />
               </div>
-              <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Balance:{" "}
-                <strong style={{ color: "var(--credit)" }}>
-                  {formatNaira(selectedMember.balance)}
-                </strong>
+
+              {isAdmin && (
+                <div className="form-group">
+                  <label className="form-label">Branch Manager</label>
+                  <select
+                    className="form-select"
+                    value={branchForm.manager_id || ""}
+                    onChange={(e) => {
+                      const id = e.target.value;
+                      const picked = id
+                        ? managers.find((m) => String(m.id) === String(id))
+                        : null;
+                      setBranchForm({
+                        ...branchForm,
+                        manager_id: id,
+                        manager: picked ? picked.name : "",
+                      });
+                    }}
+                  >
+                    <option value="">— No manager assigned —</option>
+
+                    {branchForm.manager_id &&
+                      !managers.some(
+                        (m) => String(m.id) === String(branchForm.manager_id),
+                      ) &&
+                      branchForm.manager && (
+                        <option value={branchForm.manager_id}>
+                          {branchForm.manager} (no longer a Manager)
+                        </option>
+                      )}
+
+                    {managers.length === 0 ? (
+                      <option value="" disabled>
+                        No managers available — promote a member to Manager
+                        first
+                      </option>
+                    ) : (
+                      managers.map((m) => (
+                        <option key={m.id} value={m.id}>
+                          {m.name}
+                          {m.email ? ` (${m.email})` : ""}
+                        </option>
+                      ))
+                    )}
+                  </select>
+                  <p
+                    style={{
+                      fontSize: "11px",
+                      color: "var(--text-dim)",
+                      marginTop: "4px",
+                    }}
+                  >
+                    Only users with the <strong>Manager</strong> role can be
+                    assigned as a branch manager. Optional.
+                  </p>
+                </div>
+              )}
+
+              <div className="form-row">
+                <div className="form-group">
+                  <label className="form-label">Phone</label>
+                  <input
+                    type="tel"
+                    className="form-input"
+                    value={branchForm.phone}
+                    onChange={(e) =>
+                      setBranchForm({ ...branchForm, phone: e.target.value })
+                    }
+                    placeholder="Optional"
+                  />
+                </div>
+                <div className="form-group">
+                  <label className="form-label">Email</label>
+                  <input
+                    type="email"
+                    className="form-input"
+                    value={branchForm.email}
+                    onChange={(e) =>
+                      setBranchForm({ ...branchForm, email: e.target.value })
+                    }
+                    placeholder="Optional"
+                  />
+                </div>
               </div>
-            </div>
 
-            <div className="form-group">
-              <label className="form-label">Reason for Suspension *</label>
-              <textarea
-                className="textarea-input"
-                placeholder="Please provide a reason for suspending this account..."
-                value={suspensionReason}
-                onChange={(e) => setSuspensionReason(e.target.value)}
-              />
-            </div>
+              <div className="form-group">
+                <label className="form-label">Address</label>
+                <input
+                  type="text"
+                  className="form-input"
+                  value={branchForm.address}
+                  onChange={(e) =>
+                    setBranchForm({ ...branchForm, address: e.target.value })
+                  }
+                  placeholder="Optional"
+                />
+              </div>
 
-            <div className="form-group">
-              <label className="form-label">Suspension Duration</label>
-              <select
-                className="form-select"
-                value={suspensionDuration}
-                onChange={(e) => setSuspensionDuration(e.target.value)}
-              >
-                <option value="permanent">Permanent</option>
-                <option value="temporary">Temporary (30 days)</option>
-                <option value="temporary_60">Temporary (60 days)</option>
-                <option value="temporary_90">Temporary (90 days)</option>
-              </select>
-            </div>
+              {editingBranch && isAdmin && (
+                <div className="form-group">
+                  <label className="form-label">Status</label>
+                  <select
+                    className="form-select"
+                    value={branchForm.status}
+                    onChange={(e) =>
+                      setBranchForm({ ...branchForm, status: e.target.value })
+                    }
+                  >
+                    <option value="active">Active</option>
+                    <option value="inactive">Inactive</option>
+                  </select>
+                </div>
+              )}
 
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
-              <button
-                className="btn-cancel"
-                onClick={() => {
-                  setShowSuspendModal(false);
-                  setSelectedMember(null);
-                  setSuspensionReason("");
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-confirm btn-confirm-danger"
-                onClick={confirmSuspend}
-              >
-                Yes, Suspend Account
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Reactivate Modal */}
-      {showReactivateModal && selectedMember && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">✅ Reactivate Account</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowReactivateModal(false);
-                  setSelectedMember(null);
-                }}
-              >
-                ✕
-              </button>
-            </div>
-
-            <div style={{ textAlign: "center", padding: "20px 0" }}>
-              <div style={{ fontSize: "48px", marginBottom: "8px" }}>🔄</div>
-              <p style={{ fontSize: "16px", fontWeight: "500" }}>
-                Reactivate {selectedMember.name}'s account?
-              </p>
-              <p
+              <div
                 style={{
-                  fontSize: "14px",
-                  color: "var(--text-muted)",
-                  marginTop: "4px",
+                  display: "flex",
+                  gap: "8px",
+                  marginTop: "16px",
+                  paddingTop: "16px",
+                  borderTop: "1px solid var(--border)",
                 }}
               >
-                This will restore access to the account.
-              </p>
-              <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Reason for suspension:{" "}
-                <strong style={{ color: "var(--debit)" }}>
-                  {selectedMember.reason}
-                </strong>
-              </p>
-            </div>
-
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
-              <button
-                className="btn-cancel"
-                onClick={() => {
-                  setShowReactivateModal(false);
-                  setSelectedMember(null);
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-confirm btn-confirm-success"
-                onClick={confirmReactivate}
-              >
-                Yes, Reactivate
-              </button>
-            </div>
+                <button
+                  type="button"
+                  className="btn-cancel"
+                  onClick={closeBranchModal}
+                  disabled={branchesSaving}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-confirm btn-confirm-success"
+                  disabled={branchesSaving}
+                >
+                  {branchesSaving
+                    ? "Saving…"
+                    : editingBranch
+                      ? "Save Changes"
+                      : "Create Branch"}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

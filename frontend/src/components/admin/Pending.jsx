@@ -1,10 +1,14 @@
 // src/components/admin/AdminPending.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const AdminPending = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [pendingRequests, setPendingRequests] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -26,16 +30,16 @@ const AdminPending = () => {
 
   useEffect(() => {
     fetchPendingTransactions();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]); // 🆕 refetch when branch changes
 
   const fetchPendingTransactions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const response = await apiFetch("/api/transactions.php");
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const data = await response.json();
-      console.log("📥 Transactions data:", data);
 
       let allTransactions = [];
       if (data.transactions && Array.isArray(data.transactions)) {
@@ -58,7 +62,7 @@ const AdminPending = () => {
         reference: t.reference || `REF-${String(t.id).padStart(6, "0")}`,
         description: t.description || "",
         status: t.status || "pending",
-        branch: t.branch || "Main Branch",
+        branch: activeBranch?.name || t.branch || "Main Branch",
         submitted_by: t.submitted_by || "Member",
         notes: t.notes || "Waiting for admin approval",
       }));
@@ -130,7 +134,6 @@ const AdminPending = () => {
     return icons[type] || "📋";
   };
 
-  // Returns color pair from theme tokens instead of Tailwind classes
   const getTypeColors = (type) => {
     const map = {
       deposit: { bg: "var(--approved-bg)", color: "var(--badge-text)" },
@@ -153,8 +156,8 @@ const AdminPending = () => {
 
   const handleApprove = async (request) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${request.id}/approve`,
+      const response = await apiFetch(
+        `/api/transactions.php/${request.id}/approve`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -185,8 +188,8 @@ const AdminPending = () => {
     }
 
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${request.id}/reject`,
+      const response = await apiFetch(
+        `/api/transactions.php/${request.id}/reject`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -290,6 +293,61 @@ const AdminPending = () => {
           minHeight: "100vh",
         }}
       >
+        {/* ===== 🆕 BRANCH BANNER ===== */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: "12px",
+            padding: "14px 18px",
+            marginBottom: "20px",
+            borderRadius: "12px",
+            border: "1px solid rgba(16, 185, 129, 0.35)",
+            background: "rgba(16, 185, 129, 0.06)",
+            flexWrap: "wrap",
+          }}
+        >
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <span style={{ fontSize: "26px" }}>🏢</span>
+            <div>
+              <div
+                style={{
+                  color: "var(--text)",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                }}
+              >
+                {activeBranch?.name || "Branch"}
+              </div>
+              <div
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  marginTop: "2px",
+                }}
+              >
+                {activeBranch?.code || "—"} · Pending approvals for this branch
+              </div>
+            </div>
+          </div>
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "var(--credit)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            ● active branch
+          </span>
+        </div>
+
         <h2
           style={{
             fontSize: "24px",
@@ -300,7 +358,6 @@ const AdminPending = () => {
           ⏳ Pending Approvals
         </h2>
 
-        {/* Empty state — no background */}
         <div
           style={{
             textAlign: "center",
@@ -309,7 +366,10 @@ const AdminPending = () => {
           }}
         >
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
-          <p>No pending approvals</p>
+          <p>
+            No pending approvals in{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong>
+          </p>
           <p style={{ fontSize: "14px" }}>
             All transactions have been processed
           </p>
@@ -332,7 +392,6 @@ const AdminPending = () => {
           to { transform: rotate(360deg); }
         }
 
-        /* ===== TABLE — no borders, no background ===== */
         .pending-table {
           width: 100%;
           border-collapse: collapse;
@@ -367,7 +426,6 @@ const AdminPending = () => {
           background-color: var(--bg-surface-2);
         }
 
-        /* ===== BADGES ===== */
         .badge {
           display: inline-block;
           padding: 4px 10px;
@@ -381,7 +439,6 @@ const AdminPending = () => {
           color: var(--badge-text);
         }
 
-        /* ===== STAT CARDS — no background, no border ===== */
         .stats-grid {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
@@ -403,7 +460,6 @@ const AdminPending = () => {
           margin-top: 4px;
         }
 
-        /* ===== SEARCH — underline only ===== */
         .search-input {
           width: 100%;
           padding: 10px 0;
@@ -425,7 +481,6 @@ const AdminPending = () => {
           color: var(--text-dim);
         }
 
-        /* ===== PAGINATION ===== */
         .pagination {
           display: flex;
           justify-content: space-between;
@@ -467,7 +522,6 @@ const AdminPending = () => {
           cursor: not-allowed;
         }
 
-        /* ===== MODALS ===== */
         .modal-overlay {
           position: fixed;
           inset: 0;
@@ -670,13 +724,72 @@ const AdminPending = () => {
         }
       `}</style>
 
+      {/* ===== 🆕 BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Pending approvals for this branch ·{" "}
+              <strong style={{ color: "var(--warning)" }}>
+                {pendingRequests.length}
+              </strong>{" "}
+              waiting
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       <h2
         style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}
       >
         ⏳ Pending Approvals
       </h2>
 
-      {/* Stats — no card background */}
+      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Pending</div>
@@ -716,7 +829,7 @@ const AdminPending = () => {
         </div>
       </div>
 
-      {/* Search — underline only */}
+      {/* Search */}
       <input
         type="text"
         className="search-input"
@@ -741,7 +854,7 @@ const AdminPending = () => {
         </div>
       )}
 
-      {/* ===== TABLE — no card background ===== */}
+      {/* Table */}
       <div>
         <div style={{ overflowX: "auto" }}>
           <table className="pending-table">
@@ -1162,6 +1275,15 @@ const AdminPending = () => {
                   {formatNaira(selectedRequest.amount)}
                 </strong>
               </p>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-dim)",
+                  marginTop: "8px",
+                }}
+              >
+                Branch: {selectedRequest.branch}
+              </p>
             </div>
 
             <div
@@ -1229,6 +1351,9 @@ const AdminPending = () => {
                 <strong style={{ color: "var(--debit)" }}>
                   {formatNaira(selectedRequest.amount)}
                 </strong>
+              </div>
+              <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
+                Branch: {selectedRequest.branch}
               </div>
             </div>
 

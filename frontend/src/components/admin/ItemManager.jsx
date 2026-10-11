@@ -1,45 +1,13 @@
 // src/components/admin/ItemManager.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
+import { useBranch } from "../../context/BranchContext"; // 🆕
 
 const API_BASE_URL = "http://localhost:8000";
 
-// ============================================================
-// Central fetch helper — adds auth + credentials, logs raw responses
-// ============================================================
-const apiFetch = async (url, options = {}) => {
-  const token = localStorage.getItem("token");
-
-  const headers = {
-    ...(options.body ? { "Content-Type": "application/json" } : {}),
-    ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    ...(options.headers || {}),
-  };
-
-  const res = await fetch(url, {
-    credentials: "include",
-    ...options,
-    headers,
-  });
-
-  const text = await res.text();
-  let data = null;
-  try {
-    data = text ? JSON.parse(text) : null;
-  } catch {
-    console.error("❌ Non-JSON response from", url, "\n", text);
-    throw new Error(`Server returned non-JSON (${res.status})`);
-  }
-
-  if (!res.ok) {
-    console.error("❌ API error", res.status, url, data);
-    throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
-  }
-
-  return data;
-};
-
 const ItemManager = () => {
+  const { activeBranch, activeBranchId } = useBranch(); // 🆕
+
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -53,24 +21,71 @@ const ItemManager = () => {
     value: "",
   });
 
-  const fetchItems = useCallback(async (showToast = false) => {
-    setLoading(true);
-    try {
-      const data = await apiFetch(`${API_BASE_URL}/api/items.php`);
-      setItems(data?.items || []);
-      if (showToast) toast.success("✅ Items refreshed!");
-    } catch (err) {
-      console.error("Fetch items failed:", err);
-      toast.error(err.message || "Failed to load items");
-      setItems([]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
+  // 🆕 Branch-aware fetch helper (inside the component so it sees activeBranchId)
+  const apiFetch = useCallback(
+    async (url, options = {}) => {
+      const token = localStorage.getItem("token");
 
+      const headers = {
+        ...(options.body ? { "Content-Type": "application/json" } : {}),
+        ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(options.headers || {}),
+      };
+
+      // 🆕 Append ?branch_id= to every request
+      const finalUrl = activeBranchId
+        ? `${url}${url.includes("?") ? "&" : "?"}branch_id=${activeBranchId}`
+        : url;
+
+      console.log("[ItemManager] fetching:", finalUrl);
+
+      const res = await fetch(finalUrl, {
+        credentials: "include",
+        ...options,
+        headers,
+      });
+
+      const text = await res.text();
+      let data = null;
+      try {
+        data = text ? JSON.parse(text) : null;
+      } catch {
+        console.error("❌ Non-JSON response from", finalUrl, "\n", text);
+        throw new Error(`Server returned non-JSON (${res.status})`);
+      }
+
+      if (!res.ok) {
+        console.error("❌ API error", res.status, finalUrl, data);
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+      }
+
+      return data;
+    },
+    [activeBranchId],
+  );
+
+  const fetchItems = useCallback(
+    async (showToast = false) => {
+      setLoading(true);
+      try {
+        const data = await apiFetch(`${API_BASE_URL}/api/items.php`);
+        setItems(data?.items || []);
+        if (showToast) toast.success("✅ Items refreshed!");
+      } catch (err) {
+        console.error("Fetch items failed:", err);
+        toast.error(err.message || "Failed to load items");
+        setItems([]);
+      } finally {
+        setLoading(false);
+      }
+    },
+    [apiFetch],
+  );
+
+  // 🆕 refetch when branch changes
   useEffect(() => {
     fetchItems();
-  }, [fetchItems]);
+  }, [fetchItems, activeBranchId]);
 
   const handleRefresh = async () => {
     setRefreshing(true);
@@ -111,8 +126,6 @@ const ItemManager = () => {
       value: parseFloat(form.value) || 0,
     };
 
-    console.log("📤 Sending item payload:", payload);
-
     setSaving(true);
     try {
       const url = editingItem
@@ -120,12 +133,11 @@ const ItemManager = () => {
         : `${API_BASE_URL}/api/items.php`;
       const method = editingItem ? "PUT" : "POST";
 
-      const data = await apiFetch(url, {
+      await apiFetch(url, {
         method,
         body: JSON.stringify(payload),
       });
 
-      console.log("📥 Server response:", data);
       toast.success(editingItem ? "✅ Item updated!" : "✅ Item created!");
       setShowModal(false);
       resetForm();
@@ -277,6 +289,63 @@ const ItemManager = () => {
         .im-btn-submit:hover { filter: brightness(1.1); }
       `}</style>
 
+      {/* 🆕 Branch banner */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Items for this branch only ·{" "}
+              <strong style={{ color: "var(--credit)" }}>{items.length}</strong>{" "}
+              items
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       {/* HEADER */}
       <div
         style={{
@@ -297,7 +366,9 @@ const ItemManager = () => {
               fontSize: "14px",
             }}
           >
-            Create items (fridge, fan, washing machine…) that members can tick.
+            Create items for{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong> that members
+            can tick.
           </p>
         </div>
 
@@ -352,7 +423,10 @@ const ItemManager = () => {
           }}
         >
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>📭</div>
-          <p>No items yet. Click "New Item" to add one.</p>
+          <p>
+            No items yet in {activeBranch?.name || "this branch"}. Click "New
+            Item" to add one.
+          </p>
         </div>
       ) : (
         <div className="table-container">
@@ -455,6 +529,21 @@ const ItemManager = () => {
               >
                 ✕
               </button>
+            </div>
+
+            {/* 🆕 branch hint in modal */}
+            <div
+              style={{
+                background: "var(--accent-bg, rgba(16,185,129,0.1))",
+                borderRadius: 8,
+                padding: "10px 14px",
+                marginBottom: 16,
+                fontSize: 12,
+                color: "var(--text)",
+              }}
+            >
+              🏢 This item will be created in{" "}
+              <strong>{activeBranch?.name || "this branch"}</strong>.
             </div>
 
             <form onSubmit={handleSubmit}>

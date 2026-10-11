@@ -227,15 +227,12 @@ const MemberDeposit = ({ onClose }) => {
     };
   }, []);
 
-  // 🆕 Explicit theme colors — background + text always paired
   const isLight = theme === "light";
 
-  // Text colors
   const textColor = isLight ? "#0f172a" : "#f1f5f9";
   const textMuted = isLight ? "#475569" : "#94a3b8";
   const textDim = isLight ? "#64748b" : "#64748b";
 
-  // 🆕 Field-specific colors — text AND background are explicitly paired
   const fieldBg = isLight ? "#ffffff" : "#0f172a";
   const fieldText = isLight ? "#0f172a" : "#f1f5f9";
   const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
@@ -244,7 +241,6 @@ const MemberDeposit = ({ onClose }) => {
     : "rgba(255,255,255,0.15)";
   const fieldFocusBorder = "#10b981";
 
-  // Surface / card colors
   const surfaceColor = isLight ? "#ffffff" : "#1e293b";
   const surface2Color = isLight ? "#f1f5f9" : "#334155";
   const borderColor = isLight
@@ -453,7 +449,7 @@ const MemberDeposit = ({ onClose }) => {
   };
 
   // ============================================================
-  // Member balance — resilient
+  // Member balance
   // ============================================================
   const fetchMemberBalance = async (memberId) => {
     const idNum = parseInt(memberId, 10);
@@ -545,8 +541,8 @@ const MemberDeposit = ({ onClose }) => {
   };
 
   // ============================================================
-  // Validate the deposit amount against the member's plan
-  // Random plans are skipped entirely.
+  // STRICT plan validation — must equal exactly.
+  // Random plans skip this check (any amount allowed).
   // ============================================================
   const validateAgainstPlan = (depositAmount) => {
     if (!memberPlan) return { ok: true };
@@ -556,8 +552,8 @@ const MemberDeposit = ({ onClose }) => {
     if (!Number.isFinite(expected) || expected <= 0) return { ok: true };
 
     const amt = parseFloat(depositAmount);
+    const EPS = 0.01; // allow 1 kobo rounding tolerance
     const diff = amt - expected;
-    const EPS = 0.01;
 
     if (diff > EPS) {
       return {
@@ -566,8 +562,9 @@ const MemberDeposit = ({ onClose }) => {
         expected,
         message:
           `❌ Deposit amount is GREATER than your savings plan.\n\n` +
-          `Your plan expects ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
-          `You entered ${formatCurrency(amt)}.`,
+          `Your plan expects exactly ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
+          `You entered ${formatCurrency(amt)}.\n\n` +
+          `Please enter the exact amount.`,
       };
     }
     if (diff < -EPS) {
@@ -577,8 +574,9 @@ const MemberDeposit = ({ onClose }) => {
         expected,
         message:
           `❌ Deposit amount is LESS than your savings plan.\n\n` +
-          `Your plan expects ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
-          `You entered ${formatCurrency(amt)}.`,
+          `Your plan expects exactly ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
+          `You entered ${formatCurrency(amt)}.\n\n` +
+          `Please enter the exact amount.`,
       };
     }
     return { ok: true, expected };
@@ -652,9 +650,11 @@ const MemberDeposit = ({ onClose }) => {
       return;
     }
 
+    // 🆕 STRICT plan check — must equal plan amount exactly
     const planCheck = validateAgainstPlan(depositAmount);
     if (!planCheck.ok) {
-      toast.error(planCheck.message, { duration: 6000 });
+      toast.error(planCheck.message, { duration: 8000 });
+      // Also show a native alert for visibility (user asked for it strongly)
       window.alert(planCheck.message);
       return;
     }
@@ -767,8 +767,14 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
-  // Quick amount buttons
+  // Quick amount buttons — for plan members, only ONE button: the exact amount
   const quickAmounts = (() => {
+    if (memberPlan && !memberPlan.isRandom) {
+      const expected = parseFloat(memberPlan.perPeriod);
+      if (Number.isFinite(expected) && expected > 0) {
+        return [expected];
+      }
+    }
     const { default_contribution_amount, min_deposit, max_deposit } = settings;
     const base = Math.min(
       Math.max(default_contribution_amount || min_deposit, min_deposit),
@@ -778,6 +784,18 @@ const MemberDeposit = ({ onClose }) => {
       .filter((v) => v >= min_deposit && v <= max_deposit)
       .filter((v, i, arr) => arr.indexOf(v) === i);
     return options.length ? options : [min_deposit];
+  })();
+
+  // Helper: is the current amount valid?
+  const amountIsValid = (() => {
+    if (!amount) return true;
+    const n = toPositiveNumber(amount, NaN);
+    if (!Number.isFinite(n) || n <= 0) return false;
+    if (memberPlan && !memberPlan.isRandom) {
+      const expected = parseFloat(memberPlan.perPeriod);
+      return Math.abs(n - expected) < 0.01;
+    }
+    return true;
   })();
 
   // ============================================================
@@ -793,13 +811,6 @@ const MemberDeposit = ({ onClose }) => {
         background: "transparent",
       }}
     >
-      {/*
-        🆕 CRITICAL FIX:
-        - Inputs now have an EXPLICIT background color (not transparent).
-        - Text color, -webkit-text-fill-color, and placeholder are all forced.
-        - Both colors change together based on the detected theme, so
-          contrast is guaranteed in light and dark mode.
-      */}
       <style>{`
         .mdp-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
         .mdp-wrap * { box-sizing: border-box; }
@@ -822,7 +833,6 @@ const MemberDeposit = ({ onClose }) => {
           color: ${textColor}; margin-bottom: 6px;
         }
 
-        /* ===== THE FIX: explicit background + text, both forced ===== */
         .mdp-input,
         .mdp-select {
           width: 100%;
@@ -857,7 +867,6 @@ const MemberDeposit = ({ onClose }) => {
           color: ${fieldText};
         }
 
-        /* Autofill override */
         .mdp-input:-webkit-autofill,
         .mdp-input:-webkit-autofill:hover,
         .mdp-input:-webkit-autofill:focus,
@@ -868,14 +877,12 @@ const MemberDeposit = ({ onClose }) => {
           transition: background-color 9999s ease-in-out 0s;
         }
 
-        /* Selection highlight */
         .mdp-input::selection,
         .mdp-select::selection {
           background: ${accentColor};
           color: #ffffff;
         }
 
-        /* Kill number spinners */
         .mdp-input[type="number"]::-webkit-outer-spin-button,
         .mdp-input[type="number"]::-webkit-inner-spin-button {
           -webkit-appearance: none; margin: 0;
@@ -942,7 +949,6 @@ const MemberDeposit = ({ onClose }) => {
           position: "relative",
         }}
       >
-        {/* ===== CLOSE (X) BUTTON ===== */}
         <button
           type="button"
           className="mdp-close-btn"
@@ -978,7 +984,7 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Savings plan badge (hidden for Random plans) */}
+        {/* Savings plan badge */}
         {memberPlan && !memberPlan.isRandom && (
           <div
             style={{
@@ -1025,7 +1031,7 @@ const MemberDeposit = ({ onClose }) => {
                   letterSpacing: "0.5px",
                 }}
               >
-                Expected {memberPlan.periodLabel}
+                Exact amount {memberPlan.periodLabel}
               </div>
               <div
                 style={{
@@ -1230,7 +1236,20 @@ const MemberDeposit = ({ onClose }) => {
 
           {/* Amount */}
           <div style={{ marginBottom: "16px" }}>
-            <label className="mdp-label">Amount (₦)</label>
+            <label className="mdp-label">
+              Amount (₦)
+              {memberPlan && !memberPlan.isRandom && (
+                <span
+                  style={{
+                    color: creditColor,
+                    fontWeight: "600",
+                    marginLeft: "6px",
+                  }}
+                >
+                  — must be exactly {formatCurrency(memberPlan.perPeriod)}
+                </span>
+              )}
+            </label>
             <div style={{ position: "relative" }}>
               <span
                 style={{
@@ -1251,14 +1270,36 @@ const MemberDeposit = ({ onClose }) => {
                 className="mdp-input"
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                placeholder={`Enter amount (min ${settings.min_deposit}, max ${settings.max_deposit})`}
-                style={{ paddingLeft: "32px", fontSize: "16px" }}
-                min={settings.min_deposit}
-                max={settings.max_deposit}
+                placeholder={
+                  memberPlan && !memberPlan.isRandom
+                    ? formatCurrency(memberPlan.perPeriod)
+                    : `Enter amount (min ${settings.min_deposit}, max ${settings.max_deposit})`
+                }
+                style={{
+                  paddingLeft: "32px",
+                  fontSize: "16px",
+                  borderColor: amountIsValid ? undefined : debitColor,
+                }}
                 step="0.01"
                 required
               />
             </div>
+
+            {/* Inline warning if amount doesn't match plan */}
+            {memberPlan && !memberPlan.isRandom && amount && !amountIsValid && (
+              <div
+                style={{
+                  color: debitColor,
+                  fontSize: "12px",
+                  marginTop: "6px",
+                  fontWeight: "600",
+                }}
+              >
+                ⚠️ Amount doesn't match your plan of{" "}
+                {formatCurrency(memberPlan.perPeriod)} {memberPlan.periodLabel}
+              </div>
+            )}
+
             {memberPlan && !memberPlan.isRandom && (
               <div
                 style={{
@@ -1267,11 +1308,11 @@ const MemberDeposit = ({ onClose }) => {
                   marginTop: "6px",
                 }}
               >
-                💡 Your plan expects{" "}
+                💡 Your plan requires exactly{" "}
                 <strong style={{ color: creditColor }}>
                   {formatCurrency(memberPlan.perPeriod)}
                 </strong>{" "}
-                {memberPlan.periodLabel}. Deposits must match this amount.
+                {memberPlan.periodLabel}. No more, no less.
               </div>
             )}
             {memberPlan && memberPlan.isRandom && (
@@ -1285,6 +1326,7 @@ const MemberDeposit = ({ onClose }) => {
                 💡 Random plan — enter any amount you wish to save.
               </div>
             )}
+
             <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
               {quickAmounts.map((amt) => (
                 <button
@@ -1437,12 +1479,12 @@ const MemberDeposit = ({ onClose }) => {
             )}
           </div>
 
-          {/* Action buttons: Submit + Cancel */}
+          {/* Action buttons */}
           <div style={{ display: "flex", gap: "12px" }}>
             <button
               type="submit"
               className="mdp-btn-submit"
-              disabled={loading || !selectedMember}
+              disabled={loading || !selectedMember || !amountIsValid}
             >
               {loading ? "⏳ Processing..." : `💰 Submit Deposit`}
             </button>

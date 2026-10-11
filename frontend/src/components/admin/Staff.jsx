@@ -1,6 +1,13 @@
 // src/components/admin/Staff.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useRef,
+  useCallback,
+} from "react";
 import toast from "react-hot-toast";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -32,48 +39,116 @@ const getRoleMeta = (role) =>
   ROLES.find((r) => r.value === (role || "").toLowerCase()) || ROLES[2];
 
 const Staff = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRole, setFilterRole] = useState("all");
   const [updatingId, setUpdatingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
+  // 🆕 Prevent the initial effect + branch-change effect from both firing
+  const didInitRef = useRef(false);
+  const lastBranchIdRef = useRef(null);
+
   useEffect(() => {
     const stored = localStorage.getItem("user");
-    if (stored) setCurrentUser(JSON.parse(stored));
-    fetchMembers();
+    if (stored) {
+      try {
+        setCurrentUser(JSON.parse(stored));
+      } catch (e) {
+        console.warn("[Staff] failed to parse stored user:", e);
+      }
+    }
   }, []);
 
-  const fetchMembers = async () => {
-    setLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php`);
-      const data = await res.json();
-      if (data.members) {
-        const mapped = data.members.map((m) => ({
+  // Unified fetch — called by both initial mount and branch change
+  const fetchMembers = useCallback(
+    async (opts = {}) => {
+      const { silent = false, showEmptyToast = false } = opts;
+
+      if (silent) setRefreshing(true);
+      else setLoading(true);
+
+      try {
+        const url = activeBranchId
+          ? `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`
+          : `${API_BASE_URL}/api/members.php`;
+
+        const res = await fetch(url);
+        const data = await res.json();
+
+        let rawList = [];
+        if (Array.isArray(data)) rawList = data;
+        else if (Array.isArray(data.members)) rawList = data.members;
+        else if (Array.isArray(data.data)) rawList = data.data;
+        else if (Array.isArray(data.results)) rawList = data.results;
+        else if (Array.isArray(data.records)) rawList = data.records;
+
+        if (rawList.length === 0) {
+          setMembers([]);
+          if (showEmptyToast) {
+            toast(`No staff in ${activeBranch?.name || "this branch"}`, {
+              icon: "📭",
+            });
+          }
+          return;
+        }
+
+        const mapped = rawList.map((m) => ({
           id: m.id,
-          name: m.name || m.full_name,
-          email: m.email,
+          name: m.name || m.full_name || "Unknown",
+          email: m.email || "",
           phone: m.phone || "",
           accountNumber: m.accountNumber || m.account_number || `MEM-${m.id}`,
           balance: m.balance || 0,
-          status: m.status?.toLowerCase() || "active",
+          status: (m.status || "active").toLowerCase(),
           role: (m.role || "member").toLowerCase(),
           passport_photo: m.passport_photo || null,
+          branch_id: m.branch_id || null,
         }));
+
         mapped.sort((a, b) => {
           const order = { admin: 0, manager: 1, member: 2 };
           return (order[a.role] ?? 3) - (order[b.role] ?? 3);
         });
+
         setMembers(mapped);
+      } catch (e) {
+        console.error("[Staff] fetch error:", e);
+        toast.error("Failed to load members");
+        setMembers([]);
+      } finally {
+        if (silent) setRefreshing(false);
+        else setLoading(false);
       }
-    } catch (e) {
-      console.error(e);
-      toast.error("Failed to load members");
-    } finally {
-      setLoading(false);
+    },
+    [activeBranchId, activeBranch?.name],
+  );
+
+  // Initial mount + branch change — guard against double fire
+  useEffect(() => {
+    const isFirstRun = !didInitRef.current;
+    const branchChanged =
+      lastBranchIdRef.current !== null &&
+      lastBranchIdRef.current !== activeBranchId;
+
+    if (isFirstRun || branchChanged) {
+      didInitRef.current = true;
+      lastBranchIdRef.current = activeBranchId;
+      setSearchTerm("");
+      setFilterRole("all");
+      fetchMembers();
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]);
+
+  // Manual refresh handler — single toast, spinner on button
+  const handleRefresh = async () => {
+    await fetchMembers({ silent: true });
+    toast.success("🔄 Staff list refreshed");
   };
 
   const handleRoleChange = async (member, newRole) => {
@@ -98,7 +173,11 @@ const Staff = () => {
 
     setUpdatingId(member.id);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php/${member.id}`, {
+      const putUrl = activeBranchId
+        ? `${API_BASE_URL}/api/members.php/${member.id}?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/members.php/${member.id}`;
+
+      const res = await fetch(putUrl, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -108,6 +187,7 @@ const Staff = () => {
           status: member.status,
           balance: member.balance || 0,
           role: newRole,
+          branch_id: activeBranchId,
         }),
       });
 
@@ -191,6 +271,7 @@ const Staff = () => {
       }}
     >
       <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
         .staff-header {
           display: flex; justify-content: space-between;
           align-items: flex-start; flex-wrap: wrap;
@@ -203,8 +284,24 @@ const Staff = () => {
         .staff-header p {
           color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
         }
+        .refresh-btn {
+          padding: 10px 18px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.15s, opacity 0.15s;
+        }
+        .refresh-btn:hover:not(:disabled) { background: var(--bg-surface-3); }
+        .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+        .refresh-btn .spin { display: inline-block; animation: spin 1s linear infinite; }
 
-        /* ===== STAT CARDS — no background, no border ===== */
         .stats-row {
           display: grid;
           grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -225,7 +322,6 @@ const Staff = () => {
           font-size: 22px; font-weight: 700;
         }
 
-        /* ===== FILTERS — no border, keep subtle fill ===== */
         .filter-bar {
           display: flex; gap: 10px; flex-wrap: wrap;
           margin-bottom: 20px;
@@ -249,7 +345,6 @@ const Staff = () => {
           background: var(--bg-surface); color: var(--text);
         }
 
-        /* ===== TABLE — no borders, no background ===== */
         .table-wrap {
           background: transparent;
           border: none;
@@ -344,30 +439,88 @@ const Staff = () => {
         .empty-icon { font-size: 48px; margin-bottom: 8px; }
       `}</style>
 
-      {/* Header */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Staff for this branch only ·{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {members.length}
+              </strong>{" "}
+              staff ·{" "}
+              <strong style={{ color: "var(--info)" }}>
+                {counts.admin + counts.manager}
+              </strong>{" "}
+              with elevated roles
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       <div className="staff-header">
         <div>
           <h2>🛡️ Staff & Roles</h2>
-          <p>Promote or demote members — Admin, Manager, or Member</p>
+          <p>
+            Promote or demote members in{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong> — Admin,
+            Manager, or Member
+          </p>
         </div>
         <button
-          onClick={fetchMembers}
-          style={{
-            padding: "10px 20px",
-            borderRadius: "8px",
-            border: "none",
-            background: "var(--accent-bg)",
-            color: "var(--text)",
-            cursor: "pointer",
-            fontSize: "13px",
-            fontWeight: "600",
-          }}
+          className="refresh-btn"
+          onClick={handleRefresh}
+          disabled={refreshing}
+          title="Reload staff list for this branch"
         >
-          🔄 Refresh
+          <span className={refreshing ? "spin" : ""}>🔄</span>
+          {refreshing ? "Refreshing…" : "Refresh"}
         </button>
       </div>
 
-      {/* Stats — no cards */}
       <div className="stats-row">
         <div className="stat-card">
           <span className="stat-label">👑 Admins</span>
@@ -395,7 +548,6 @@ const Staff = () => {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="filter-bar">
         <input
           type="text"
@@ -416,7 +568,6 @@ const Staff = () => {
         </select>
       </div>
 
-      {/* Table — no background, no borders */}
       <div className="table-wrap">
         <table>
           <thead>
@@ -434,7 +585,7 @@ const Staff = () => {
               <tr>
                 <td colSpan="6" className="empty">
                   <div className="empty-icon">📭</div>
-                  <p>No staff found</p>
+                  <p>No staff found in {activeBranch?.name || "this branch"}</p>
                 </td>
               </tr>
             ) : (
@@ -548,7 +699,6 @@ const Staff = () => {
         </table>
       </div>
 
-      {/* Legend — no background, no border */}
       <div style={{ marginTop: "24px" }}>
         <p
           style={{

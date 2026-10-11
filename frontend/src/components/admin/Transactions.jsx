@@ -1,6 +1,8 @@
 // src/components/admin/AdminTransactions.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -47,6 +49,8 @@ const isSlipImage = (t) => {
 };
 
 const AdminTransactions = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -68,12 +72,13 @@ const AdminTransactions = () => {
 
   useEffect(() => {
     fetchTransactions();
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]); // 🆕 refetch when branch changes
 
   const fetchTransactions = async () => {
     setLoading(true);
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const response = await apiFetch("/api/transactions.php");
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const result = await response.json();
@@ -108,16 +113,15 @@ const AdminTransactions = () => {
         accountNumber: t.accountNumber,
         memberName: t.memberName,
 
-        // Payment slip
         payment_slip: t.payment_slip || null,
         payment_slip_name: t.payment_slip_name || null,
         payment_slip_type: t.payment_slip_type || null,
 
-        // Rejection
         rejection_reason: t.rejection_reason || null,
         rejected_by: t.rejected_by || null,
         rejected_at: t.rejected_at || null,
         approved_at: t.approved_at || null,
+        branch_id: t.branch_id || null, // 🆕
       }));
 
       setTransactions(formattedData);
@@ -159,8 +163,8 @@ const AdminTransactions = () => {
   // Approve
   const handleApproveTransaction = async (transactionId) => {
     try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${transactionId}/approve`,
+      const response = await apiFetch(
+        `/api/transactions.php/${transactionId}/approve`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -202,8 +206,8 @@ const AdminTransactions = () => {
       const adminName =
         JSON.parse(localStorage.getItem("user") || "{}")?.name || "Admin";
 
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php/${rejectingId}/reject`,
+      const response = await apiFetch(
+        `/api/transactions.php/${rejectingId}/reject`,
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -276,33 +280,6 @@ const AdminTransactions = () => {
     return icons[type] || "💳";
   };
 
-  const getStatusBadge = (status) => {
-    const styles = {
-      completed: "bg-green-100 text-green-800 border border-green-200",
-      approved: "bg-green-100 text-green-800 border border-green-200",
-      pending: "bg-yellow-100 text-yellow-800 border border-yellow-200",
-      failed: "bg-red-100 text-red-800 border border-red-200",
-      rejected: "bg-red-100 text-red-800 border border-red-200",
-      cancelled: "bg-gray-100 text-gray-800 border border-gray-200",
-      processing: "bg-blue-100 text-blue-800 border border-blue-200",
-    };
-    return styles[status] || "bg-gray-100 text-gray-800 border border-gray-200";
-  };
-
-  const getTypeBadge = (type) => {
-    const styles = {
-      deposit: "bg-emerald-100 text-emerald-800 border border-emerald-200",
-      withdrawal: "bg-red-100 text-red-800 border border-red-200",
-      payment: "bg-blue-100 text-blue-800 border border-blue-200",
-      refund: "bg-orange-100 text-orange-800 border border-orange-200",
-      fee: "bg-purple-100 text-purple-800 border border-purple-200",
-      transfer: "bg-indigo-100 text-indigo-800 border border-indigo-200",
-      credit: "bg-green-100 text-green-800 border border-green-200",
-      debit: "bg-red-100 text-red-800 border border-red-200",
-    };
-    return styles[type] || "bg-gray-100 text-gray-800 border border-gray-200";
-  };
-
   const filteredTransactions = () => {
     if (!searchTerm.trim()) return currentTransactions;
     const term = searchTerm.toLowerCase().trim();
@@ -339,7 +316,7 @@ const AdminTransactions = () => {
     setShowDetailsModal(true);
   };
 
-  // ✅ Render payment slip preview inside modal (robust)
+  // Render payment slip preview inside modal (robust)
   const renderPaymentSlip = (t) => {
     if (!t?.payment_slip) return null;
 
@@ -407,7 +384,6 @@ const AdminTransactions = () => {
               Click image to open in new tab
             </div>
 
-            {/* Fallback download link */}
             <a
               href={src}
               download={t.payment_slip_name || `slip-${t.id}.jpg`}
@@ -785,6 +761,65 @@ const AdminTransactions = () => {
         }
       `}</style>
 
+      {/* ===== 🆕 BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Transactions for this branch ·{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {transactions.length}
+              </strong>{" "}
+              records
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       <h2
         style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}
       >
@@ -975,7 +1010,7 @@ const AdminTransactions = () => {
                       <p style={{ fontSize: "16px", fontWeight: "500" }}>
                         {searchTerm
                           ? "No transactions found"
-                          : "No transactions yet"}
+                          : `No transactions in ${activeBranch?.name || "this branch"} yet`}
                       </p>
                       <p
                         style={{

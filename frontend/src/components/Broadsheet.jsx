@@ -4,6 +4,8 @@ import toast from "react-hot-toast";
 
 import useSpeechRecognition from "../hooks/useSpeechRecognition";
 import MemberDetailModal from "./MemberDetailModal";
+import { apiFetch } from "../utils/api";
+import { useBranch } from "../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -24,6 +26,8 @@ const MONTHS = [
 ];
 
 const Broadsheet = () => {
+  const { activeBranch, activeBranchId } = useBranch();
+
   const [transactions, setTransactions] = useState([]);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -127,10 +131,13 @@ const Broadsheet = () => {
     });
   };
 
+  // ============================================================
+  // 🆕 All fetches use apiFetch → automatically carry ?branch_id=X
+  // ============================================================
   const fetchData = async () => {
     setLoading(true);
     try {
-      const mRes = await fetch(`${API_BASE_URL}/api/members.php`);
+      const mRes = await apiFetch("/api/members.php");
       const mData = await mRes.json();
       let membersList = [];
       if (mData.members) {
@@ -138,7 +145,7 @@ const Broadsheet = () => {
         setMembers(membersList);
       }
 
-      const tRes = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const tRes = await apiFetch("/api/transactions.php");
       const tData = await tRes.json();
 
       let all = [];
@@ -172,7 +179,7 @@ const Broadsheet = () => {
     if (stored) setUser(JSON.parse(stored));
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeBranchId]); // 🆕 refetch when branch changes
 
   const handleVoiceResult = useCallback(
     (spokenText) => {
@@ -219,16 +226,6 @@ const Broadsheet = () => {
       }
     },
   });
-
-  useEffect(() => {
-    console.log("🎙️ Voice supported:", voiceSupported);
-    console.log(
-      "SpeechRecognition available:",
-      !!(window.SpeechRecognition || window.webkitSpeechRecognition),
-    );
-    console.log("Protocol:", window.location.protocol);
-    console.log("Host:", window.location.host);
-  }, [voiceSupported]);
 
   const filtered = useMemo(() => {
     let list = [...transactions];
@@ -464,7 +461,7 @@ const Broadsheet = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `broadsheet_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `broadsheet_${activeBranch?.code || "branch"}_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("📥 Broadsheet exported!");
@@ -504,7 +501,6 @@ const Broadsheet = () => {
         background: "transparent",
       }}
     >
-      {/* ===== SCOPED STYLES ===== */}
       <style>{`
         .bs-header {
           display: flex;
@@ -620,7 +616,6 @@ const Broadsheet = () => {
         }
         .bs-mic-btn.unsupported:hover { background: transparent; }
 
-        /* ===== CLEAN TABLE — no scrolling, no borders ===== */
         .bs-table-wrap {
           background: transparent;
           border: none;
@@ -697,14 +692,73 @@ const Broadsheet = () => {
         .bs-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
       `}</style>
 
+      {/* ===== 🆕 BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Ledger for this branch only ·{" "}
+              <strong style={{ color: "var(--credit)" }}>
+                {transactions.length}
+              </strong>{" "}
+              records
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       {/* Header */}
       <div className="bs-header">
         <div>
           <h2>📑 Financial Broadsheet</h2>
           <p>
             {user?.role === "admin"
-              ? "All members — complete transaction ledger"
-              : "Your complete transaction ledger"}
+              ? `All members in ${activeBranch?.name || "this branch"} — complete transaction ledger`
+              : `Your complete transaction ledger — ${activeBranch?.name || "your branch"}`}
           </p>
         </div>
         <div className="bs-actions">
@@ -899,7 +953,8 @@ const Broadsheet = () => {
 
         <div className="bs-filter-summary">
           Showing <strong>{filtered.length}</strong> of{" "}
-          <strong>{transactions.length}</strong> transactions
+          <strong>{transactions.length}</strong> transactions in{" "}
+          <strong>{activeBranch?.name || "this branch"}</strong>
           {filterDay && ` on ${filterDay}`}
           {filterMonth &&
             ` in ${MONTHS.find((m) => m.value === filterMonth)?.label}`}
@@ -930,7 +985,11 @@ const Broadsheet = () => {
               <tr>
                 <td colSpan="11" className="bs-empty">
                   <div className="bs-empty-icon">📭</div>
-                  <p>No transactions match your filters</p>
+                  <p>
+                    No transactions in{" "}
+                    <strong>{activeBranch?.name || "this branch"}</strong> match
+                    your filters
+                  </p>
                   <p className="bs-empty-hint">
                     Try clearing the date, month, or year filters
                   </p>

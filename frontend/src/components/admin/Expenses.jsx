@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
+import { useBranch } from "../../context/BranchContext"; // 🆕
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -30,6 +31,7 @@ const STATUS_TABS = [
 
 const Expenses = () => {
   const { user } = useAuth();
+  const { activeBranch, activeBranchId } = useBranch(); // 🆕
   const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
   const [expenses, setExpenses] = useState([]);
@@ -55,13 +57,21 @@ const Expenses = () => {
   };
   const [form, setForm] = useState(emptyForm);
 
+  // 🆕 refetch when branch changes; reset filters so we don't hide everything
   useEffect(() => {
-    fetchExpenses(); /* eslint-disable-next-line */
-  }, []);
+    setSearch("");
+    setFilterCategory("all");
+    setFilterMonth("");
+    setStatusTab("all");
+    fetchExpenses();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]);
 
   const fetchExpenses = async () => {
     setLoading(true);
     try {
+      // 🆕 If your backend does NOT scope by session, change this to:
+      //   `${API_BASE_URL}/api/expenses.php?branch_id=${activeBranchId}`
       const res = await fetch(`${API_BASE_URL}/api/expenses.php`);
       const data = await res.json();
       setExpenses(Array.isArray(data.expenses) ? data.expenses : []);
@@ -109,6 +119,8 @@ const Expenses = () => {
         recorded_by: user?.full_name || user?.name || user?.username || "User",
         recorded_by_role: user?.role || "member",
         auto_approve: isAdmin,
+        // 🆕 branch scoping
+        ...(activeBranchId ? { branch_id: activeBranchId } : {}),
       };
 
       const url = editing
@@ -158,6 +170,15 @@ const Expenses = () => {
     }
   };
 
+  // 🆕 merge server response into existing row instead of replacing with
+  // data.expense (which may be undefined if the API returns { status: true })
+  const mergeExpense = (updated) => {
+    if (!updated || !updated.id) return;
+    setExpenses((prev) =>
+      prev.map((e) => (e.id === updated.id ? { ...e, ...updated } : e)),
+    );
+  };
+
   const handleApprove = async (expense) => {
     if (!isAdmin) return toast.error("Only admins can approve");
     if (
@@ -183,9 +204,16 @@ const Expenses = () => {
       const data = await res.json();
       if (res.ok && data.status) {
         toast.success("✅ Expense approved");
+        // optimistic update; then refetch to stay in sync
         setExpenses((prev) =>
-          prev.map((e) => (e.id === expense.id ? data.expense : e)),
+          prev.map((e) =>
+            e.id === expense.id
+              ? { ...e, status: "approved", approved_by: user?.full_name }
+              : e,
+          ),
         );
+        if (data.expense) mergeExpense(data.expense);
+        fetchExpenses();
       } else toast.error(data.error || "Failed to approve");
     } catch {
       toast.error("Failed to approve");
@@ -220,8 +248,19 @@ const Expenses = () => {
       if (res.ok && data.status) {
         toast.success("❌ Expense rejected");
         setExpenses((prev) =>
-          prev.map((e) => (e.id === expense.id ? data.expense : e)),
+          prev.map((e) =>
+            e.id === expense.id
+              ? {
+                  ...e,
+                  status: "rejected",
+                  rejection_reason: reason || "No reason provided",
+                  approved_by: user?.full_name,
+                }
+              : e,
+          ),
         );
+        if (data.expense) mergeExpense(data.expense);
+        fetchExpenses();
       } else toast.error(data.error || "Failed to reject");
     } catch {
       toast.error("Failed to reject");
@@ -433,6 +472,7 @@ const Expenses = () => {
           transition: background 0.15s;
         }
         .exp-icon-btn:hover { background: var(--bg-surface-2); }
+        .exp-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
         .exp-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
         .exp-empty-icon { font-size: 48px; margin-bottom: 10px; }
@@ -494,13 +534,72 @@ const Expenses = () => {
         }
       `}</style>
 
+      {/* ===== 🆕 BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Expenses for this branch only ·{" "}
+              <strong style={{ color: "var(--debit)" }}>
+                {expenses.length}
+              </strong>{" "}
+              records
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       <div className="exp-header">
         <div>
           <h2>💸 Expenses</h2>
           <p>
             {isAdmin
-              ? "Record and approve business expenses"
-              : "Record expenses — admin approval required"}
+              ? `Record and approve expenses for ${activeBranch?.name || "this branch"}`
+              : `Record expenses for ${activeBranch?.name || "this branch"} — admin approval required`}
           </p>
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
@@ -622,7 +721,9 @@ const Expenses = () => {
               <tr>
                 <td colSpan="9" className="exp-empty">
                   <div className="exp-empty-icon">📭</div>
-                  <p>No expenses found</p>
+                  <p>
+                    No expenses found in {activeBranch?.name || "this branch"}
+                  </p>
                 </td>
               </tr>
             ) : (
@@ -741,6 +842,21 @@ const Expenses = () => {
               >
                 ×
               </button>
+            </div>
+
+            {/* 🆕 branch note */}
+            <div
+              style={{
+                background: "var(--accent-bg)",
+                borderRadius: 8,
+                padding: "10px 14px",
+                marginBottom: 16,
+                fontSize: 12,
+                color: "var(--text)",
+              }}
+            >
+              🏢 This expense will be recorded under{" "}
+              <strong>{activeBranch?.name || "this branch"}</strong>.
             </div>
 
             {!isAdmin && !editing && (

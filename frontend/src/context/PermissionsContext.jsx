@@ -8,12 +8,15 @@ import React, {
   useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
+import { useBranch } from "./BranchContext"; // 🆕
 
 const API_BASE_URL = "http://localhost:8000";
 const PermissionsContext = createContext(null);
 
 export const PermissionsProvider = ({ children }) => {
   const { user } = useAuth();
+  const { activeBranchId } = useBranch(); // 🆕
+
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -35,7 +38,14 @@ export const PermissionsProvider = ({ children }) => {
     setError(null);
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/permissions.php`);
+      // 🆕 Pass branch_id so we load this branch's permissions.
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/permissions.php`;
+
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+      });
       const data = await res.json();
 
       if (data.status && data.permissions) {
@@ -43,7 +53,7 @@ export const PermissionsProvider = ({ children }) => {
         setPermissions(rolePerms);
         // eslint-disable-next-line no-console
         console.log(
-          `[PermissionsContext] Loaded for role "${role}":`,
+          `[PermissionsContext] Loaded for role "${role}" (branch ${data.branch_id ?? activeBranchId}):`,
           rolePerms,
         );
       } else {
@@ -56,7 +66,7 @@ export const PermissionsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [role, user]);
+  }, [role, user, activeBranchId]); // 🆕 refetch when branch changes
 
   useEffect(() => {
     refreshPermissions();
@@ -81,8 +91,17 @@ export const PermissionsProvider = ({ children }) => {
       role,
       can,
       refreshPermissions,
+      branchId: activeBranchId, // 🆕 expose for debugging
     }),
-    [permissions, loading, error, role, can, refreshPermissions],
+    [
+      permissions,
+      loading,
+      error,
+      role,
+      can,
+      refreshPermissions,
+      activeBranchId,
+    ],
   );
 
   return (

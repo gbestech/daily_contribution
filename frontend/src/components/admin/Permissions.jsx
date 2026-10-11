@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { usePermission } from "../../context/PermissionsContext";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -50,6 +51,96 @@ const OPERATIONS = [
       { key: "edit_member", label: "Edit Member", icon: "✏️" },
       { key: "delete_member", label: "Delete Member", icon: "🗑️" },
       { key: "assign_role", label: "Assign Role", icon: "🔑" },
+      {
+        key: "suspend_member",
+        label: "Suspend / Reactivate Member",
+        icon: "🚫",
+      },
+    ],
+  },
+  {
+    group: "Branches",
+    items: [
+      { key: "view_branches", label: "View Branches", icon: "👁️" },
+      { key: "create_branch", label: "Create Branch", icon: "➕" },
+      { key: "edit_branch", label: "Edit Branch", icon: "✏️" },
+      { key: "delete_branch", label: "Delete Branch", icon: "🗑️" },
+      {
+        key: "toggle_branch_status",
+        label: "Activate / Deactivate Branch",
+        icon: "🔀",
+      },
+      {
+        key: "copy_registration_link",
+        label: "Copy Registration Link",
+        icon: "🔗",
+      },
+      {
+        key: "assign_branch_manager",
+        label: "Assign Branch Manager",
+        icon: "🧑‍💼",
+      },
+      { key: "switch_branch", label: "Switch Active Branch", icon: "🔄" },
+      {
+        key: "view_all_branches",
+        label: "View All Branches (cross-branch)",
+        icon: "🌐",
+      },
+    ],
+  },
+  {
+    group: "Loans",
+    items: [
+      { key: "view_loans", label: "View Loans", icon: "👁️" },
+      { key: "create_loan", label: "Create Loan", icon: "➕" },
+      { key: "approve_loan", label: "Approve Loan", icon: "✅" },
+      { key: "reject_loan", label: "Reject Loan", icon: "❌" },
+      { key: "disburse_loan", label: "Disburse Loan", icon: "💵" },
+      { key: "record_repayment", label: "Record Repayment", icon: "📥" },
+      {
+        key: "manage_loan_settings",
+        label: "Manage Loan Settings",
+        icon: "⚙️",
+      },
+    ],
+  },
+  {
+    group: "Contributions",
+    items: [
+      { key: "view_contributions", label: "View Contributions", icon: "👁️" },
+      {
+        key: "manage_contributions",
+        label: "Manage Contributions",
+        icon: "💰",
+      },
+      {
+        key: "manage_contribution_settings",
+        label: "Manage Contribution Settings",
+        icon: "⚙️",
+      },
+    ],
+  },
+  {
+    group: "Commission & Payments",
+    items: [
+      { key: "view_commissions", label: "View Commissions", icon: "👁️" },
+      { key: "manage_commissions", label: "Manage Commissions", icon: "💸" },
+      {
+        key: "manage_commission_settings",
+        label: "Manage Commission Settings",
+        icon: "⚙️",
+      },
+      {
+        key: "manage_payment_settings",
+        label: "Manage Payment Settings",
+        icon: "💳",
+      },
+      {
+        key: "manage_discount_settings",
+        label: "Manage Discount Settings",
+        icon: "🏷️",
+      },
+      { key: "process_refunds", label: "Process Refunds", icon: "↩️" },
     ],
   },
   {
@@ -58,6 +149,13 @@ const OPERATIONS = [
       { key: "manage_staff", label: "Manage Staff", icon: "🛡️" },
       { key: "manage_permissions", label: "Manage Permissions", icon: "🔒" },
       { key: "manage_settings", label: "Manage Settings", icon: "⚙️" },
+      { key: "manage_security", label: "Manage Security Settings", icon: "🔐" },
+      {
+        key: "manage_suspension",
+        label: "Manage Suspension Settings",
+        icon: "🚫",
+      },
+      { key: "view_audit_log", label: "View Audit Log", icon: "📋" },
     ],
   },
 ];
@@ -70,9 +168,50 @@ const ROLES = [
 
 const ALL_KEYS = OPERATIONS.flatMap((g) => g.items.map((i) => i.key));
 
+// Branch-related permission keys
+const BRANCH_KEYS = [
+  "view_branches",
+  "create_branch",
+  "edit_branch",
+  "delete_branch",
+  "toggle_branch_status",
+  "copy_registration_link",
+  "assign_branch_manager",
+  "switch_branch",
+  "view_all_branches",
+];
+
+// The ONLY branch permissions a Manager may hold: view + edit their branch.
+const MANAGER_BRANCH_KEYS = ["view_branches", "edit_branch"];
+
+// Branch permissions a Manager can NEVER have (the server strips these too).
+const MANAGER_BLOCKED_KEYS = BRANCH_KEYS.filter(
+  (k) => !MANAGER_BRANCH_KEYS.includes(k),
+);
+
+// Manager = every non-branch operation + view/edit on branches.
+const MANAGER_KEYS = ALL_KEYS.filter((k) => !MANAGER_BLOCKED_KEYS.includes(k));
+
+// Is this key not allowed for this role?
+const isBlockedFor = (role, key) =>
+  role === "manager" && MANAGER_BLOCKED_KEYS.includes(key);
+
+// Remove keys a role isn't allowed to hold.
+const sanitizeForRole = (role, keys) =>
+  role === "manager"
+    ? (keys || []).filter((k) => !MANAGER_BLOCKED_KEYS.includes(k))
+    : keys || [];
+
+// Total number of permissions a role can actually hold.
+const totalFor = (role) =>
+  role === "manager"
+    ? ALL_KEYS.length - MANAGER_BLOCKED_KEYS.length
+    : ALL_KEYS.length;
+
 const Permissions = () => {
   const permCtx = usePermission() || {};
   const refreshPermissions = permCtx.refreshPermissions;
+  const { activeBranch, activeBranchId } = useBranch();
 
   const [permissions, setPermissions] = useState({
     admin: [],
@@ -87,18 +226,24 @@ const Permissions = () => {
   useEffect(() => {
     fetchPermissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [activeBranchId]);
 
   const fetchPermissions = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/permissions.php`);
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/permissions.php`;
+
+      const res = await fetch(url, {
+        headers: { Accept: "application/json" },
+      });
       const data = await res.json();
 
       if (data.status && data.permissions) {
         const normalized = {
           admin: data.permissions.admin || [],
-          manager: data.permissions.manager || [],
+          manager: sanitizeForRole("manager", data.permissions.manager || []),
           member: data.permissions.member || [],
         };
         setPermissions(normalized);
@@ -122,6 +267,7 @@ const Permissions = () => {
   };
 
   const toggleOperation = (role, key) => {
+    if (isBlockedFor(role, key)) return; // not allowed for this role
     setPermissions((prev) => {
       const current = new Set(prev[role] || []);
       if (current.has(key)) current.delete(key);
@@ -131,7 +277,9 @@ const Permissions = () => {
   };
 
   const toggleGroup = (role, group, on) => {
-    const keys = group.items.map((i) => i.key);
+    const keys = group.items
+      .map((i) => i.key)
+      .filter((k) => !isBlockedFor(role, k));
     setPermissions((prev) => {
       const current = new Set(prev[role] || []);
       keys.forEach((k) => (on ? current.add(k) : current.delete(k)));
@@ -142,21 +290,42 @@ const Permissions = () => {
   const toggleAll = (role, on) => {
     setPermissions((prev) => ({
       ...prev,
-      [role]: on ? [...ALL_KEYS] : [],
+      [role]: on ? sanitizeForRole(role, [...ALL_KEYS]) : [],
     }));
+  };
+
+  const applyPreset = (role, keys, on) => {
+    const allowed = sanitizeForRole(role, keys);
+    setPermissions((prev) => {
+      const current = new Set(prev[role] || []);
+      allowed.forEach((k) => (on ? current.add(k) : current.delete(k)));
+      // "Remove" presets must still be able to clear blocked keys
+      if (!on) keys.forEach((k) => current.delete(k));
+      return { ...prev, [role]: Array.from(current) };
+    });
   };
 
   const saveRole = async (role) => {
     setSavingRole(role);
     try {
+      const operations = sanitizeForRole(role, permissions[role] || []);
+
       const payload = {
         role,
-        operations: permissions[role] || [],
+        branch_id: activeBranchId,
+        operations,
       };
 
-      const res = await fetch(`${API_BASE_URL}/api/permissions.php`, {
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/permissions.php`;
+
+      const res = await fetch(url, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify(payload),
       });
 
@@ -169,9 +338,15 @@ const Permissions = () => {
       }
 
       if (res.ok && data.status) {
+        // Use what the server actually stored (it may have filtered keys)
+        const saved = Array.isArray(data.operations)
+          ? data.operations
+          : operations;
+
+        setPermissions((prev) => ({ ...prev, [role]: [...saved] }));
         setOriginal((prev) => ({
           ...prev,
-          [role]: [...(permissions[role] || [])],
+          [role]: [...saved],
         }));
 
         if (typeof refreshPermissions === "function") {
@@ -182,7 +357,9 @@ const Permissions = () => {
           }
         }
 
-        toast.success(`✅ ${role} permissions saved`);
+        toast.success(
+          `✅ ${role} permissions saved for ${activeBranch?.name || "this branch"}`,
+        );
       } else {
         toast.error(data.error || `Save failed (HTTP ${res.status})`);
       }
@@ -217,12 +394,68 @@ const Permissions = () => {
     <div className="perm-page">
       <style>{css}</style>
 
+      {/* Branch banner */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Permissions are set per branch
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
+
       {/* Header */}
       <div className="perm-header">
         <div>
           <h2>🔒 Role Permissions</h2>
           <p>
-            Decide what each role (Admin, Manager, Member) can do in the app
+            Decide what each role can do in{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong>
           </p>
         </div>
         <button
@@ -251,13 +484,23 @@ const Permissions = () => {
               <span>{r.icon}</span>
               <span>{r.label}</span>
               <span className="count">
-                {rolePerm.length}/{ALL_KEYS.length}
+                {rolePerm.length}/{totalFor(r.value)}
               </span>
               {dirty && <span className="dirty-dot" title="Unsaved changes" />}
             </button>
           );
         })}
       </div>
+
+      {/* Manager rule notice */}
+      {activeRole === "manager" && (
+        <div className="perm-note">
+          🔒 Managers can only <strong>view</strong> and <strong>edit</strong>{" "}
+          their branch. Creating, deleting, activating, copying links, assigning
+          managers and switching branches are admin-only, so those boxes are
+          locked.
+        </div>
+      )}
 
       {/* Bulk actions */}
       <div className="perm-toolbar">
@@ -289,11 +532,67 @@ const Permissions = () => {
         </div>
       </div>
 
+      {/* Quick presets */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 12,
+          flexWrap: "wrap",
+          padding: "12px 16px",
+          margin: "16px 0 8px",
+          borderRadius: 10,
+          border: "1px solid var(--border, #e2e8f0)",
+          background: "var(--bg-surface-2, rgba(0,0,0,0.02))",
+        }}
+      >
+        <span
+          style={{
+            fontSize: 12,
+            fontWeight: 700,
+            textTransform: "uppercase",
+            letterSpacing: 0.5,
+            color: "var(--text-muted, #64748b)",
+          }}
+        >
+          ⚡ Presets
+        </span>
+
+        <button
+          className="perm-bulk perm-bulk-green"
+          onClick={() => applyPreset(activeRole, MANAGER_KEYS, true)}
+          title="Grant every permission except branch admin — can only view and edit their own branch"
+        >
+          🛡️ Manager (view + edit branch)
+        </button>
+
+        {activeRole !== "manager" && (
+          <button
+            className="perm-bulk perm-bulk-green"
+            onClick={() => applyPreset(activeRole, BRANCH_KEYS, true)}
+            title="Grant full branch admin capabilities"
+          >
+            🏢 Full branch admin
+          </button>
+        )}
+
+        <button
+          className="perm-bulk perm-bulk-red"
+          onClick={() => applyPreset(activeRole, BRANCH_KEYS, false)}
+          title="Remove all branch permissions from this role"
+        >
+          🚫 No branch access
+        </button>
+      </div>
+
       {/* Groups */}
       <div className="perm-body">
         {OPERATIONS.map((group) => {
-          const groupKeys = group.items.map((i) => i.key);
-          const allChecked = groupKeys.every((k) => roleSet.has(k));
+          const groupKeys = group.items
+            .map((i) => i.key)
+            .filter((k) => !isBlockedFor(activeRole, k));
+          const allChecked =
+            groupKeys.length > 0 && groupKeys.every((k) => roleSet.has(k));
           const someChecked =
             !allChecked && groupKeys.some((k) => roleSet.has(k));
 
@@ -301,29 +600,40 @@ const Permissions = () => {
             <div key={group.group} className="perm-group">
               <div className="perm-group-head">
                 <div className="perm-group-title">{group.group}</div>
-                <button
-                  className="perm-bulk perm-bulk-ghost"
-                  onClick={() => toggleGroup(activeRole, group, !allChecked)}
-                >
-                  {allChecked
-                    ? "⛔ Clear all"
-                    : someChecked
-                      ? "➕ Add remaining"
-                      : "✅ Select all"}
-                </button>
+                {groupKeys.length > 0 && (
+                  <button
+                    className="perm-bulk perm-bulk-ghost"
+                    onClick={() => toggleGroup(activeRole, group, !allChecked)}
+                  >
+                    {allChecked
+                      ? "⛔ Clear all"
+                      : someChecked
+                        ? "➕ Add remaining"
+                        : "✅ Select all"}
+                  </button>
+                )}
               </div>
 
               <div className="perm-items">
                 {group.items.map((op) => {
                   const checked = roleSet.has(op.key);
+                  const blocked = isBlockedFor(activeRole, op.key);
                   return (
                     <label
                       key={op.key}
-                      className={`perm-item ${checked ? "checked" : ""}`}
+                      className={`perm-item ${checked ? "checked" : ""} ${
+                        blocked ? "disabled" : ""
+                      }`}
+                      title={
+                        blocked
+                          ? "Managers cannot have this permission (admin-only)"
+                          : undefined
+                      }
                     >
                       <input
                         type="checkbox"
-                        checked={checked}
+                        checked={checked && !blocked}
+                        disabled={blocked}
                         onChange={() => toggleOperation(activeRole, op.key)}
                       />
                       <span className="perm-item-label">
@@ -331,6 +641,11 @@ const Permissions = () => {
                           {op.icon}
                         </span>
                         <span className="perm-text">{op.label}</span>
+                        {blocked && (
+                          <span className="perm-lock" aria-hidden="true">
+                            🔒
+                          </span>
+                        )}
                       </span>
                     </label>
                   );
@@ -341,13 +656,14 @@ const Permissions = () => {
         })}
       </div>
 
-      {/* Save bar — no background */}
+      {/* Save bar */}
       <div className="save-bar">
         <div className="save-bar-text">
           {isDirty(activeRole) ? (
             <>
               <strong>Unsaved changes</strong> on{" "}
-              {ROLES.find((r) => r.value === activeRole)?.label}
+              {ROLES.find((r) => r.value === activeRole)?.label} for{" "}
+              {activeBranch?.name || "this branch"}
             </>
           ) : (
             <>All changes saved for this role</>
@@ -375,26 +691,22 @@ const Permissions = () => {
   );
 };
 
-/* ----------------------------------------------------------------
-   CSS — flat style. No cards, no backgrounds, no gradients.
------------------------------------------------------------------ */
 const css = `
   .perm-page {
     padding: 24px;
     max-width: 1100px;
     margin: 0 auto;
+    min-height: 100vh;
+    background-color: var(--bg-app, transparent);
     color: var(--text, #0f172a);
     font-family: system-ui, -apple-system, sans-serif;
   }
-
   .perm-loading {
     text-align: center;
     padding: 60px 20px;
     color: var(--text-muted, #64748b);
     font-size: 14px;
   }
-
-  /* ---------- Header ---------- */
   .perm-header {
     display: flex;
     justify-content: space-between;
@@ -416,8 +728,6 @@ const css = `
     margin: 4px 0 0 0;
     font-size: 14px;
   }
-
-  /* ---------- Role tabs ---------- */
   .role-tabs {
     display: flex;
     gap: 24px;
@@ -459,8 +769,16 @@ const css = `
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--warning, #f59e0b);
   }
-
-  /* ---------- Toolbar ---------- */
+  .perm-note {
+    margin: 0 0 16px;
+    padding: 10px 14px;
+    border-radius: 8px;
+    border: 1px solid rgba(245, 158, 11, 0.35);
+    background: rgba(245, 158, 11, 0.07);
+    color: var(--text, #0f172a);
+    font-size: 13px;
+    line-height: 1.5;
+  }
   .perm-toolbar {
     display: flex;
     justify-content: space-between;
@@ -480,7 +798,6 @@ const css = `
   }
   .perm-toolbar-label strong { color: var(--text, #0f172a); }
   .perm-bulk-btns { display: flex; gap: 6px; flex-wrap: wrap; }
-
   .perm-bulk {
     padding: 6px 12px;
     border-radius: 6px;
@@ -503,16 +820,12 @@ const css = `
   .perm-bulk-green:hover { background: rgba(16,185,129,0.08); }
   .perm-bulk-red { color: var(--debit, #ef4444); border-color: rgba(239,68,68,0.3); }
   .perm-bulk-red:hover { background: rgba(239,68,68,0.08); }
-
-  /* ---------- Groups ---------- */
   .perm-body { padding-top: 8px; }
-
   .perm-group {
     padding: 20px 0 8px;
     border-bottom: 1px solid var(--border, #e2e8f0);
   }
   .perm-group:last-child { border-bottom: none; }
-
   .perm-group-head {
     display: flex;
     justify-content: space-between;
@@ -521,7 +834,6 @@ const css = `
     gap: 12px;
     flex-wrap: wrap;
   }
-
   .perm-group-title {
     font-size: 12px;
     font-weight: 700;
@@ -538,14 +850,11 @@ const css = `
     border-radius: 2px;
     background: var(--accent, #10b981);
   }
-
-  /* ---------- Permission items ---------- */
   .perm-items {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 4px 20px;
   }
-
   .perm-item {
     display: flex;
     align-items: center;
@@ -560,6 +869,15 @@ const css = `
   .perm-item:hover .perm-item-label {
     color: var(--accent, #10b981);
   }
+  .perm-item.disabled {
+    opacity: 0.45;
+    cursor: not-allowed;
+  }
+  .perm-item.disabled:hover .perm-item-label {
+    color: var(--text, #0f172a);
+  }
+  .perm-item.disabled input { cursor: not-allowed; }
+  .perm-lock { font-size: 11px; margin-left: auto; }
   .perm-item input {
     accent-color: var(--accent, #10b981);
     width: 15px; height: 15px;
@@ -569,7 +887,6 @@ const css = `
   }
   .perm-item input:focus,
   .perm-item input:focus-visible { outline: none; box-shadow: none; }
-
   .perm-item-label {
     display: flex;
     align-items: center;
@@ -590,8 +907,6 @@ const css = `
     text-overflow: ellipsis;
     white-space: nowrap;
   }
-
-  /* ---------- Save bar — NO background ---------- */
   .save-bar {
     position: sticky;
     bottom: 0;
@@ -612,8 +927,6 @@ const css = `
   }
   .save-bar-text strong { color: var(--text, #0f172a); }
   .save-btns { display: flex; gap: 8px; }
-
-  /* ---------- Buttons ---------- */
   .perm-btn {
     padding: 8px 16px;
     border-radius: 6px;
@@ -643,8 +956,6 @@ const css = `
     border-color: var(--border, #e2e8f0);
   }
   .perm-btn-ghost:hover { background: var(--bg-surface-2, rgba(0,0,0,0.03)); }
-
-  /* ---------- Responsive ---------- */
   @media (max-width: 640px) {
     .perm-page { padding: 16px; }
     .perm-items { grid-template-columns: 1fr; }

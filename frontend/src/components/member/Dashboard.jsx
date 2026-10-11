@@ -3,6 +3,8 @@ import React, { useState, useEffect } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import { apiFetch } from "../../utils/api";
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -50,9 +52,6 @@ const getRejectedAt = (t) => {
   );
 };
 
-// ============================================================
-// Savings plan calculation helpers
-// ============================================================
 const DURATION_MONTHS = {
   "6 months": 6,
   "1 year": 12,
@@ -106,9 +105,6 @@ const computePlanSummary = (plan, duration, amountPerPeriod) => {
   };
 };
 
-// ============================================================
-// 🆕 Detect the current theme (light / dark)
-// ============================================================
 const detectTheme = () => {
   if (typeof document === "undefined") return "dark";
 
@@ -157,6 +153,9 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
+  // Kept for admin use — members never consult this
+  const { activeBranchId } = useBranch();
+
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
   const [showTransferModal, setShowTransferModal] = useState(false);
@@ -168,7 +167,6 @@ const Dashboard = () => {
   const [userProfile, setUserProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
 
-  // 🆕 Theme tracking
   const [theme, setTheme] = useState(() => detectTheme());
 
   const [depositData, setDepositData] = useState({
@@ -188,7 +186,7 @@ const Dashboard = () => {
   });
 
   // ============================================================
-  // 🆕 Watch for theme changes and re-render with new colors
+  // Watch for theme changes
   // ============================================================
   useEffect(() => {
     const update = () => setTheme(detectTheme());
@@ -216,17 +214,12 @@ const Dashboard = () => {
     };
   }, []);
 
-  // ============================================================
-  // 🆕 Theme color palette — background + text always paired
-  // ============================================================
   const isLight = theme === "light";
 
-  // Main text / surfaces
   const textColor = isLight ? "#0f172a" : "#f1f5f9";
   const textMuted = isLight ? "#475569" : "#94a3b8";
   const textDim = isLight ? "#64748b" : "#64748b";
 
-  // Input fields — explicitly paired background + text
   const fieldBg = isLight ? "#ffffff" : "#0f172a";
   const fieldText = isLight ? "#0f172a" : "#f1f5f9";
   const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
@@ -235,22 +228,18 @@ const Dashboard = () => {
     : "rgba(255,255,255,0.15)";
   const fieldFocusBorder = "#10b981";
 
-  // Card / surface
-  const cardBg = isLight ? "#ffffff" : "rgba(255, 255, 255, 0.05)";
   const cardBorder = isLight
     ? "rgba(15, 23, 42, 0.10)"
     : "rgba(255, 255, 255, 0.10)";
   const cardSurface = isLight ? "#f8fafc" : "rgba(255, 255, 255, 0.05)";
   const cardSurface2 = isLight ? "#f1f5f9" : "rgba(255, 255, 255, 0.08)";
 
-  // Modal
   const modalBg = isLight ? "#ffffff" : "#1e293b";
   const modalText = isLight ? "#0f172a" : "#f1f5f9";
   const modalBorder = isLight
     ? "rgba(15, 23, 42, 0.10)"
     : "rgba(255, 255, 255, 0.10)";
 
-  // Accent colors
   const accentColor = "#10b981";
   const creditColor = isLight ? "#059669" : "#34d399";
   const warningColor = isLight ? "#d97706" : "#fbbf24";
@@ -260,10 +249,12 @@ const Dashboard = () => {
 
   const fetchUserProfile = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const response = await apiFetch("/api/members.php");
       const data = await response.json();
       if (data.members) {
-        const currentUser = data.members.find((m) => m.id === user?.id);
+        const currentUser = data.members.find(
+          (m) => String(m.id) === String(user?.id),
+        );
         if (currentUser) {
           setUserProfile(currentUser);
           setBalance(currentUser.balance || 0);
@@ -279,10 +270,13 @@ const Dashboard = () => {
 
   const fetchMembers = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/members.php`);
+      const response = await apiFetch("/api/members.php");
       const data = await response.json();
       if (data.members) {
-        const filtered = data.members.filter((m) => m.id !== user?.id);
+        // Exclude self
+        const filtered = data.members.filter(
+          (m) => String(m.id) !== String(user?.id),
+        );
         setMembers(filtered);
       }
     } catch (error) {
@@ -292,7 +286,7 @@ const Dashboard = () => {
 
   const fetchTransactions = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const response = await apiFetch("/api/transactions.php");
       const data = await response.json();
       if (data.transactions) {
         const userTransactions = data.transactions.filter(
@@ -330,7 +324,7 @@ const Dashboard = () => {
       refreshData(true);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id]);
+  }, [user?.id, activeBranchId]);
 
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
@@ -357,9 +351,6 @@ const Dashboard = () => {
     }
   };
 
-  // ============================================================
-  // Deposit validation against the member's savings plan
-  // ============================================================
   const validateDepositAgainstPlan = (amount) => {
     const plan = computePlanSummary(
       userProfile?.savings_plan,
@@ -418,7 +409,7 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileResponse = await apiFetch("/api/members.php");
       const profileData = await profileResponse.json();
       const currentUser = profileData.members?.find((m) => m.id === user?.id);
 
@@ -439,7 +430,7 @@ const Dashboard = () => {
         description: depositData.description || "Deposit request",
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
+      const response = await apiFetch("/api/transactions.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -499,7 +490,7 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileResponse = await apiFetch("/api/members.php");
       const profileData = await profileResponse.json();
       const currentUser = profileData.members?.find((m) => m.id === user?.id);
 
@@ -515,7 +506,7 @@ const Dashboard = () => {
         description: withdrawData.description || "Withdrawal request",
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/transactions.php`, {
+      const response = await apiFetch("/api/transactions.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -588,7 +579,7 @@ const Dashboard = () => {
 
     setLoading(true);
     try {
-      const profileResponse = await fetch(`${API_BASE_URL}/api/members.php`);
+      const profileResponse = await apiFetch("/api/members.php");
       const profileData = await profileResponse.json();
       const currentUser = profileData.members?.find((m) => m.id === user?.id);
 
@@ -608,7 +599,7 @@ const Dashboard = () => {
           `Transfer to ${toMember.name || toMember.full_name}`,
       };
 
-      const response = await fetch(`${API_BASE_URL}/api/transfers.php`, {
+      const response = await apiFetch("/api/transfers.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -714,16 +705,12 @@ const Dashboard = () => {
         color: textColor,
       }}
     >
-      {/* ============================================================ */}
-      {/* 🆕 THEME-AWARE STYLES — hardcoded colors, both themes readable */}
-      {/* ============================================================ */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
 
         .dash-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
         .dash-wrap * { box-sizing: border-box; }
 
-        /* ===== MODAL ===== */
         .modal-overlay {
           position: fixed; inset: 0;
           background-color: rgba(0,0,0,0.6);
@@ -760,7 +747,6 @@ const Dashboard = () => {
         }
         .modal-close:hover { color: ${modalText}; }
 
-        /* ===== FORM ELEMENTS ===== */
         .form-group { margin-bottom: 16px; }
         .form-label {
           display: block; font-size: 14px; font-weight: 500;
@@ -799,7 +785,6 @@ const Dashboard = () => {
           background-color: ${modalBg};
           color: ${fieldText};
         }
-        /* Autofill override */
         .form-input:-webkit-autofill,
         .form-input:-webkit-autofill:hover,
         .form-input:-webkit-autofill:focus,
@@ -814,14 +799,12 @@ const Dashboard = () => {
           background: ${accentColor};
           color: #ffffff;
         }
-        /* Kill number spinners */
         .form-input[type="number"]::-webkit-outer-spin-button,
         .form-input[type="number"]::-webkit-inner-spin-button {
           -webkit-appearance: none; margin: 0;
         }
         .form-input[type="number"] { -moz-appearance: textfield; }
 
-        /* ===== BUTTONS ===== */
         .btn-submit {
           width: 100%; padding: 12px; border-radius: 8px; border: none;
           background: linear-gradient(to right, #059669, #0d9488);
@@ -848,7 +831,6 @@ const Dashboard = () => {
           animation: spin 1s linear infinite;
         }
 
-        /* ===== SAVINGS PLAN SUMMARY ===== */
         .plan-summary {
           background-color: ${cardSurface};
           border: 1px solid ${cardBorder};
@@ -951,7 +933,9 @@ const Dashboard = () => {
                   : "rgba(59, 130, 246, 0.15)",
                 color: infoColor,
                 padding: "10px 20px",
-                border: `1px solid ${isLight ? "rgba(37,99,235,0.25)" : "rgba(59, 130, 246, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(37,99,235,0.25)" : "rgba(59, 130, 246, 0.2)"
+                }`,
                 borderRadius: "8px",
                 cursor: refreshing ? "not-allowed" : "pointer",
                 fontSize: "14px",
@@ -979,7 +963,9 @@ const Dashboard = () => {
                   : "rgba(239, 68, 68, 0.15)",
                 color: debitColor,
                 padding: "10px 20px",
-                border: `1px solid ${isLight ? "rgba(220,38,38,0.25)" : "rgba(239, 68, 68, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(220,38,38,0.25)" : "rgba(239, 68, 68, 0.2)"
+                }`,
                 borderRadius: "8px",
                 cursor: "pointer",
                 fontSize: "14px",
@@ -1287,7 +1273,9 @@ const Dashboard = () => {
                   : "rgba(16, 185, 129, 0.15)",
                 color: creditColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(5,150,105,0.25)" : "rgba(16, 185, 129, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(5,150,105,0.25)" : "rgba(16, 185, 129, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1306,7 +1294,9 @@ const Dashboard = () => {
                   : "rgba(239, 68, 68, 0.15)",
                 color: debitColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(220,38,38,0.25)" : "rgba(239, 68, 68, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(220,38,38,0.25)" : "rgba(239, 68, 68, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1331,7 +1321,9 @@ const Dashboard = () => {
                   : "rgba(139, 92, 246, 0.15)",
                 color: purpleColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(124,58,237,0.25)" : "rgba(139, 92, 246, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(124,58,237,0.25)" : "rgba(139, 92, 246, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1350,7 +1342,9 @@ const Dashboard = () => {
                   : "rgba(251, 191, 36, 0.15)",
                 color: warningColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(217,119,6,0.25)" : "rgba(251, 191, 36, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(217,119,6,0.25)" : "rgba(251, 191, 36, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1381,7 +1375,9 @@ const Dashboard = () => {
                   : "rgba(16, 185, 129, 0.15)",
                 color: creditColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(5,150,105,0.25)" : "rgba(16, 185, 129, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(5,150,105,0.25)" : "rgba(16, 185, 129, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1400,7 +1396,9 @@ const Dashboard = () => {
                   : "rgba(59, 130, 246, 0.15)",
                 color: infoColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(37,99,235,0.25)" : "rgba(59, 130, 246, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(37,99,235,0.25)" : "rgba(59, 130, 246, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1433,7 +1431,9 @@ const Dashboard = () => {
                   : "rgba(139, 92, 246, 0.15)",
                 color: purpleColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(124,58,237,0.25)" : "rgba(139, 92, 246, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(124,58,237,0.25)" : "rgba(139, 92, 246, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1452,7 +1452,9 @@ const Dashboard = () => {
                   : "rgba(251, 191, 36, 0.15)",
                 color: warningColor,
                 padding: "16px",
-                border: `1px solid ${isLight ? "rgba(217,119,6,0.25)" : "rgba(251, 191, 36, 0.2)"}`,
+                border: `1px solid ${
+                  isLight ? "rgba(217,119,6,0.25)" : "rgba(251, 191, 36, 0.2)"
+                }`,
                 borderRadius: "10px",
                 cursor: "pointer",
                 fontSize: "15px",
@@ -1539,7 +1541,11 @@ const Dashboard = () => {
                             backgroundColor: isLight
                               ? "rgba(220,38,38,0.06)"
                               : "rgba(239, 68, 68, 0.08)",
-                            border: `1px solid ${isLight ? "rgba(220,38,38,0.2)" : "rgba(239, 68, 68, 0.25)"}`,
+                            border: `1px solid ${
+                              isLight
+                                ? "rgba(220,38,38,0.2)"
+                                : "rgba(239, 68, 68, 0.25)"
+                            }`,
                             borderRadius: "6px",
                             color: isLight ? "#991b1b" : "#fca5a5",
                             fontSize: "12px",

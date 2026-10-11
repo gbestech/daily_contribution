@@ -2,6 +2,7 @@
 import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
+import { useBranch } from "../../context/BranchContext"; // 🆕
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -14,6 +15,8 @@ const TABS = [
 
 const PasswordResets = () => {
   const { user } = useAuth();
+  const { activeBranch, activeBranchId } = useBranch(); // 🆕
+
   const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState([]);
   const [counts, setCounts] = useState({
@@ -24,7 +27,6 @@ const PasswordResets = () => {
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
 
-  // Modal state
   const [showModal, setShowModal] = useState(false);
   const [generatedPassword, setGeneratedPassword] = useState("");
   const [generatedFor, setGeneratedFor] = useState(null);
@@ -33,9 +35,13 @@ const PasswordResets = () => {
     async (status = activeTab) => {
       setLoading(true);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}`,
-        );
+        const url = activeBranchId
+          ? `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}&branch_id=${activeBranchId}`
+          : `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}`;
+
+        const res = await fetch(url, {
+          headers: { Accept: "application/json" },
+        });
         const data = await res.json();
         if (res.ok && data.status) {
           setRequests(Array.isArray(data.requests) ? data.requests : []);
@@ -52,12 +58,12 @@ const PasswordResets = () => {
         setLoading(false);
       }
     },
-    [activeTab],
+    [activeTab, activeBranchId],
   );
 
   useEffect(() => {
     fetchRequests(activeTab);
-  }, [activeTab, fetchRequests]);
+  }, [activeTab, activeBranchId, fetchRequests]);
 
   const handleApprove = async (request) => {
     if (
@@ -69,25 +75,29 @@ const PasswordResets = () => {
 
     setBusyId(request.id);
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/approve-password-reset.php`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            request_id: request.id,
-            handled_by:
-              user?.full_name || user?.name || user?.username || "Admin",
-          }),
+      const url = activeBranchId
+        ? `${API_BASE_URL}/api/approve-password-reset.php?branch_id=${activeBranchId}`
+        : `${API_BASE_URL}/api/approve-password-reset.php`;
+
+      const res = await fetch(url, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
         },
-      );
+        body: JSON.stringify({
+          request_id: request.id,
+          branch_id: activeBranchId,
+          handled_by:
+            user?.full_name || user?.name || user?.username || "Admin",
+        }),
+      });
       const data = await res.json();
 
       if (res.ok && data.status) {
         setGeneratedPassword(data.temp_password);
         setGeneratedFor({ email: data.email, user_type: data.user_type });
         setShowModal(true);
-        // Refresh list
         fetchRequests(activeTab);
       } else {
         toast.error(data.error || "Failed to reset password");
@@ -216,219 +226,179 @@ For security reasons, do not share this password with anyone.`;
       }}
     >
       <style>{`
-        .pr-tabs {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-          margin-bottom: 20px;
-        }
+        .pr-tabs { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
         .pr-tab {
-          padding: 8px 16px;
-          border: none;
-          border-radius: 8px;
-          background: transparent;
-          color: var(--text-muted);
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
+          padding: 8px 16px; border: none; border-radius: 8px;
+          background: transparent; color: var(--text-muted);
+          font-size: 13px; font-weight: 600; cursor: pointer;
           transition: all 0.2s;
         }
         .pr-tab:hover { background: var(--bg-surface-2); color: var(--text); }
-        .pr-tab.active {
-          background: var(--accent);
-          color: white;
-        }
+        .pr-tab.active { background: var(--accent); color: white; }
         .pr-tab .pr-count {
-          margin-left: 6px;
-          background: rgba(0,0,0,0.18);
-          padding: 1px 7px;
-          border-radius: 10px;
-          font-size: 10px;
+          margin-left: 6px; background: rgba(0,0,0,0.18);
+          padding: 1px 7px; border-radius: 10px; font-size: 10px;
         }
-        .pr-table-wrap {
-          overflow-x: auto;
-        }
-        .pr-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: transparent;
-        }
+        .pr-table-wrap { overflow-x: auto; }
+        .pr-table { width: 100%; border-collapse: collapse; background: transparent; }
         .pr-table thead { background: transparent; }
         .pr-table th {
-          text-align: left;
-          padding: 12px 16px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border: none;
-          white-space: nowrap;
-          background: transparent;
+          text-align: left; padding: 12px 16px; font-size: 11px;
+          font-weight: 600; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.05em;
+          border: none; white-space: nowrap; background: transparent;
         }
         .pr-table td {
-          padding: 14px 16px;
-          border: none;
-          color: var(--text);
-          font-size: 13px;
-          background: transparent;
-          vertical-align: middle;
+          padding: 14px 16px; border: none; color: var(--text);
+          font-size: 13px; background: transparent; vertical-align: middle;
         }
         .pr-table tbody tr {
-          border: none;
-          background: transparent;
+          border: none; background: transparent;
           transition: background-color 0.15s ease;
         }
-        .pr-table tbody tr:hover td {
-          background: var(--bg-surface-2);
-        }
+        .pr-table tbody tr:hover td { background: var(--bg-surface-2); }
         .pr-btn-reset {
-          padding: 8px 16px;
-          border-radius: 8px;
-          border: none;
-          background: var(--accent);
-          color: white;
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 600;
-          transition: all 0.2s;
+          padding: 8px 16px; border-radius: 8px; border: none;
+          background: var(--accent); color: white; cursor: pointer;
+          font-size: 12px; font-weight: 600; transition: all 0.2s;
         }
         .pr-btn-reset:hover:not(:disabled) { background: var(--accent-hover); }
         .pr-btn-reset:disabled { opacity: 0.5; cursor: not-allowed; }
         .pr-btn-refresh {
-          padding: 10px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
+          padding: 10px 20px; border-radius: 8px; border: none;
+          background: var(--bg-surface-2); color: var(--text);
+          cursor: pointer; font-size: 13px; font-weight: 600;
           transition: all 0.2s;
         }
         .pr-btn-refresh:hover { background: var(--bg-surface-3); }
         .pr-empty {
-          text-align: center;
-          padding: 60px 20px;
-          color: var(--text-muted);
+          text-align: center; padding: 60px 20px; color: var(--text-muted);
         }
         .pr-empty-icon { font-size: 48px; margin-bottom: 10px; }
         .pr-modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: var(--bg-overlay);
-          backdrop-filter: blur(6px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 16px;
+          position: fixed; inset: 0; background: var(--bg-overlay);
+          backdrop-filter: blur(6px); display: flex;
+          align-items: center; justify-content: center;
+          z-index: 1000; padding: 16px;
         }
         .pr-modal {
-          background: var(--bg-surface);
-          border-radius: 16px;
-          padding: 28px;
-          max-width: 520px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          box-shadow: var(--shadow-lg);
-          color: var(--text);
+          background: var(--bg-surface); border-radius: 16px;
+          padding: 28px; max-width: 520px; width: 100%;
+          max-height: 90vh; overflow-y: auto;
+          box-shadow: var(--shadow-lg); color: var(--text);
         }
         .pr-modal-header {
-          display: flex;
-          align-items: center;
-          gap: 12px;
-          margin-bottom: 20px;
+          display: flex; align-items: center; gap: 12px; margin-bottom: 20px;
         }
         .pr-modal-icon { font-size: 32px; }
         .pr-modal-title {
-          font-size: 18px;
-          font-weight: 700;
-          margin: 0;
-          color: var(--text);
+          font-size: 18px; font-weight: 700; margin: 0; color: var(--text);
         }
         .pr-modal-sub {
-          font-size: 13px;
-          color: var(--text-muted);
-          margin: 4px 0 0 0;
+          font-size: 13px; color: var(--text-muted); margin: 4px 0 0 0;
         }
         .pr-pw-box {
-          background: var(--bg-surface-2);
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 16px;
-          text-align: center;
+          background: var(--bg-surface-2); border-radius: 12px;
+          padding: 20px; margin-bottom: 16px; text-align: center;
         }
         .pr-pw-label {
-          font-size: 11px;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          font-weight: 600;
-          margin-bottom: 8px;
+          font-size: 11px; color: var(--text-muted);
+          text-transform: uppercase; letter-spacing: 0.5px;
+          font-weight: 600; margin-bottom: 8px;
         }
         .pr-pw-value {
-          font-family: monospace;
-          font-size: 22px;
-          font-weight: 700;
-          color: var(--text);
-          word-break: break-all;
-          letter-spacing: 1px;
-          margin-bottom: 12px;
+          font-family: monospace; font-size: 22px; font-weight: 700;
+          color: var(--text); word-break: break-all;
+          letter-spacing: 1px; margin-bottom: 12px;
         }
         .pr-copy-btn {
-          padding: 8px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--accent);
-          color: white;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
+          padding: 8px 20px; border-radius: 8px; border: none;
+          background: var(--accent); color: white; cursor: pointer;
+          font-size: 13px; font-weight: 600; transition: all 0.2s;
         }
         .pr-copy-btn:hover { background: var(--accent-hover); }
         .pr-copy-btn.secondary {
-          background: var(--bg-surface-3);
-          color: var(--text);
-          margin-left: 8px;
+          background: var(--bg-surface-3); color: var(--text); margin-left: 8px;
         }
         .pr-copy-btn.secondary:hover { background: var(--bg-surface-2); }
         .pr-warn {
-          background: var(--pending-bg);
-          border-radius: 10px;
-          padding: 14px 16px;
-          font-size: 13px;
-          color: var(--text);
-          line-height: 1.5;
-          margin-bottom: 20px;
+          background: var(--pending-bg); border-radius: 10px;
+          padding: 14px 16px; font-size: 13px; color: var(--text);
+          line-height: 1.5; margin-bottom: 20px;
         }
-        .pr-modal-btns {
-          display: flex;
-          gap: 10px;
-        }
+        .pr-modal-btns { display: flex; gap: 10px; }
         .pr-modal-btns button {
-          flex: 1;
-          padding: 12px;
-          border-radius: 10px;
-          border: none;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
+          flex: 1; padding: 12px; border-radius: 10px; border: none;
+          font-size: 14px; font-weight: 600; cursor: pointer;
           transition: all 0.2s;
         }
-        .pr-modal-btn-done {
-          background: var(--accent);
-          color: white;
-        }
+        .pr-modal-btn-done { background: var(--accent); color: white; }
         .pr-modal-btn-done:hover { background: var(--accent-hover); }
         .pr-modal-btn-cancel {
-          background: var(--bg-surface-2);
-          color: var(--text);
+          background: var(--bg-surface-2); color: var(--text);
         }
         .pr-modal-btn-cancel:hover { background: var(--bg-surface-3); }
       `}</style>
+
+      {/* ===== 🆕 BRANCH BANNER ===== */}
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: "12px",
+          padding: "14px 18px",
+          marginBottom: "20px",
+          borderRadius: "12px",
+          border: "1px solid rgba(16, 185, 129, 0.35)",
+          background: "rgba(16, 185, 129, 0.06)",
+          flexWrap: "wrap",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "26px" }}>🏢</span>
+          <div>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
+              {activeBranch?.name || "Branch"}
+            </div>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
+              {activeBranch?.code || "—"} · Password reset requests for this
+              branch only ·{" "}
+              <strong style={{ color: "var(--warning)" }}>
+                {counts.pending}
+              </strong>{" "}
+              pending
+            </div>
+          </div>
+        </div>
+        <span
+          style={{
+            padding: "4px 12px",
+            borderRadius: "20px",
+            fontSize: "11px",
+            fontWeight: "700",
+            textTransform: "uppercase",
+            letterSpacing: "0.5px",
+            background: "rgba(16, 185, 129, 0.2)",
+            color: "var(--credit)",
+            border: "1px solid rgba(16, 185, 129, 0.4)",
+          }}
+        >
+          ● active branch
+        </span>
+      </div>
 
       {/* Header */}
       <div
@@ -459,7 +429,9 @@ For security reasons, do not share this password with anyone.`;
               fontSize: "14px",
             }}
           >
-            Reset forgotten passwords and share the temp password with users
+            Reset forgotten passwords in{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong> and share the
+            temp password
           </p>
         </div>
         <button
@@ -519,17 +491,9 @@ For security reasons, do not share this password with anyone.`;
                 <td colSpan="7">
                   <div className="pr-empty">
                     <div className="pr-empty-icon">📭</div>
-                    <p>No {activeTab === "all" ? "" : activeTab} requests</p>
-                    <p
-                      style={{
-                        fontSize: "13px",
-                        color: "var(--text-dim)",
-                        marginTop: "4px",
-                      }}
-                    >
-                      {activeTab === "pending"
-                        ? "No one has requested a password reset yet."
-                        : "Nothing to show here."}
+                    <p>
+                      No {activeTab === "all" ? "" : activeTab} requests in{" "}
+                      {activeBranch?.name || "this branch"}
                     </p>
                   </div>
                 </td>
@@ -599,12 +563,7 @@ For security reasons, do not share this password with anyone.`;
                           : "🔄 Reset Password"}
                       </button>
                     ) : (
-                      <span
-                        style={{
-                          fontSize: 12,
-                          color: "var(--text-dim)",
-                        }}
-                      >
+                      <span style={{ fontSize: 12, color: "var(--text-dim)" }}>
                         —
                       </span>
                     )}
@@ -625,7 +584,8 @@ For security reasons, do not share this password with anyone.`;
               <div>
                 <h3 className="pr-modal-title">Password Reset!</h3>
                 <p className="pr-modal-sub">
-                  For <strong>{generatedFor?.email}</strong>
+                  For <strong>{generatedFor?.email}</strong> ·{" "}
+                  {activeBranch?.name || "this branch"}
                 </p>
               </div>
             </div>

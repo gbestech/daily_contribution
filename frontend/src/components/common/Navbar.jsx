@@ -3,12 +3,11 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
+import { useBranch } from "../../context/BranchContext";
+import BranchSwitcher from "./BranchSwitcher";
 
 const API_BASE_URL = "http://localhost:8000";
 
-// ============================================================
-// VOICE ROUTES — edit these to match your real paths
-// ============================================================
 const ADMIN_VOICE_ROUTES = [
   {
     keywords: ["dashboard", "home", "main", "admin"],
@@ -111,18 +110,18 @@ const Navbar = ({
 }) => {
   const { user, logout } = useAuth();
   const { themeKey, setTheme, availableThemes } = useTheme();
+  const { activeBranch, activeBranchId } = useBranch();
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
   const [isThemeDropdownOpen, setIsThemeDropdownOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
-  const [shopName, setShopName] = useState("Osittech");
+  const [shopName, setShopName] = useState("Savings Hub");
 
   const themeDropdownRef = useRef(null);
   const mobileThemeDropdownRef = useRef(null);
 
-  // ===== VOICE STATE =====
   const [isVoiceListening, setIsVoiceListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceFeedback, setVoiceFeedback] = useState("");
@@ -137,11 +136,19 @@ const Navbar = ({
   const currentTheme = availableThemes.find((t) => t.key === themeKey) ||
     availableThemes[0] || { name: "Theme", icon: "🎨" };
 
-  const isAdmin = user?.role === "admin" || user?.role === "administrator";
+  // ============================================================
+  // 🆕 Role detection — supports admin / administrator / manager / member
+  // ============================================================
+  const rawRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = rawRole === "admin" || rawRole === "administrator";
+  const isManager = rawRole === "manager" || rawRole === "branch_manager";
 
-  // ============================================================
-  // User avatar helpers
-  // ============================================================
+  // Use a single source of truth for the label/icon
+  const roleLabel = isAdmin ? "Admin" : isManager ? "Manager" : "Member";
+  const roleIcon = isAdmin ? "👑" : isManager ? "📊" : "👤";
+
   const getUserPhoto = () =>
     user?.passport_photo ||
     user?.passportPhoto ||
@@ -161,45 +168,63 @@ const Navbar = ({
       .charAt(0)
       .toUpperCase();
 
-  // Fetch shop name
+  // Shop name — per-branch, refetches when branch changes
   useEffect(() => {
+    let cancelled = false;
+
     const fetchShopName = async () => {
       try {
-        const response = await fetch(`${API_BASE_URL}/api/settings.php`);
+        const url = activeBranchId
+          ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
+          : `${API_BASE_URL}/api/settings.php`;
+
+        const response = await fetch(url);
         const data = await response.json();
+
+        if (cancelled) return;
+
         if (data.status && data.data && data.data.general) {
           const general = data.data.general;
-          if (general.shop_name) setShopName(general.shop_name);
+          if (general.shop_name && general.shop_name.trim() !== "") {
+            setShopName(general.shop_name);
+            return;
+          }
         }
+
+        setShopName(activeBranch?.name || "Savings Hub");
       } catch (error) {
         console.error("Error fetching shop name:", error);
-        setShopName("Osittech");
+        if (!cancelled) {
+          setShopName(activeBranch?.name || "Savings Hub");
+        }
       }
     };
-    fetchShopName();
-  }, []);
 
-  // Scroll effect
+    fetchShopName();
+
+    return () => {
+      cancelled = true;
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId, activeBranch?.name]);
+
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
   }, []);
 
-  // Window resize
   useEffect(() => {
     const handleResize = () => setWindowWidth(window.innerWidth);
     window.addEventListener("resize", handleResize);
     return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // Close dropdowns on route change
   useEffect(() => {
     setIsDropdownOpen(false);
     setIsThemeDropdownOpen(false);
   }, [location]);
 
-  // Close theme dropdown on outside click
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (
@@ -216,9 +241,8 @@ const Navbar = ({
   }, []);
 
   // ============================================================
-  // ===== VOICE ASSISTANT =====
+  // VOICE ASSISTANT
   // ============================================================
-
   const speak = useCallback((text) => {
     if (!("speechSynthesis" in window)) return;
     try {
@@ -228,9 +252,7 @@ const Navbar = ({
       u.pitch = 1;
       u.lang = "en-US";
       window.speechSynthesis.speak(u);
-    } catch (e) {
-      /* silent */
-    }
+    } catch (e) {}
   }, []);
 
   const showVoiceFeedback = useCallback((msg, ms = 3500) => {
@@ -241,13 +263,11 @@ const Navbar = ({
     voiceFeedbackTimerRef.current = setTimeout(() => setVoiceFeedback(""), ms);
   }, []);
 
-  // Fire a route — throttled so we don't double-fire
   const fireRoute = useCallback(
     (route) => {
       const now = Date.now();
       if (now - lastActionRef.current < 2500) return;
       lastActionRef.current = now;
-
       navigate(route.path);
       showVoiceFeedback(`📂 Opening ${route.label}`);
       speak(`Opening ${route.label}`);
@@ -255,7 +275,6 @@ const Navbar = ({
     [navigate, showVoiceFeedback, speak],
   );
 
-  // Match a phrase against route map. Returns { route, score } or null.
   const matchRoute = useCallback((rawText) => {
     const text = rawText.toLowerCase().trim();
     if (!text) return null;
@@ -301,10 +320,8 @@ const Navbar = ({
   const handleVoicePhrase = useCallback(
     (raw) => {
       setVoiceTranscript(raw);
-
       const text = raw.toLowerCase().trim();
 
-      // Help
       if (text.includes("help") || text.includes("what can i say")) {
         const pages = voiceRoutesRef.current
           .map((r) => r.label)
@@ -316,7 +333,6 @@ const Navbar = ({
         return;
       }
 
-      // Stop / cancel
       if (
         text === "stop" ||
         text === "cancel" ||
@@ -334,7 +350,6 @@ const Navbar = ({
         return;
       }
 
-      // Match and fire — ONE time only
       const match = matchRoute(raw);
       if (match) {
         fireRoute(match.route);
@@ -353,9 +368,8 @@ const Navbar = ({
     voiceHandlerRef.current = handleVoicePhrase;
   }, [handleVoicePhrase]);
 
-  // Init speech recognition once
   useEffect(() => {
-    const role = isAdmin ? "admin" : "member";
+    const role = isAdmin || isManager ? "admin" : "member";
     voiceRoutesRef.current =
       role === "admin" ? ADMIN_VOICE_ROUTES : MEMBER_VOICE_ROUTES;
 
@@ -369,7 +383,6 @@ const Navbar = ({
     }
 
     const rec = new SpeechRecognition();
-
     rec.continuous = false;
     rec.interimResults = true;
     rec.lang = "en-US";
@@ -386,7 +399,6 @@ const Navbar = ({
     rec.onresult = (event) => {
       for (let i = event.resultIndex; i < event.results.length; i++) {
         const result = event.results[i];
-
         const liveText = result[0].transcript;
         if (!result.isFinal) {
           setVoiceTranscript(liveText);
@@ -415,9 +427,7 @@ const Navbar = ({
     };
 
     rec.onerror = (event) => {
-      if (event.error === "no-speech" || event.error === "aborted") {
-        return;
-      }
+      if (event.error === "no-speech" || event.error === "aborted") return;
       if (
         event.error === "not-allowed" ||
         event.error === "service-not-allowed"
@@ -432,10 +442,7 @@ const Navbar = ({
       showVoiceFeedback(`⚠️ Voice error: ${event.error}`, 3000);
     };
 
-    rec.onend = () => {
-      setIsVoiceListening(false);
-    };
-
+    rec.onend = () => setIsVoiceListening(false);
     voiceRecognitionRef.current = rec;
 
     return () => {
@@ -451,7 +458,7 @@ const Navbar = ({
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isAdmin]);
+  }, [isAdmin, isManager]);
 
   const startListening = useCallback(() => {
     if (!voiceSupported || !voiceRecognitionRef.current) return;
@@ -459,9 +466,7 @@ const Navbar = ({
     setVoiceError("");
     try {
       voiceRecognitionRef.current.start();
-    } catch (e) {
-      /* already started */
-    }
+    } catch (e) {}
   }, [voiceSupported]);
 
   const stopListening = useCallback(() => {
@@ -481,7 +486,6 @@ const Navbar = ({
     else startListening();
   }, [isVoiceListening, startListening, stopListening]);
 
-  // Ctrl+M shortcut
   useEffect(() => {
     const onKey = (e) => {
       if (e.ctrlKey && e.key.toLowerCase() === "m") {
@@ -492,10 +496,6 @@ const Navbar = ({
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [toggleVoice]);
-
-  // ============================================================
-  // ===== END VOICE ASSISTANT =====
-  // ============================================================
 
   const handleLogout = () => {
     stopListening();
@@ -530,25 +530,26 @@ const Navbar = ({
     return "Dashboard";
   };
 
-  const navItems = isAdmin
-    ? [
-        { path: "/admin", label: "Dashboard", icon: "📊" },
-        { path: "/admin/members", label: "Members", icon: "👥" },
-        { path: "/admin/transactions", label: "Transactions", icon: "💳" },
-        { path: "/admin/pending", label: "Pending", icon: "⏳" },
-        { path: "/admin/reports", label: "Reports", icon: "📈" },
-        { path: "/admin/users", label: "Users", icon: "👤" },
-        { path: "/admin/settings", label: "Settings", icon: "⚙️" },
-        { path: "/admin/profile", label: "Profile", icon: "👤" },
-      ]
-    : [
-        { path: "/member", label: "Dashboard", icon: "📊" },
-        { path: "/member/deposit", label: "Deposit", icon: "💰" },
-        { path: "/member/withdraw", label: "Withdraw", icon: "💸" },
-        { path: "/member/transfer", label: "Transfer", icon: "🔄" },
-        { path: "/member/history", label: "History", icon: "📜" },
-        { path: "/member/profile", label: "Profile", icon: "👤" },
-      ];
+  const navItems =
+    isAdmin || isManager
+      ? [
+          { path: "/admin", label: "Dashboard", icon: "📊" },
+          { path: "/admin/members", label: "Members", icon: "👥" },
+          { path: "/admin/transactions", label: "Transactions", icon: "💳" },
+          { path: "/admin/pending", label: "Pending", icon: "⏳" },
+          { path: "/admin/reports", label: "Reports", icon: "📈" },
+          { path: "/admin/users", label: "Users", icon: "👤" },
+          { path: "/admin/settings", label: "Settings", icon: "⚙️" },
+          { path: "/admin/profile", label: "Profile", icon: "👤" },
+        ]
+      : [
+          { path: "/member", label: "Dashboard", icon: "📊" },
+          { path: "/member/deposit", label: "Deposit", icon: "💰" },
+          { path: "/member/withdraw", label: "Withdraw", icon: "💸" },
+          { path: "/member/transfer", label: "Transfer", icon: "🔄" },
+          { path: "/member/history", label: "History", icon: "📜" },
+          { path: "/member/profile", label: "Profile", icon: "👤" },
+        ];
 
   const isMobile = windowWidth < 768;
 
@@ -643,9 +644,6 @@ const Navbar = ({
     </div>
   );
 
-  // ============================================================
-  // Reusable avatar component
-  // ============================================================
   const renderAvatar = (
     size = 32,
     fontSize = 14,
@@ -675,11 +673,7 @@ const Navbar = ({
           <img
             src={photoUrl}
             alt={user?.full_name || user?.name || "User"}
-            style={{
-              width: "100%",
-              height: "100%",
-              objectFit: "cover",
-            }}
+            style={{ width: "100%", height: "100%", objectFit: "cover" }}
             onError={(e) => {
               e.target.style.display = "none";
               e.target.parentNode.textContent = getUserInitial();
@@ -710,7 +704,6 @@ const Navbar = ({
           boxShadow: scrolled ? "var(--shadow-md)" : "none",
         }}
       >
-        {/* ===== Left Section ===== */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <button
             onClick={toggleSidebar}
@@ -749,7 +742,7 @@ const Navbar = ({
           </button>
 
           <Link
-            to={isAdmin ? "/admin" : "/member"}
+            to={isAdmin || isManager ? "/admin" : "/member"}
             style={{
               display: "flex",
               alignItems: "center",
@@ -782,9 +775,9 @@ const Navbar = ({
           </span>
         </div>
 
-        {/* ===== Right Section ===== */}
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          {/* Voice Assistant (desktop only) */}
+          {isAdmin && <BranchSwitcher />}
+
           {!isMobile && voiceSupported && (
             <button
               onClick={toggleVoice}
@@ -820,7 +813,6 @@ const Navbar = ({
             </button>
           )}
 
-          {/* Theme Dropdown (desktop only) */}
           {!isMobile && (
             <div ref={themeDropdownRef} style={{ position: "relative" }}>
               <button
@@ -849,18 +841,11 @@ const Navbar = ({
               >
                 <span style={{ fontSize: "16px" }}>{currentTheme.icon}</span>
                 <span
-                  style={{
-                    display: windowWidth < 900 ? "none" : "inline",
-                  }}
+                  style={{ display: windowWidth < 900 ? "none" : "inline" }}
                 >
                   {currentTheme.name}
                 </span>
-                <span
-                  style={{
-                    fontSize: "9px",
-                    color: "var(--text-muted)",
-                  }}
-                >
+                <span style={{ fontSize: "9px", color: "var(--text-muted)" }}>
                   {isThemeDropdownOpen ? "▲" : "▼"}
                 </span>
               </button>
@@ -886,23 +871,36 @@ const Navbar = ({
             </div>
           )}
 
-          {/* Role Badge */}
+          {/* 🆕 Role badge — uses roleLabel so Manager shows correctly */}
           <span
             style={{
               padding: "4px 12px",
               borderRadius: "20px",
               fontSize: "10px",
               fontWeight: "600",
-              backgroundColor: isAdmin ? "var(--debit-bg)" : "var(--accent-bg)",
-              color: isAdmin ? "var(--debit)" : "var(--accent-text)",
-              border: `1px solid ${isAdmin ? "var(--debit)" : "var(--accent)"}`,
+              backgroundColor: isAdmin
+                ? "var(--debit-bg)"
+                : isManager
+                  ? "var(--info-bg, rgba(59,130,246,0.15))"
+                  : "var(--accent-bg)",
+              color: isAdmin
+                ? "var(--debit)"
+                : isManager
+                  ? "var(--info, #3b82f6)"
+                  : "var(--accent-text)",
+              border: `1px solid ${
+                isAdmin
+                  ? "var(--debit)"
+                  : isManager
+                    ? "var(--info, #3b82f6)"
+                    : "var(--accent)"
+              }`,
               display: windowWidth < 640 ? "none" : "inline-block",
             }}
           >
-            {isAdmin ? "👑 Admin" : "👤 Member"}
+            {roleIcon} {roleLabel}
           </span>
 
-          {/* User Dropdown */}
           <div style={{ position: "relative" }}>
             <button
               onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -924,7 +922,6 @@ const Navbar = ({
                 e.currentTarget.style.backgroundColor = "transparent";
               }}
             >
-              {/* ✅ Avatar with photo next to username */}
               {renderAvatar(36, 14, "2px solid var(--accent)")}
 
               <div
@@ -996,7 +993,6 @@ const Navbar = ({
                     gap: "12px",
                   }}
                 >
-                  {/* ✅ Avatar in dropdown header */}
                   {renderAvatar(48, 18, "2px solid var(--accent)")}
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div
@@ -1032,17 +1028,29 @@ const Navbar = ({
                         display: "inline-block",
                         backgroundColor: isAdmin
                           ? "var(--debit-bg)"
-                          : "var(--accent-bg)",
-                        color: isAdmin ? "var(--debit)" : "var(--accent-text)",
+                          : isManager
+                            ? "var(--info-bg, rgba(59,130,246,0.15))"
+                            : "var(--accent-bg)",
+                        color: isAdmin
+                          ? "var(--debit)"
+                          : isManager
+                            ? "var(--info, #3b82f6)"
+                            : "var(--accent-text)",
                       }}
                     >
-                      {isAdmin ? "Administrator" : "Member"}
+                      {isAdmin
+                        ? "Administrator"
+                        : isManager
+                          ? "Manager"
+                          : "Member"}
                     </div>
                   </div>
                 </div>
 
                 <Link
-                  to={isAdmin ? "/admin/profile" : "/member/profile"}
+                  to={
+                    isAdmin || isManager ? "/admin/profile" : "/member/profile"
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1066,7 +1074,11 @@ const Navbar = ({
                 </Link>
 
                 <Link
-                  to={isAdmin ? "/admin/settings" : "/member/settings"}
+                  to={
+                    isAdmin || isManager
+                      ? "/admin/settings"
+                      : "/member/settings"
+                  }
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -1130,7 +1142,6 @@ const Navbar = ({
         </div>
       </nav>
 
-      {/* ===== VOICE FEEDBACK BUBBLE ===== */}
       {(voiceFeedback || voiceError) && (
         <div
           style={{
@@ -1140,9 +1151,7 @@ const Navbar = ({
             maxWidth: "380px",
             backgroundColor: "var(--bg-surface)",
             color: "var(--text)",
-            border: `1px solid ${
-              voiceError ? "var(--debit)" : "var(--border)"
-            }`,
+            border: `1px solid ${voiceError ? "var(--debit)" : "var(--border)"}`,
             borderRadius: "12px",
             padding: "12px 16px",
             fontSize: "13px",
@@ -1189,7 +1198,6 @@ const Navbar = ({
         </div>
       )}
 
-      {/* ===== Mobile Navigation Menu ===== */}
       {isMobileOpen && window.innerWidth < 768 && (
         <div
           style={{
@@ -1205,7 +1213,6 @@ const Navbar = ({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
-            {/* ✅ Mobile user header with photo */}
             <div
               style={{
                 display: "flex",
@@ -1253,14 +1260,32 @@ const Navbar = ({
                     display: "inline-block",
                     backgroundColor: isAdmin
                       ? "var(--debit-bg)"
-                      : "var(--accent-bg)",
-                    color: isAdmin ? "var(--debit)" : "var(--accent-text)",
+                      : isManager
+                        ? "var(--info-bg, rgba(59,130,246,0.15))"
+                        : "var(--accent-bg)",
+                    color: isAdmin
+                      ? "var(--debit)"
+                      : isManager
+                        ? "var(--info, #3b82f6)"
+                        : "var(--accent-text)",
                   }}
                 >
-                  {isAdmin ? "Administrator" : "Member"}
+                  {isAdmin ? "Administrator" : isManager ? "Manager" : "Member"}
                 </div>
               </div>
             </div>
+
+            {isAdmin && (
+              <div
+                style={{
+                  marginBottom: "8px",
+                  display: "flex",
+                  justifyContent: "flex-start",
+                }}
+              >
+                <BranchSwitcher />
+              </div>
+            )}
 
             {voiceSupported && (
               <button
@@ -1297,10 +1322,7 @@ const Navbar = ({
 
             <div
               ref={mobileThemeDropdownRef}
-              style={{
-                marginBottom: "16px",
-                position: "relative",
-              }}
+              style={{ marginBottom: "16px", position: "relative" }}
             >
               <button
                 onClick={() => setIsThemeDropdownOpen(!isThemeDropdownOpen)}

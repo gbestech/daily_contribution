@@ -76,125 +76,121 @@ const Login = () => {
     return false;
   };
 
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true);
 
+    const inputValue = formData.email.trim();
+    const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
 
-const handleSubmit = async (e) => {
-  e.preventDefault();
-  setLoading(true);
-
-  const inputValue = formData.email.trim();
-  const isPhoneInput = /^[0-9+\-() ]+$/.test(inputValue);
-
-  if (isPhoneInput && !validatePhoneNumber(inputValue)) {
-    toast.error(
-      "Please enter a valid 11-digit phone number starting with 0 (e.g., 08012345678) or with country code +234",
-    );
-    setLoading(false);
-    return;
-  }
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/login.php`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Accept: "application/json",
-      },
-      body: JSON.stringify({
-        email: formData.email,
-        password: formData.password,
-      }),
-    });
-
-    const data = await response.json();
-
-    if (data.status === true) {
-      const { user } = data;
-
-      const cleanUser = {
-        id: user.id,
-        username: user.username || user.name,
-        name: user.name || user.username,
-        full_name: user.full_name || user.name || user.username,
-        email: user.email,
-        role: user.role || "member",
-        phone: user.phone || "",
-        address: user.address || "",
-        is_active: user.is_active !== undefined ? user.is_active : true,
-        balance: user.balance || 0,
-        accountNumber: user.accountNumber || user.account_number || "N/A",
-        account_number: user.account_number || user.accountNumber || "N/A",
-        membership_number:
-          user.membership_number || user.account_number || "N/A",
-        membershipType:
-          user.membershipType || user.membership_type || "Standard",
-        membership_type:
-          user.membership_type || user.membershipType || "Standard",
-        joinDate:
-          user.joinDate ||
-          user.join_date ||
-          new Date().toISOString().split("T")[0],
-        join_date:
-          user.join_date ||
-          user.joinDate ||
-          new Date().toISOString().split("T")[0],
-        status: user.status || "Active",
-        profile_completed: user.profile_completed || 0,
-        passport_photo: user.passport_photo || null,
-        created_at: user.created_at || new Date().toISOString(),
-        updated_at: user.updated_at || new Date().toISOString(),
-      };
-
-      const token = data.token || `token_${Date.now()}`;
-
-      localStorage.setItem("token", token);
-      localStorage.setItem("user", JSON.stringify(cleanUser));
-
-      login(cleanUser, token);
-      toast.success(`Welcome ${cleanUser.full_name || "back"}! 🎉`);
-
-      setTimeout(() => {
-        const isAdmin =
-          cleanUser.role === "admin" || cleanUser.role === "administrator";
-
-        const completed =
-          cleanUser.profile_completed === 1 ||
-          cleanUser.profile_completed === "1" ||
-          cleanUser.profile_completed === true;
-
-        if (isAdmin) {
-          navigate("/admin/dashboard");
-        } else if (!completed) {
-          // First-time member → complete profile
-          navigate("/member/profile");
-        } else {
-          // Returning member → dashboard
-          navigate("/member/dashboard");
-        }
-      }, 300);
-    } else {
-      toast.error(data.error || data.message || "Login failed");
-    }
-  } catch (error) {
-    console.error("Login error:", error);
-    if (error.code === "ERR_NETWORK") {
+    if (isPhoneInput && !validatePhoneNumber(inputValue)) {
       toast.error(
-        "Cannot connect to server. Please check if PHP server is running on port 8000.",
+        "Please enter a valid 11-digit phone number starting with 0 (e.g., 08012345678) or with country code +234",
       );
-    } else {
-      toast.error("Login failed. Please try again.");
+      setLoading(false);
+      return;
     }
-  } finally {
-    setLoading(false);
-  }
-};
- 
- 
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/login.php`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
+        body: JSON.stringify({
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (data.status === true) {
+        const { user } = data;
+
+        const cleanUser = {
+          id: user.id,
+          username: user.username || user.name,
+          name: user.name || user.username,
+          full_name: user.full_name || user.name || user.username,
+          email: user.email,
+          role: user.role || "member",
+          // 🆕 Carry the branch through so member pages can send ?branch_id=
+          branch_id: user.branch_id ?? user.branchId ?? null,
+          phone: user.phone || "",
+          address: user.address || "",
+          is_active: user.is_active !== undefined ? user.is_active : true,
+          balance: user.balance || 0,
+          accountNumber: user.accountNumber || user.account_number || "N/A",
+          account_number: user.account_number || user.accountNumber || "N/A",
+          membership_number:
+            user.membership_number || user.account_number || "N/A",
+          membershipType:
+            user.membershipType || user.membership_type || "Standard",
+          membership_type:
+            user.membership_type || user.membershipType || "Standard",
+          joinDate:
+            user.joinDate ||
+            user.join_date ||
+            new Date().toISOString().split("T")[0],
+          join_date:
+            user.join_date ||
+            user.joinDate ||
+            new Date().toISOString().split("T")[0],
+          status: user.status || "Active",
+          profile_completed: user.profile_completed || 0,
+          passport_photo: user.passport_photo || null,
+          created_at: user.created_at || new Date().toISOString(),
+          updated_at: user.updated_at || new Date().toISOString(),
+        };
+
+        const token = data.token || `token_${Date.now()}`;
+
+        localStorage.setItem("token", token);
+        localStorage.setItem("user", JSON.stringify(cleanUser));
+
+        login(cleanUser, token);
+        toast.success(`Welcome ${cleanUser.full_name || "back"}! 🎉`);
+
+        setTimeout(() => {
+          const isAdmin =
+            cleanUser.role === "admin" || cleanUser.role === "administrator";
+
+          const completed =
+            cleanUser.profile_completed === 1 ||
+            cleanUser.profile_completed === "1" ||
+            cleanUser.profile_completed === true;
+
+          if (isAdmin) {
+            navigate("/admin/dashboard");
+          } else if (!completed) {
+            navigate("/member/profile");
+          } else {
+            navigate("/member/dashboard");
+          }
+        }, 300);
+      } else {
+        toast.error(data.error || data.message || "Login failed");
+      }
+    } catch (error) {
+      console.error("Login error:", error);
+      if (error.code === "ERR_NETWORK") {
+        toast.error(
+          "Cannot connect to server. Please check if PHP server is running on port 8000.",
+        );
+      } else {
+        toast.error("Login failed. Please try again.");
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="login-page">
       <style>{css}</style>
 
-      {/* Background image overlay */}
       <div className="login-bg" aria-hidden="true" />
 
       <div className="login-card">
@@ -294,7 +290,6 @@ const css = `
     overflow: hidden;
   }
 
-  /* ---------- Background image layer ---------- */
   .login-bg {
     position: fixed;
     inset: 0;
@@ -317,7 +312,6 @@ const css = `
     backdrop-filter: blur(2px);
   }
 
-  /* Light-mode overlay — lighter tint */
   @media (prefers-color-scheme: light) {
     .login-bg::after {
       background: linear-gradient(
@@ -328,7 +322,6 @@ const css = `
     }
   }
 
-  /* ---------- Card sits above the background ---------- */
   .login-card {
     position: relative;
     z-index: 1;
