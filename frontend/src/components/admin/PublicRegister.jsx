@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
+import useBranchBranding from "../../hooks/useBranchBranding";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -19,10 +20,25 @@ const PublicRegister = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
 
-  // 🆕 Branch resolved from ?branch= (or ?branch_id=) in the URL
-  const [branch, setBranch] = useState(null);
-  const [branchError, setBranchError] = useState("");
-  const [branchLoading, setBranchLoading] = useState(true);
+  // Branch resolved from ?branch= (or ?branch_id=) in the link.
+  // Registration REQUIRES the link, so the "remembered branch" fallback is off.
+  // Same hook the sign-in page uses → both pages always show the same name.
+  const {
+    branch,
+    name: brandName,
+    loading: branchLoading,
+    hasParam,
+    notFound,
+    failed,
+  } = useBranchBranding({ allowSaved: false });
+
+  const branchError = !hasParam
+    ? "No branch specified in this link. Please use the link your branch admin gave you."
+    : notFound
+      ? "This registration link is invalid or expired."
+      : failed
+        ? "Could not load branch details. Please check your connection and try again."
+        : "";
 
   const [newMember, setNewMember] = useState({
     firstName: "",
@@ -54,56 +70,10 @@ const PublicRegister = () => {
     }
   }, [newMember.firstName]);
 
-  // 🆕 Resolve the branch from the URL on mount
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    // Accept both ?branch= and ?branch_id=
-    const raw = params.get("branch") || params.get("branch_id") || "";
-
-    if (!raw) {
-      setBranchError(
-        "No branch specified in this link. Please use the link your branch admin gave you.",
-      );
-      setBranchLoading(false);
-      return;
-    }
-
-    const resolve = async () => {
-      try {
-        const isNumeric = /^\d+$/.test(raw);
-        const url = isNumeric
-          ? `${API_BASE_URL}/api/get-branch.php?id=${raw}`
-          : `${API_BASE_URL}/api/get-branch.php?code=${encodeURIComponent(raw)}`;
-
-        const res = await fetch(url);
-        const data = await res.json();
-
-        if (data.status && data.branch) {
-          setBranch(data.branch);
-          setBranchError("");
-        } else {
-          setBranch(null);
-          setBranchError(
-            data.error || "This registration link is invalid or expired.",
-          );
-        }
-      } catch (err) {
-        console.error("[PublicRegister] branch resolve error:", err);
-        setBranch(null);
-        setBranchError(
-          "Could not load branch details. Please check your connection and try again.",
-        );
-      } finally {
-        setBranchLoading(false);
-      }
-    };
-    resolve();
-  }, []);
-
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // 🆕 Block if branch hasn't resolved
+    // Block if branch hasn't resolved
     if (!branch?.id) {
       toast.error(
         branchError || "Cannot register: no valid branch in this link.",
@@ -141,14 +111,13 @@ const PublicRegister = () => {
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
         profile_completed: 0,
-        // 🆕 Also send in body (harmless, future-proof)
+        // Also send in body (harmless, future-proof)
         branch_id: branch.id,
       };
 
-      // 🆕 FIX: send branch_id as a QUERY STRING param.
       // members.php reads $_GET['branch_id'] — it ignores the JSON body.
-      // Without this, every registration falls back to "first active branch"
-      // (i.e. Shittu) regardless of which link was used.
+      // Without this, every registration falls back to the "first active
+      // branch" regardless of which link was used.
       const res = await fetch(
         `${API_BASE_URL}/api/members.php?branch_id=${encodeURIComponent(branch.id)}`,
         {
@@ -211,8 +180,13 @@ Please log in and complete your profile.`;
     };
     setShowCredentialsModal(false);
     setCreatedCredentials(null);
-    navigate("/login", { state: creds });
+    // Carry the branch to the sign-in page so it shows the SAME branch
+    navigate(branch?.id ? `/login?branch=${branch.id}` : "/login", {
+      state: creds,
+    });
   };
+
+  const loginPath = branch?.id ? `/login?branch=${branch.id}` : "/login";
 
   return (
     <div className="reg-page">
@@ -224,10 +198,16 @@ Please log in and complete your profile.`;
         <div className="reg-header">
           <div className="reg-logo">🏦</div>
           <h1 className="reg-title">Create Account</h1>
-          <p className="reg-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
+          <p className="reg-subtitle">
+            {branchLoading
+              ? "Loading…"
+              : brandName
+                ? `Join ${brandName}`
+                : "Join us"}
+          </p>
         </div>
 
-        {/* 🆕 Branch banner — shows which branch this link is for */}
+        {/* Branch banner — shows which branch this link is for */}
         {branchLoading ? (
           <div className="reg-branch reg-branch-loading">
             <span className="reg-branch-icon">⏳</span>
@@ -334,14 +314,14 @@ Please log in and complete your profile.`;
         <div className="divider">Already a member?</div>
 
         <div className="footer-row">
-          <Link to="/login" className="footer-link">
+          <Link to={loginPath} className="footer-link">
             Sign in here
           </Link>
         </div>
 
         <div className="footer-note">
-          © {new Date().getFullYear()} AR-RIYAADAH SAVINGS HUB. All rights
-          reserved.
+          © {new Date().getFullYear()}
+          {brandName ? ` ${brandName}.` : "."} All rights reserved.
         </div>
       </div>
 
@@ -527,7 +507,7 @@ const css = `
     margin: 0;
   }
 
-  /* 🆕 Branch banner */
+  /* Branch banner */
   .reg-branch {
     display: flex;
     align-items: center;

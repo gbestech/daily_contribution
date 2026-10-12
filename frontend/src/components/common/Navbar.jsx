@@ -111,6 +111,12 @@ const Navbar = ({
   const { user, logout } = useAuth();
   const { themeKey, setTheme, availableThemes } = useTheme();
   const { activeBranch, activeBranchId } = useBranch();
+
+  // Admin: the branch they switched to. Manager / member: their own branch.
+  // (Without this, managers sent no branch_id and the backend answered with
+  // the FIRST active branch's name.)
+  const branchId = activeBranchId || user?.branch_id || null;
+
   const location = useLocation();
   const navigate = useNavigate();
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -137,7 +143,7 @@ const Navbar = ({
     availableThemes[0] || { name: "Theme", icon: "🎨" };
 
   // ============================================================
-  // 🆕 Role detection — supports admin / administrator / manager / member
+  // Role detection — supports admin / administrator / manager / member
   // ============================================================
   const rawRole = String(user?.role || "")
     .trim()
@@ -168,17 +174,24 @@ const Navbar = ({
       .charAt(0)
       .toUpperCase();
 
-  // Shop name — per-branch, refetches when branch changes
+  // ============================================================
+  // Shop name — for THIS user's branch.
+  // Refetches when the branch changes and right after Settings is saved.
+  // ============================================================
   useEffect(() => {
     let cancelled = false;
 
     const fetchShopName = async () => {
-      try {
-        const url = activeBranchId
-          ? `${API_BASE_URL}/api/settings.php?branch_id=${activeBranchId}`
-          : `${API_BASE_URL}/api/settings.php`;
+      // No branch known → don't ask (the server would guess the first branch)
+      if (!branchId) {
+        setShopName(activeBranch?.name || "Savings Hub");
+        return;
+      }
 
-        const response = await fetch(url);
+      try {
+        const response = await fetch(
+          `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
+        );
         const data = await response.json();
 
         if (cancelled) return;
@@ -202,11 +215,15 @@ const Navbar = ({
 
     fetchShopName();
 
+    // Re-read after the admin saves General settings
+    window.addEventListener("settings:updated", fetchShopName);
+
     return () => {
       cancelled = true;
+      window.removeEventListener("settings:updated", fetchShopName);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId, activeBranch?.name]);
+  }, [branchId, activeBranch?.name]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -871,7 +888,7 @@ const Navbar = ({
             </div>
           )}
 
-          {/* 🆕 Role badge — uses roleLabel so Manager shows correctly */}
+          {/* Role badge — uses roleLabel so Manager shows correctly */}
           <span
             style={{
               padding: "4px 12px",

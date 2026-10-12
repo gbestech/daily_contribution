@@ -3,8 +3,12 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
+import useBranchBranding, {
+  rememberBranch,
+} from "../../hooks/useBranchBranding";
 
 const API_BASE_URL = "http://localhost:8000";
+const LOGO = "🏦";
 
 const Login = () => {
   const navigate = useNavigate();
@@ -12,18 +16,22 @@ const Login = () => {
   const { login } = useAuth();
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [appSettings, setAppSettings] = useState({
-    appName: "Loading...",
-    logo: "🏦",
-  });
   const [formData, setFormData] = useState({
     email: "",
     password: "",
   });
 
-  useEffect(() => {
-    fetchAppSettings();
+  // Branch shown on this page: from ?branch= in the URL, or the branch this
+  // device registered / logged in with last. Uses the same lookup as the
+  // registration form, so both pages always show the same branch.
+  const {
+    name: branchName,
+    code: branchCode,
+    branchId,
+    loading: brandLoading,
+  } = useBranchBranding({ allowSaved: true });
 
+  useEffect(() => {
     const state = location.state;
     if (state?.email || state?.password) {
       setFormData({
@@ -33,33 +41,6 @@ const Login = () => {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-
-  const fetchAppSettings = async () => {
-    try {
-      const response = await fetch(`${API_BASE_URL}/api/settings.php`);
-      if (response.ok) {
-        const result = await response.json();
-        if (result.status === true && result.data?.general) {
-          const general = result.data.general;
-          setAppSettings({
-            appName:
-              general.shop_name || general.app_name || "Osittech Contribution",
-            logo: general.logo || "🏦",
-          });
-        } else {
-          setAppSettings({
-            appName: "Osittech Contribution",
-            logo: "🏦",
-          });
-        }
-      }
-    } catch {
-      setAppSettings({
-        appName: "Osittech Contribution",
-        logo: "🏦",
-      });
-    }
-  };
 
   const handleChange = (e) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -116,7 +97,7 @@ const Login = () => {
           full_name: user.full_name || user.name || user.username,
           email: user.email,
           role: user.role || "member",
-          // 🆕 Carry the branch through so member pages can send ?branch_id=
+          // Carry the branch through so member pages can send ?branch_id=
           branch_id: user.branch_id ?? user.branchId ?? null,
           phone: user.phone || "",
           address: user.address || "",
@@ -149,6 +130,10 @@ const Login = () => {
 
         localStorage.setItem("token", token);
         localStorage.setItem("user", JSON.stringify(cleanUser));
+
+        // Remember this user's branch so the sign-in page shows the right
+        // branch next time on this device.
+        rememberBranch(cleanUser.branch_id);
 
         login(cleanUser, token);
         toast.success(`Welcome ${cleanUser.full_name || "back"}! 🎉`);
@@ -187,6 +172,11 @@ const Login = () => {
     }
   };
 
+  const title = brandLoading ? "Loading..." : branchName || "Welcome back";
+  const registerPath = branchId
+    ? `/register-member?branch=${encodeURIComponent(branchId)}`
+    : "/register-member";
+
   return (
     <div className="login-page">
       <style>{css}</style>
@@ -195,8 +185,13 @@ const Login = () => {
 
       <div className="login-card">
         <div className="login-header">
-          <div className="login-logo">{appSettings.logo}</div>
-          <h1 className="login-title">{appSettings.appName}</h1>
+          <div className="login-logo">{LOGO}</div>
+          <h1 className="login-title">{title}</h1>
+          {branchCode && (
+            <p className="login-branch">
+              Branch code: <strong>{branchCode}</strong>
+            </p>
+          )}
           <p className="login-subtitle">Sign in to your account</p>
         </div>
 
@@ -262,14 +257,14 @@ const Login = () => {
         <div className="divider">New here?</div>
         <div className="register-row">
           Don't have an account?{" "}
-          <Link to="/register-member" className="register-link">
+          <Link to={registerPath} className="register-link">
             Register here
           </Link>
         </div>
 
         <div className="footer-note">
-          © {new Date().getFullYear()} {appSettings.appName}. All rights
-          reserved.
+          © {new Date().getFullYear()}
+          {branchName ? ` ${branchName}.` : "."} All rights reserved.
         </div>
       </div>
     </div>
@@ -362,6 +357,13 @@ const css = `
     margin: 0 0 6px 0;
     letter-spacing: -0.3px;
   }
+
+  .login-branch {
+    font-size: 11.5px;
+    color: var(--text-muted, #64748b);
+    margin: 0 0 6px 0;
+  }
+  .login-branch strong { color: var(--text, #0f172a); }
 
   .login-subtitle {
     font-size: 12px;
