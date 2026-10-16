@@ -1,12 +1,12 @@
 // src/components/admin/ItemManager.jsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
-import { useBranch } from "../../context/BranchContext"; // 🆕
+import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const ItemManager = () => {
-  const { activeBranch, activeBranchId } = useBranch(); // 🆕
+  const { activeBranch, activeBranchId } = useBranch();
 
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -14,6 +14,8 @@ const ItemManager = () => {
   const [showModal, setShowModal] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterStatus, setFilterStatus] = useState("all");
 
   const [form, setForm] = useState({
     name: "",
@@ -21,44 +23,32 @@ const ItemManager = () => {
     value: "",
   });
 
-  // 🆕 Branch-aware fetch helper (inside the component so it sees activeBranchId)
+  // ---------- API ----------
   const apiFetch = useCallback(
     async (url, options = {}) => {
       const token = localStorage.getItem("token");
-
       const headers = {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
         ...(options.headers || {}),
       };
 
-      // 🆕 Append ?branch_id= to every request
       const finalUrl = activeBranchId
         ? `${url}${url.includes("?") ? "&" : "?"}branch_id=${activeBranchId}`
         : url;
 
-      console.log("[ItemManager] fetching:", finalUrl);
-
-      const res = await fetch(finalUrl, {
-        credentials: "include",
-        ...options,
-        headers,
-      });
-
+      const res = await fetch(finalUrl, { ...options, headers });
       const text = await res.text();
+
       let data = null;
       try {
         data = text ? JSON.parse(text) : null;
       } catch {
-        console.error("❌ Non-JSON response from", finalUrl, "\n", text);
         throw new Error(`Server returned non-JSON (${res.status})`);
       }
-
       if (!res.ok) {
-        console.error("❌ API error", res.status, finalUrl, data);
         throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
       }
-
       return data;
     },
     [activeBranchId],
@@ -82,11 +72,11 @@ const ItemManager = () => {
     [apiFetch],
   );
 
-  // 🆕 refetch when branch changes
   useEffect(() => {
     fetchItems();
   }, [fetchItems, activeBranchId]);
 
+  // ---------- Actions ----------
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchItems(true);
@@ -133,10 +123,7 @@ const ItemManager = () => {
         : `${API_BASE_URL}/api/items.php`;
       const method = editingItem ? "PUT" : "POST";
 
-      await apiFetch(url, {
-        method,
-        body: JSON.stringify(payload),
-      });
+      await apiFetch(url, { method, body: JSON.stringify(payload) });
 
       toast.success(editingItem ? "✅ Item updated!" : "✅ Item created!");
       setShowModal(false);
@@ -183,24 +170,207 @@ const ItemManager = () => {
     }
   };
 
+  // ---------- Derived ----------
+  const filtered = useMemo(() => {
+    let list = [...items];
+    if (searchTerm.trim()) {
+      const term = searchTerm.toLowerCase().trim();
+      list = list.filter(
+        (i) =>
+          i.name?.toLowerCase().includes(term) ||
+          i.description?.toLowerCase().includes(term),
+      );
+    }
+    if (filterStatus === "visible") list = list.filter((i) => i.active);
+    if (filterStatus === "hidden") list = list.filter((i) => !i.active);
+    return list;
+  }, [items, searchTerm, filterStatus]);
+
+  const counts = useMemo(
+    () => ({
+      total: items.length,
+      visible: items.filter((i) => i.active).length,
+      hidden: items.filter((i) => !i.active).length,
+      totalValue: items.reduce((sum, i) => sum + (parseFloat(i.value) || 0), 0),
+    }),
+    [items],
+  );
+
+  // ---------- Loading ----------
+  if (loading && items.length === 0) {
+    return (
+      <div
+        style={{
+          padding: "40px",
+          textAlign: "center",
+          color: "var(--text)",
+          backgroundColor: "var(--bg-app)",
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
+        ⏳ Loading items...
+      </div>
+    );
+  }
+
+  // ---------- Render ----------
   return (
-    <div style={{ padding: "24px", color: "var(--text)" }}>
+    <div
+      style={{
+        padding: "24px",
+        backgroundColor: "var(--bg-app)",
+        minHeight: "100vh",
+        color: "var(--text)",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}
+    >
       <style>{`
+        @keyframes imSpin { to { transform: rotate(360deg); } }
+        .im-header {
+          display: flex; justify-content: space-between;
+          align-items: flex-start; flex-wrap: wrap;
+          gap: 16px; margin-bottom: 24px;
+        }
+        .im-header h2 {
+          font-size: 24px; font-weight: 700; margin: 0;
+          color: var(--text);
+        }
+        .im-header p {
+          color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
+        }
+        .im-btn-outline {
+          padding: 10px 18px;
+          border-radius: 8px;
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.15s, opacity 0.15s;
+        }
+        .im-btn-outline:hover:not(:disabled) { background: var(--bg-surface-3); }
+        .im-btn-outline:disabled { opacity: 0.6; cursor: not-allowed; }
+        .im-btn-primary {
+          padding: 10px 18px;
+          border-radius: 8px;
+          border: 1px solid rgba(16, 185, 129, 0.5);
+          background: rgba(16, 185, 129, 0.12);
+          color: var(--credit);
+          cursor: pointer;
+          font-size: 13px;
+          font-weight: 600;
+          display: inline-flex;
+          align-items: center;
+          gap: 8px;
+          transition: background 0.15s;
+        }
+        .im-btn-primary:hover:not(:disabled) { background: rgba(16, 185, 129, 0.2); }
+        .im-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
+        .im-btn-primary .im-spin { display: inline-block; animation: imSpin 1s linear infinite; }
+
+        .im-stats {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+          gap: 16px; margin-bottom: 20px;
+        }
+        .im-stat {
+          display: flex; flex-direction: column; gap: 6px;
+        }
+        .im-stat-label {
+          font-size: 12px; color: var(--text-muted);
+          text-transform: uppercase;
+          letter-spacing: 0.5px; font-weight: 600;
+        }
+        .im-stat-value { font-size: 22px; font-weight: 700; }
+
+        .im-filter-bar {
+          display: flex; gap: 10px; flex-wrap: wrap;
+          margin-bottom: 20px;
+        }
+        .im-filter-input, .im-filter-select {
+          background: var(--bg-surface-2);
+          color: var(--text);
+          padding: 10px 14px;
+          border-radius: 8px;
+          border: none;
+          outline: none;
+          font-size: 14px;
+          transition: box-shadow 0.2s;
+        }
+        .im-filter-input { flex: 1; min-width: 220px; }
+        .im-filter-input::placeholder { color: var(--text-dim); }
+        .im-filter-input:focus, .im-filter-select:focus {
+          box-shadow: 0 0 0 2px var(--accent-bg);
+        }
+        .im-filter-select option {
+          background: var(--bg-surface); color: var(--text);
+        }
+
+        .im-table-wrap {
+          overflow: auto;
+        }
+        .im-table-wrap table {
+          width: 100%; border-collapse: collapse; background: transparent;
+        }
+        .im-table-wrap th {
+          color: var(--text-muted);
+          font-size: 11px; font-weight: 600;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          padding: 12px 16px;
+          text-align: left;
+          white-space: nowrap;
+          border: none;
+        }
+        .im-table-wrap td {
+          padding: 12px 16px;
+          color: var(--text); font-size: 13px;
+          vertical-align: middle;
+          border: none;
+        }
+        .im-table-wrap tbody tr {
+          transition: background-color 0.15s ease;
+        }
+        .im-table-wrap tbody tr:hover td {
+          background: var(--bg-surface-2);
+        }
+
+        .im-action-btn {
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          font-size: 16px;
+          padding: 4px 6px;
+          border-radius: 6px;
+          transition: background 0.15s;
+        }
+        .im-action-btn:hover { background: var(--bg-surface-2); }
+
+        .im-empty {
+          text-align: center;
+          padding: 60px 20px;
+          color: var(--text-muted);
+          border: 1px dashed var(--border);
+          border-radius: 12px;
+        }
+        .im-empty-icon { font-size: 48px; margin-bottom: 8px; }
+
         .im-modal-overlay {
           position: fixed; inset: 0;
-          background-color: rgba(0,0,0,0.7);
+          background: rgba(0,0,0,0.7);
           backdrop-filter: blur(4px);
           display: flex; align-items: center; justify-content: center;
           z-index: 1000; padding: 16px;
-          animation: imFadeIn 0.2s ease;
         }
-        @keyframes imFadeIn { from { opacity: 0; } to { opacity: 1; } }
-        @keyframes imSlideUp {
-          from { opacity: 0; transform: translateY(20px); }
-          to   { opacity: 1; transform: translateY(0); }
-        }
-        .im-modal-content {
-          background-color: var(--bg-surface, #1a1a2e);
+        .im-modal {
+          background: var(--bg-surface, #1a1a2e);
           border-radius: 16px;
           padding: 28px 32px;
           width: 100%;
@@ -208,7 +378,6 @@ const ItemManager = () => {
           max-height: 90vh;
           overflow-y: auto;
           border: 1px solid var(--border, rgba(255,255,255,0.1));
-          animation: imSlideUp 0.25s ease;
           box-sizing: border-box;
         }
         .im-modal-header {
@@ -216,80 +385,65 @@ const ItemManager = () => {
           align-items: center; margin-bottom: 20px;
         }
         .im-modal-title {
-          font-size: 18px; font-weight: 700;
-          color: var(--text, #fff); margin: 0;
+          font-size: 18px; font-weight: 700; margin: 0;
+          color: var(--text);
         }
         .im-modal-close {
           background: none; border: none;
-          color: var(--text-muted, #888);
+          color: var(--text-muted);
           cursor: pointer; padding: 4px;
           font-size: 22px; line-height: 1;
-          transition: color 0.15s;
         }
-        .im-modal-close:hover { color: var(--text, #fff); }
-        .im-form-group { margin-bottom: 18px; display: flex; flex-direction: column; }
-        .im-form-label {
-          display: block;
-          font-size: 13px;
-          font-weight: 600;
-          color: var(--text, #fff);
-          margin-bottom: 8px;
-          letter-spacing: 0.2px;
+        .im-modal-close:hover { color: var(--text); }
+        .im-field { margin-bottom: 18px; display: flex; flex-direction: column; }
+        .im-field label {
+          font-size: 13px; font-weight: 600;
+          color: var(--text); margin-bottom: 8px;
         }
-        .im-form-input {
-          width: 100%;
+        .im-field input {
           padding: 11px 14px;
           border-radius: 8px;
-          border: 1px solid var(--border, rgba(255,255,255,0.15));
-          background-color: var(--bg-surface-2, rgba(255,255,255,0.04));
-          color: var(--text, #fff);
+          border: 1px solid var(--border);
+          background: var(--bg-surface-2);
+          color: var(--text);
           font-size: 14px;
           outline: none;
-          box-sizing: border-box;
-          transition: border-color 0.15s, background-color 0.15s;
           font-family: inherit;
+          box-sizing: border-box;
+          transition: border-color 0.15s;
         }
-        .im-form-input:focus {
-          border-color: var(--credit, #10b981);
-          background-color: var(--bg-surface-3, rgba(255,255,255,0.06));
-        }
-        .im-form-input::placeholder { color: var(--text-dim, #666); }
-        .im-modal-buttons {
-          display: flex;
-          gap: 10px;
-          margin-top: 24px;
+        .im-field input:focus { border-color: var(--credit); }
+        .im-field input::placeholder { color: var(--text-dim); }
+        .im-modal-actions {
+          display: flex; gap: 10px; margin-top: 24px;
           justify-content: flex-end;
         }
-        .im-btn {
+        .im-cancel {
           padding: 11px 22px;
           border-radius: 8px;
-          font-size: 14px;
-          font-weight: 600;
-          cursor: pointer;
-          transition: all 0.15s;
-          border: 1px solid transparent;
-          font-family: inherit;
-          min-width: 110px;
-        }
-        .im-btn:disabled { opacity: 0.5; cursor: not-allowed; }
-        .im-btn-cancel {
           background: transparent;
-          color: var(--text-muted, #aaa);
-          border-color: var(--border, rgba(255,255,255,0.15));
+          color: var(--text-muted);
+          border: 1px solid var(--border);
+          font-size: 14px; font-weight: 600;
+          cursor: pointer;
+          font-family: inherit;
         }
-        .im-btn-cancel:hover {
-          background-color: var(--bg-surface-2, rgba(255,255,255,0.04));
-          color: var(--text, #fff);
-        }
-        .im-btn-submit {
+        .im-cancel:hover { color: var(--text); background: var(--bg-surface-2); }
+        .im-submit {
+          padding: 11px 22px;
+          border-radius: 8px;
           background: linear-gradient(to right, #059669, #0d9488);
           color: #fff;
           border: none;
+          font-size: 14px; font-weight: 600;
+          cursor: pointer;
+          font-family: inherit;
         }
-        .im-btn-submit:hover { filter: brightness(1.1); }
+        .im-submit:hover:not(:disabled) { filter: brightness(1.1); }
+        .im-submit:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
 
-      {/* 🆕 Branch banner */}
+      {/* Branch banner — matches Staff.jsx */}
       <div
         style={{
           display: "flex",
@@ -324,8 +478,10 @@ const ItemManager = () => {
               }}
             >
               {activeBranch?.code || "—"} · Items for this branch only ·{" "}
-              <strong style={{ color: "var(--credit)" }}>{items.length}</strong>{" "}
-              items
+              <strong style={{ color: "var(--credit)" }}>{counts.total}</strong>{" "}
+              items ·{" "}
+              <strong style={{ color: "var(--info)" }}>{counts.visible}</strong>{" "}
+              visible
             </div>
           </div>
         </div>
@@ -346,90 +502,98 @@ const ItemManager = () => {
         </span>
       </div>
 
-      {/* HEADER */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "24px",
-          flexWrap: "wrap",
-          gap: "12px",
-        }}
-      >
+      {/* Header */}
+      <div className="im-header">
         <div>
-          <h2 style={{ margin: 0, fontSize: "22px" }}>🧾 Contributor Items</h2>
-          <p
-            style={{
-              margin: "4px 0 0",
-              color: "var(--text-muted)",
-              fontSize: "14px",
-            }}
-          >
+          <h2>🧾 Contributor Items</h2>
+          <p>
             Create items for{" "}
             <strong>{activeBranch?.name || "this branch"}</strong> that members
             can tick.
           </p>
         </div>
-
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
           <button
+            className="im-btn-outline"
             onClick={handleRefresh}
             disabled={refreshing}
-            style={{
-              background: "transparent",
-              color: "var(--info)",
-              border: "1px solid var(--info)",
-              borderRadius: "8px",
-              padding: "10px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: refreshing ? "wait" : "pointer",
-              opacity: refreshing ? 0.6 : 1,
-            }}
           >
-            {refreshing ? "⏳ Refreshing…" : "🔄 Refresh"}
+            <span className={refreshing ? "im-spin" : ""}>🔄</span>
+            {refreshing ? "Refreshing…" : "Refresh"}
           </button>
-
-          <button
-            onClick={openCreate}
-            style={{
-              background: "transparent",
-              color: "var(--credit)",
-              border: "1px solid var(--credit)",
-              borderRadius: "8px",
-              padding: "10px 20px",
-              fontSize: "14px",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
+          <button className="im-btn-primary" onClick={openCreate}>
             ➕ New Item
           </button>
         </div>
       </div>
 
-      {/* TABLE */}
-      {loading ? (
-        <div style={{ color: "var(--text-muted)" }}>Loading items…</div>
-      ) : items.length === 0 ? (
-        <div
-          style={{
-            textAlign: "center",
-            padding: "60px 20px",
-            color: "var(--text-muted)",
-            border: "1px dashed var(--border)",
-            borderRadius: "12px",
-          }}
+      {/* Stats */}
+      <div className="im-stats">
+        <div className="im-stat">
+          <span className="im-stat-label">📦 Total</span>
+          <span className="im-stat-value" style={{ color: "var(--text)" }}>
+            {counts.total}
+          </span>
+        </div>
+        <div className="im-stat">
+          <span className="im-stat-label">👁️ Visible</span>
+          <span className="im-stat-value" style={{ color: "var(--credit)" }}>
+            {counts.visible}
+          </span>
+        </div>
+        <div className="im-stat">
+          <span className="im-stat-label">🙈 Hidden</span>
+          <span
+            className="im-stat-value"
+            style={{ color: "var(--text-muted)" }}
+          >
+            {counts.hidden}
+          </span>
+        </div>
+        <div className="im-stat">
+          <span className="im-stat-label">💰 Total Value</span>
+          <span className="im-stat-value" style={{ color: "var(--info)" }}>
+            {new Intl.NumberFormat("en-NG", {
+              style: "currency",
+              currency: "NGN",
+              maximumFractionDigits: 0,
+            }).format(counts.totalValue)}
+          </span>
+        </div>
+      </div>
+
+      {/* Filter bar */}
+      <div className="im-filter-bar">
+        <input
+          type="text"
+          className="im-filter-input"
+          placeholder="🔍 Search by name or description..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+        />
+        <select
+          className="im-filter-select"
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value)}
         >
-          <div style={{ fontSize: "48px", marginBottom: "8px" }}>📭</div>
+          <option value="all">📋 All Status</option>
+          <option value="visible">👁️ Visible</option>
+          <option value="hidden">🙈 Hidden</option>
+        </select>
+      </div>
+
+      {/* Table */}
+      {filtered.length === 0 ? (
+        <div className="im-empty">
+          <div className="im-empty-icon">📭</div>
           <p>
-            No items yet in {activeBranch?.name || "this branch"}. Click "New
-            Item" to add one.
+            {items.length === 0
+              ? `No items yet in ${activeBranch?.name || "this branch"}. Click "New Item" to add one.`
+              : "No items match your search."}
           </p>
         </div>
       ) : (
-        <div className="table-container">
+        <div className="im-table-wrap">
           <table>
             <thead>
               <tr>
@@ -438,11 +602,11 @@ const ItemManager = () => {
                 <th>Description</th>
                 <th style={{ textAlign: "right" }}>Value</th>
                 <th>Status</th>
-                <th>Actions</th>
+                <th style={{ textAlign: "right" }}>Actions</th>
               </tr>
             </thead>
             <tbody>
-              {items.map((item) => (
+              {filtered.map((item) => (
                 <tr key={item.id}>
                   <td
                     style={{
@@ -474,30 +638,45 @@ const ItemManager = () => {
                   </td>
                   <td>
                     <span
-                      className={`badge ${item.active ? "badge-active" : "badge-inactive"}`}
+                      style={{
+                        padding: "4px 12px",
+                        fontSize: "12px",
+                        borderRadius: "20px",
+                        backgroundColor: item.active
+                          ? "var(--approved-bg)"
+                          : "var(--rejected-bg)",
+                        color: "var(--badge-text)",
+                        fontWeight: "600",
+                      }}
                     >
                       {item.active ? "Visible" : "Hidden"}
                     </span>
                   </td>
                   <td>
-                    <div style={{ display: "flex", gap: "6px" }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        gap: "4px",
+                        justifyContent: "flex-end",
+                      }}
+                    >
                       <button
                         onClick={() => openEdit(item)}
-                        className="action-btn action-btn-edit"
+                        className="im-action-btn"
                         title="Edit"
                       >
                         ✏️
                       </button>
                       <button
                         onClick={() => toggleActive(item)}
-                        className="action-btn action-btn-view"
+                        className="im-action-btn"
                         title={item.active ? "Hide" : "Show"}
                       >
                         {item.active ? "🙈" : "👁️"}
                       </button>
                       <button
                         onClick={() => handleDelete(item.id)}
-                        className="action-btn action-btn-delete"
+                        className="im-action-btn"
                         title="Delete"
                       >
                         🗑️
@@ -511,13 +690,10 @@ const ItemManager = () => {
         </div>
       )}
 
-      {/* MODAL */}
+      {/* Modal */}
       {showModal && (
         <div className="im-modal-overlay" onClick={() => setShowModal(false)}>
-          <div
-            className="im-modal-content"
-            onClick={(e) => e.stopPropagation()}
-          >
+          <div className="im-modal" onClick={(e) => e.stopPropagation()}>
             <div className="im-modal-header">
               <h3 className="im-modal-title">
                 {editingItem ? "✏️ Edit Item" : "➕ New Item"}
@@ -531,7 +707,6 @@ const ItemManager = () => {
               </button>
             </div>
 
-            {/* 🆕 branch hint in modal */}
             <div
               style={{
                 background: "var(--accent-bg, rgba(16,185,129,0.1))",
@@ -547,11 +722,10 @@ const ItemManager = () => {
             </div>
 
             <form onSubmit={handleSubmit}>
-              <div className="im-form-group">
-                <label className="im-form-label">Item Name *</label>
+              <div className="im-field">
+                <label>Item Name *</label>
                 <input
                   type="text"
-                  className="im-form-input"
                   placeholder="e.g. Refrigerator"
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
@@ -560,11 +734,10 @@ const ItemManager = () => {
                 />
               </div>
 
-              <div className="im-form-group">
-                <label className="im-form-label">Description / Category</label>
+              <div className="im-field">
+                <label>Description / Category</label>
                 <input
                   type="text"
-                  className="im-form-input"
                   placeholder="e.g. Kitchen appliance"
                   value={form.description}
                   onChange={(e) =>
@@ -573,11 +746,10 @@ const ItemManager = () => {
                 />
               </div>
 
-              <div className="im-form-group">
-                <label className="im-form-label">Value (₦) — optional</label>
+              <div className="im-field">
+                <label>Value (₦) — optional</label>
                 <input
                   type="number"
-                  className="im-form-input"
                   placeholder="0.00"
                   min="0"
                   step="0.01"
@@ -586,20 +758,16 @@ const ItemManager = () => {
                 />
               </div>
 
-              <div className="im-modal-buttons">
+              <div className="im-modal-actions">
                 <button
                   type="button"
-                  className="im-btn im-btn-cancel"
+                  className="im-cancel"
                   onClick={() => setShowModal(false)}
                   disabled={saving}
                 >
                   Cancel
                 </button>
-                <button
-                  type="submit"
-                  className="im-btn im-btn-submit"
-                  disabled={saving}
-                >
+                <button type="submit" className="im-submit" disabled={saving}>
                   {saving
                     ? "Saving…"
                     : editingItem

@@ -654,7 +654,6 @@ const MemberDeposit = ({ onClose }) => {
     const planCheck = validateAgainstPlan(depositAmount);
     if (!planCheck.ok) {
       toast.error(planCheck.message, { duration: 8000 });
-      // Also show a native alert for visibility (user asked for it strongly)
       window.alert(planCheck.message);
       return;
     }
@@ -752,6 +751,14 @@ const MemberDeposit = ({ onClose }) => {
         await fetchMembers();
         fetchMemberBalance(selectedMember);
         fetchDailyTotal(selectedMember);
+
+        // 🆕 Take the user to the dashboard after a successful deposit
+        setTimeout(() => {
+          if (typeof onClose === "function") {
+            onClose(); // if opened as modal, close it first
+          }
+          navigate("/member/dashboard", { replace: true });
+        }, 800);
       } else {
         toast.error(
           data.error ||

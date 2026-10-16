@@ -75,11 +75,9 @@ const AdminMembers = ({ publicMode = false }) => {
   }, [newMember.firstName]);
 
   useEffect(() => {
-    // Public registration page should not fetch admin data
     if (publicMode) {
       setLoading(false);
 
-      // 🆕 Read ?branch= from the URL and resolve the branch
       const params = new URLSearchParams(window.location.search);
       const raw = params.get("branch") || "";
       if (!raw) {
@@ -91,7 +89,6 @@ const AdminMembers = ({ publicMode = false }) => {
 
       const resolveBranch = async () => {
         try {
-          // Accept either ?branch=2 (numeric id) or ?branch=LAG-01 (code)
           const isNumeric = /^\d+$/.test(raw);
           const url = isNumeric
             ? `/api/get-branch.php?id=${raw}`
@@ -118,7 +115,6 @@ const AdminMembers = ({ publicMode = false }) => {
       return;
     }
 
-    // Admin mode continues as before
     setSearchTerm("");
     fetchMembers();
     fetchTransactions();
@@ -186,7 +182,6 @@ const AdminMembers = ({ publicMode = false }) => {
   const handleAddMember = async (e) => {
     e.preventDefault();
 
-    // 🆕 Public mode: require a valid branch before submitting
     if (publicMode && !publicBranch?.id) {
       toast.error(
         publicBranchError || "Cannot register: no valid branch selected.",
@@ -218,8 +213,6 @@ const AdminMembers = ({ publicMode = false }) => {
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
         profile_completed: 0,
-        // 🆕 Public registration uses the branch from the URL.
-        //    Admin mode uses the active branch from BranchContext.
         branch_id: publicMode
           ? (publicBranch?.id ?? null)
           : (activeBranchId ?? null),
@@ -596,7 +589,7 @@ Please log in and complete your profile.`;
   };
 
   // ============================================================
-  // PUBLIC MODE — show only the registration form, no table
+  // PUBLIC MODE
   // ============================================================
   if (publicMode) {
     return (
@@ -736,7 +729,6 @@ Please log in and complete your profile.`;
           <h1 className="pub-title">Create Account</h1>
           <p className="pub-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
 
-          {/* 🆕 Branch context banner */}
           {publicBranch ? (
             <div
               style={{
@@ -1026,7 +1018,7 @@ Please log in and complete your profile.`;
   }
 
   // ============================================================
-  // ADMIN MODE — main dashboard
+  // ADMIN MODE
   // ============================================================
   if (loading) {
     return (
@@ -1169,9 +1161,7 @@ Please log in and complete your profile.`;
           border: none;
           background: transparent;
         }
-        .am-table thead {
-          background: transparent;
-        }
+        .am-table thead { background: transparent; }
         .am-table thead th {
           padding: 12px 16px;
           text-align: left;
@@ -1186,9 +1176,7 @@ Please log in and complete your profile.`;
           background: transparent;
           transition: background-color 0.15s ease;
         }
-        .am-table tbody tr:hover {
-          background: var(--bg-surface-2);
-        }
+        .am-table tbody tr:hover { background: var(--bg-surface-2); }
         .am-table tbody td {
           padding: 12px 16px;
           border: none;
@@ -1230,12 +1218,8 @@ Please log in and complete your profile.`;
           border-bottom: 1px solid var(--border);
           color: var(--text);
         }
-        .bulk-table tr.row-error td {
-          background: var(--rejected-bg);
-        }
-        .bulk-table tr.row-ok td {
-          background: transparent;
-        }
+        .bulk-table tr.row-error td { background: var(--rejected-bg); }
+        .bulk-table tr.row-ok td { background: transparent; }
 
         .action-btn {
           background: none;
@@ -1249,7 +1233,7 @@ Please log in and complete your profile.`;
         .action-btn:hover { background: var(--bg-surface-3); }
       `}</style>
 
-      {/* ===== BRANCH BANNER ===== */}
+      {/* BRANCH BANNER */}
       <div
         style={{
           display: "flex",
@@ -2012,7 +1996,7 @@ Please log in and complete your profile.`;
         </div>
       )}
 
-      {/* Credentials Modal */}
+      {/* Credentials Modal — 🆕 "Done" now goes to /login with credentials */}
       {showCredentialsModal && createdCredentials && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -2119,12 +2103,25 @@ Please log in and complete your profile.`;
               >
                 📋 Copy All
               </button>
+              {/* 🆕 Done → send admin to login with credentials prefilled */}
               <button
                 className="btn-secondary"
                 style={{ flex: 1 }}
                 onClick={() => {
+                  const creds = {
+                    email: createdCredentials.email,
+                    password: createdCredentials.password,
+                    justRegistered: true,
+                    redirectTo: "/member/profile", // login lands on profile
+                  };
                   setShowCredentialsModal(false);
                   setCreatedCredentials(null);
+                  navigate(
+                    activeBranchId
+                      ? `/login?branch=${activeBranchId}`
+                      : "/login",
+                    { state: creds },
+                  );
                 }}
               >
                 Done

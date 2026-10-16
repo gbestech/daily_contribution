@@ -27,6 +27,9 @@ import Permissions from "./components/admin/Permissions";
 import Expenses from "./components/admin/Expenses";
 import PasswordResets from "./components/admin/PasswordResets";
 import ItemManager from "./components/admin/ItemManager";
+import Manager from "./components/admin/Manager";
+import Reshuffle from "./components/admin/Reshuffle";
+import AdminDailyMarks from "./components/admin/DailyMarks"; // 🆕
 
 // Member
 import MemberDashboard from "./components/member/Dashboard";
@@ -131,6 +134,28 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+      {/* 🆕 Reshuffle — right after Broadsheet */}
+      <Route
+        path="/admin/reshuffle"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Reshuffle />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      {/* 🆕 Daily Marks (manager-only marking) */}
+      <Route
+        path="/admin/daily-marks"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <AdminDailyMarks />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
       <Route
         path="/admin/expenses"
         element={
@@ -167,6 +192,17 @@ function AppRoutes() {
           <ProtectedRoute>
             <Layout>
               <Staff />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+      {/* 🆕 Managers */}
+      <Route
+        path="/admin/managers"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <Manager />
             </Layout>
           </ProtectedRoute>
         }

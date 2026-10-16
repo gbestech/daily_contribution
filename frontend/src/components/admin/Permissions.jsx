@@ -1,10 +1,49 @@
 // src/components/admin/Permissions.jsx
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import { usePermission } from "../../context/PermissionsContext";
 import { useBranch } from "../../context/BranchContext";
+import { useAuth } from "../../context/AuthContext";
+import { apiFetch } from "../../utils/api";
 
 const API_BASE_URL = "http://localhost:8000";
+
+// ============================================================
+// Branch unwrap helper — accepts several response shapes
+// ============================================================
+const pickBranchFromResponse = (data, id) => {
+  if (!data || typeof data !== "object") return null;
+
+  // A list response → find the branch by id
+  const lists = [data?.branches, data?.data?.branches, data?.data, data];
+  for (const l of lists) {
+    if (Array.isArray(l) && id != null) {
+      const found = l.find((b) => String(b?.id) === String(id));
+      if (found) return found;
+    }
+  }
+
+  // A single-record response
+  const candidates = [data?.branch, data?.data?.branch, data?.data, data];
+  for (const c of candidates) {
+    if (
+      c &&
+      typeof c === "object" &&
+      !Array.isArray(c) &&
+      (c.name || c.branch_name)
+    )
+      return c;
+  }
+  return null;
+};
+
+const readSavedBranchId = () => {
+  try {
+    return localStorage.getItem("selectedBranchId");
+  } catch {
+    return null;
+  }
+};
 
 const OPERATIONS = [
   {
@@ -160,15 +199,16 @@ const OPERATIONS = [
   },
 ];
 
-const ROLES = [
+const ALL_ROLES = [
   { value: "admin", label: "Admin", icon: "👑" },
   { value: "manager", label: "Manager", icon: "📊" },
   { value: "member", label: "Member", icon: "👤" },
 ];
 
+const MANAGER_VISIBLE_ROLES = ["manager", "member"];
+
 const ALL_KEYS = OPERATIONS.flatMap((g) => g.items.map((i) => i.key));
 
-// Branch-related permission keys
 const BRANCH_KEYS = [
   "view_branches",
   "create_branch",
@@ -181,28 +221,22 @@ const BRANCH_KEYS = [
   "view_all_branches",
 ];
 
-// The ONLY branch permissions a Manager may hold: view + edit their branch.
 const MANAGER_BRANCH_KEYS = ["view_branches", "edit_branch"];
 
-// Branch permissions a Manager can NEVER have (the server strips these too).
 const MANAGER_BLOCKED_KEYS = BRANCH_KEYS.filter(
   (k) => !MANAGER_BRANCH_KEYS.includes(k),
 );
 
-// Manager = every non-branch operation + view/edit on branches.
 const MANAGER_KEYS = ALL_KEYS.filter((k) => !MANAGER_BLOCKED_KEYS.includes(k));
 
-// Is this key not allowed for this role?
 const isBlockedFor = (role, key) =>
   role === "manager" && MANAGER_BLOCKED_KEYS.includes(key);
 
-// Remove keys a role isn't allowed to hold.
 const sanitizeForRole = (role, keys) =>
   role === "manager"
     ? (keys || []).filter((k) => !MANAGER_BLOCKED_KEYS.includes(k))
     : keys || [];
 
-// Total number of permissions a role can actually hold.
 const totalFor = (role) =>
   role === "manager"
     ? ALL_KEYS.length - MANAGER_BLOCKED_KEYS.length
@@ -211,7 +245,61 @@ const totalFor = (role) =>
 const Permissions = () => {
   const permCtx = usePermission() || {};
   const refreshPermissions = permCtx.refreshPermissions;
-  const { activeBranch, activeBranchId } = useBranch();
+  const branchCtx = useBranch() || {};
+  const { user } = useAuth();
+
+  // ============================================================
+  // 🔑 Resolve the active branch from WHATEVER the context exposes.
+  //    Some versions of BranchContext expose activeBranch/activeBranchId,
+  //    others expose selectedBranch (+ branches). Support both, then fall
+  //    back to the user's own branch and the id saved in localStorage.
+  // ============================================================
+  const ctxBranches = Array.isArray(branchCtx.branches)
+    ? branchCtx.branches
+    : [];
+  const ctxBranch = branchCtx.activeBranch || branchCtx.selectedBranch || null;
+
+  const activeBranchId =
+    branchCtx.activeBranchId ??
+    ctxBranch?.id ??
+    user?.branch_id ??
+    readSavedBranchId() ??
+    null;
+
+  const listBranch = useMemo(
+    () =>
+      activeBranchId != null
+        ? ctxBranches.find((b) => String(b.id) === String(activeBranchId)) ||
+          null
+        : null,
+    [ctxBranches, activeBranchId],
+  );
+
+  // ============================================================
+  // 🔒 Who is viewing this page?
+  // ============================================================
+  const viewerRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+
+  const isAdminViewer =
+    viewerRole === "admin" || viewerRole === "administrator";
+  const isManagerViewer =
+    viewerRole === "manager" || viewerRole === "branch_manager";
+
+  const visibleRoles = useMemo(() => {
+    if (isAdminViewer) return ALL_ROLES;
+    if (isManagerViewer) {
+      return ALL_ROLES.filter((r) => MANAGER_VISIBLE_ROLES.includes(r.value));
+    }
+    return ALL_ROLES.filter((r) => r.value === viewerRole);
+  }, [isAdminViewer, isManagerViewer, viewerRole]);
+
+  const defaultRole = useMemo(() => {
+    if (isAdminViewer) return "manager";
+    if (isManagerViewer) return "manager";
+    return visibleRoles[0]?.value || "manager";
+  }, [isAdminViewer, isManagerViewer, visibleRoles]);
 
   const [permissions, setPermissions] = useState({
     admin: [],
@@ -221,7 +309,75 @@ const Permissions = () => {
   const [original, setOriginal] = useState(null);
   const [loading, setLoading] = useState(true);
   const [savingRole, setSavingRole] = useState(null);
-  const [activeRole, setActiveRole] = useState("manager");
+  const [activeRole, setActiveRole] = useState(defaultRole);
+
+  // Branch record fetched from the DB
+  const [branchInfo, setBranchInfo] = useState(null);
+  const [branchInfoLoading, setBranchInfoLoading] = useState(false);
+
+  useEffect(() => {
+    const allowed = visibleRoles.map((r) => r.value);
+    if (!allowed.includes(activeRole)) {
+      setActiveRole(defaultRole);
+    }
+  }, [visibleRoles, activeRole, defaultRole]);
+
+  // ============================================================
+  // Fetch the branch record.
+  //   1) /api/get-branch.php?id=…   (what the Dashboard uses)
+  //   2) /api/branches.php           (list → find by id)
+  // ============================================================
+  const fetchBranchInfo = useCallback(
+    async (branchId) => {
+      const bid = branchId ?? activeBranchId;
+      if (bid == null || bid === "") {
+        setBranchInfo(null);
+        return null;
+      }
+
+      setBranchInfoLoading(true);
+      try {
+        // 1️⃣ single-record endpoint
+        try {
+          const res = await apiFetch(`/api/get-branch.php?id=${bid}`);
+          const data = await res.json();
+          const b = pickBranchFromResponse(data, bid);
+          console.log("[Permissions] get-branch.php →", data, "picked:", b);
+          if (b) {
+            setBranchInfo(b);
+            return b;
+          }
+        } catch (err) {
+          console.warn("[Permissions] get-branch.php failed:", err);
+        }
+
+        // 2️⃣ fall back to the list endpoint
+        try {
+          const res = await apiFetch(`/api/branches.php`);
+          const data = await res.json();
+          const b = pickBranchFromResponse(data, bid);
+          console.log("[Permissions] branches.php picked:", b);
+          if (b) {
+            setBranchInfo(b);
+            return b;
+          }
+        } catch (err) {
+          console.warn("[Permissions] branches.php failed:", err);
+        }
+
+        setBranchInfo(null);
+        return null;
+      } finally {
+        setBranchInfoLoading(false);
+      }
+    },
+    [activeBranchId],
+  );
+
+  useEffect(() => {
+    fetchBranchInfo(activeBranchId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeBranchId]);
 
   useEffect(() => {
     fetchPermissions();
@@ -231,9 +387,10 @@ const Permissions = () => {
   const fetchPermissions = async () => {
     setLoading(true);
     try {
-      const url = activeBranchId
-        ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
-        : `${API_BASE_URL}/api/permissions.php`;
+      const url =
+        activeBranchId != null && activeBranchId !== ""
+          ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
+          : `${API_BASE_URL}/api/permissions.php`;
 
       const res = await fetch(url, {
         headers: { Accept: "application/json" },
@@ -267,7 +424,8 @@ const Permissions = () => {
   };
 
   const toggleOperation = (role, key) => {
-    if (isBlockedFor(role, key)) return; // not allowed for this role
+    if (!isAdminViewer && role === "admin") return;
+    if (isBlockedFor(role, key)) return;
     setPermissions((prev) => {
       const current = new Set(prev[role] || []);
       if (current.has(key)) current.delete(key);
@@ -277,6 +435,7 @@ const Permissions = () => {
   };
 
   const toggleGroup = (role, group, on) => {
+    if (!isAdminViewer && role === "admin") return;
     const keys = group.items
       .map((i) => i.key)
       .filter((k) => !isBlockedFor(role, k));
@@ -288,6 +447,7 @@ const Permissions = () => {
   };
 
   const toggleAll = (role, on) => {
+    if (!isAdminViewer && role === "admin") return;
     setPermissions((prev) => ({
       ...prev,
       [role]: on ? sanitizeForRole(role, [...ALL_KEYS]) : [],
@@ -295,17 +455,69 @@ const Permissions = () => {
   };
 
   const applyPreset = (role, keys, on) => {
+    if (!isAdminViewer && role === "admin") return;
     const allowed = sanitizeForRole(role, keys);
     setPermissions((prev) => {
       const current = new Set(prev[role] || []);
       allowed.forEach((k) => (on ? current.add(k) : current.delete(k)));
-      // "Remove" presets must still be able to clear blocked keys
       if (!on) keys.forEach((k) => current.delete(k));
       return { ...prev, [role]: Array.from(current) };
     });
   };
 
+  // ============================================================
+  // Branch display — priority chain:
+  //   DB record → context branch → branches list → user record → placeholder
+  // ============================================================
+  const firstText = (...vals) => {
+    for (const v of vals) {
+      if (v !== undefined && v !== null && String(v).trim() !== "")
+        return String(v).trim();
+    }
+    return "";
+  };
+
+  const branchNameResolved = firstText(
+    branchInfo?.name,
+    branchInfo?.branch_name,
+    ctxBranch?.name,
+    ctxBranch?.branch_name,
+    listBranch?.name,
+    listBranch?.branch_name,
+    user?.branch_name,
+  );
+
+  const branchCodeResolved = firstText(
+    branchInfo?.code,
+    branchInfo?.branch_code,
+    ctxBranch?.code,
+    listBranch?.code,
+    user?.branch_code,
+  );
+
+  const branchAddressResolved = firstText(
+    branchInfo?.address,
+    ctxBranch?.address,
+    listBranch?.address,
+  );
+
+  const branchName =
+    branchNameResolved ||
+    (activeBranchId != null && activeBranchId !== ""
+      ? `Branch #${activeBranchId}`
+      : "this branch");
+  const branchCode = branchCodeResolved || "—";
+
   const saveRole = async (role) => {
+    if (!isAdminViewer && role === "admin") {
+      toast.error("Only admins can edit admin permissions");
+      return;
+    }
+    if (!isAdminViewer && !MANAGER_VISIBLE_ROLES.includes(role)) {
+      toast.error("You don't have permission to edit this role");
+      return;
+    }
+
     setSavingRole(role);
     try {
       const operations = sanitizeForRole(role, permissions[role] || []);
@@ -316,9 +528,10 @@ const Permissions = () => {
         operations,
       };
 
-      const url = activeBranchId
-        ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
-        : `${API_BASE_URL}/api/permissions.php`;
+      const url =
+        activeBranchId != null && activeBranchId !== ""
+          ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
+          : `${API_BASE_URL}/api/permissions.php`;
 
       const res = await fetch(url, {
         method: "PUT",
@@ -338,7 +551,6 @@ const Permissions = () => {
       }
 
       if (res.ok && data.status) {
-        // Use what the server actually stored (it may have filtered keys)
         const saved = Array.isArray(data.operations)
           ? data.operations
           : operations;
@@ -357,9 +569,7 @@ const Permissions = () => {
           }
         }
 
-        toast.success(
-          `✅ ${role} permissions saved for ${activeBranch?.name || "this branch"}`,
-        );
+        toast.success(`✅ ${role} permissions saved for ${branchName}`);
       } else {
         toast.error(data.error || `Save failed (HTTP ${res.status})`);
       }
@@ -382,9 +592,12 @@ const Permissions = () => {
   const rolePermissions = permissions[activeRole] || [];
   const roleSet = useMemo(() => new Set(rolePermissions), [rolePermissions]);
 
+  const activeRoleMeta = visibleRoles.find((r) => r.value === activeRole);
+
   if (loading) {
     return (
       <div className="perm-page">
+        <style>{css}</style>
         <div className="perm-loading">⏳ Loading permissions…</div>
       </div>
     );
@@ -419,7 +632,7 @@ const Permissions = () => {
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {branchName}
             </div>
             <div
               style={{
@@ -428,7 +641,8 @@ const Permissions = () => {
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} · Permissions are set per branch
+              {branchCode} · Permissions are set per branch
+              {branchInfoLoading && " · loading branch…"}
             </div>
           </div>
         </div>
@@ -454,22 +668,33 @@ const Permissions = () => {
         <div>
           <h2>🔒 Role Permissions</h2>
           <p>
-            Decide what each role can do in{" "}
-            <strong>{activeBranch?.name || "this branch"}</strong>
+            Decide what each role can do in <strong>{branchName}</strong>
           </p>
         </div>
         <button
           className="perm-btn perm-btn-blue"
-          onClick={fetchPermissions}
-          disabled={savingRole !== null}
+          onClick={async () => {
+            await fetchBranchInfo(activeBranchId);
+            await fetchPermissions();
+          }}
+          disabled={savingRole !== null || branchInfoLoading}
         >
-          🔄 Reload
+          {branchInfoLoading ? "⏳ Loading…" : "🔄 Reload"}
         </button>
       </div>
 
+      {/* Manager viewer notice */}
+      {isManagerViewer && (
+        <div className="perm-note" style={{ marginBottom: 16 }}>
+          🔒 You are viewing as a <strong>Manager</strong>. You can only edit{" "}
+          <strong>Manager</strong> and <strong>Member</strong> permissions.
+          Admin permissions are hidden.
+        </div>
+      )}
+
       {/* Role tabs */}
       <div className="role-tabs" role="tablist" aria-label="Roles">
-        {ROLES.map((r) => {
+        {visibleRoles.map((r) => {
           const rolePerm = permissions[r.value] || [];
           const dirty = isDirty(r.value);
           const active = activeRole === r.value;
@@ -492,6 +717,34 @@ const Permissions = () => {
         })}
       </div>
 
+      {/* Branch + role card header */}
+      <div className="perm-card-banner">
+        <div className="perm-card-banner-left">
+          <span className="perm-card-banner-icon">🏢</span>
+          <div>
+            <div className="perm-card-banner-title">
+              {branchName}
+              {branchCode && branchCode !== "—" && (
+                <span className="perm-card-banner-code"> · {branchCode}</span>
+              )}
+            </div>
+            <div className="perm-card-banner-sub">
+              {branchAddressResolved
+                ? branchAddressResolved
+                : "Editing permissions for this branch"}
+            </div>
+          </div>
+        </div>
+        <div className="perm-card-banner-right">
+          <span className="perm-card-banner-role-icon">
+            {activeRoleMeta?.icon || "👤"}
+          </span>
+          <span className="perm-card-banner-role-label">
+            {activeRoleMeta?.label || activeRole}
+          </span>
+        </div>
+      </div>
+
       {/* Manager rule notice */}
       {activeRole === "manager" && (
         <div className="perm-note">
@@ -505,8 +758,8 @@ const Permissions = () => {
       {/* Bulk actions */}
       <div className="perm-toolbar">
         <div className="perm-toolbar-label">
-          Bulk actions —{" "}
-          <strong>{ROLES.find((r) => r.value === activeRole)?.label}</strong>
+          Bulk actions — <strong>{activeRoleMeta?.label}</strong> in{" "}
+          <strong>{branchName}</strong>
         </div>
         <div className="perm-bulk-btns">
           <button
@@ -661,12 +914,14 @@ const Permissions = () => {
         <div className="save-bar-text">
           {isDirty(activeRole) ? (
             <>
-              <strong>Unsaved changes</strong> on{" "}
-              {ROLES.find((r) => r.value === activeRole)?.label} for{" "}
-              {activeBranch?.name || "this branch"}
+              <strong>Unsaved changes</strong> on {activeRoleMeta?.label} for{" "}
+              <strong>{branchName}</strong>
             </>
           ) : (
-            <>All changes saved for this role</>
+            <>
+              All changes saved for <strong>{activeRoleMeta?.label}</strong> in{" "}
+              <strong>{branchName}</strong>
+            </>
           )}
         </div>
         <div className="save-btns">
@@ -731,7 +986,7 @@ const css = `
   .role-tabs {
     display: flex;
     gap: 24px;
-    margin-bottom: 24px;
+    margin-bottom: 20px;
     padding-bottom: 0;
     flex-wrap: wrap;
     border-bottom: 1px solid var(--border, #e2e8f0);
@@ -769,6 +1024,64 @@ const css = `
     width: 6px; height: 6px; border-radius: 50%;
     background: var(--warning, #f59e0b);
   }
+
+  /* Branch + Role card banner */
+  .perm-card-banner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding: 14px 18px;
+    margin-bottom: 16px;
+    border-radius: 12px;
+    border: 1px solid var(--border, #e2e8f0);
+    background: var(--bg-surface, #ffffff);
+    box-shadow: 0 1px 2px rgba(0,0,0,0.03);
+  }
+  .perm-card-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+  }
+  .perm-card-banner-icon {
+    font-size: 22px;
+    line-height: 1;
+    flex-shrink: 0;
+  }
+  .perm-card-banner-title {
+    font-size: 15px;
+    font-weight: 700;
+    color: var(--text, #0f172a);
+    line-height: 1.3;
+  }
+  .perm-card-banner-code {
+    color: var(--text-muted, #64748b);
+    font-weight: 500;
+  }
+  .perm-card-banner-sub {
+    font-size: 12px;
+    color: var(--text-muted, #64748b);
+    margin-top: 2px;
+  }
+  .perm-card-banner-right {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: 9999px;
+    background: color-mix(in srgb, var(--accent, #10b981) 10%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent, #10b981) 35%, transparent);
+    color: var(--accent, #10b981);
+    font-size: 12px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+    flex-shrink: 0;
+  }
+  .perm-card-banner-role-icon { font-size: 14px; }
+
   .perm-note {
     margin: 0 0 16px;
     padding: 10px 14px;
@@ -961,6 +1274,7 @@ const css = `
     .perm-items { grid-template-columns: 1fr; }
     .role-tabs { gap: 16px; }
     .save-bar { padding: 12px 0; }
+    .perm-card-banner { padding: 12px 14px; }
   }
 `;
 

@@ -12,8 +12,6 @@ const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const { can } = usePermission();
 
-  // Admin/manager: the branch they switched to.
-  // Member: their own branch (user.branch_id).
   let activeBranchId = null;
   try {
     activeBranchId = useBranch()?.activeBranchId ?? null;
@@ -36,9 +34,6 @@ const Layout = ({ children }) => {
   const isAdmin = role === "admin" || role === "administrator";
   const isManager = role === "manager";
 
-  // ============================================================
-  // Hide sidebar + navbar during first-time profile completion
-  // ============================================================
   const isProfileRoute = location.pathname === "/member/profile";
   const profileIncomplete =
     !!user &&
@@ -49,10 +44,6 @@ const Layout = ({ children }) => {
     );
   const hideChrome = isProfileRoute && profileIncomplete;
 
-  // ----------------------------------------------------------
-  // Fetch the shop name for the CURRENT branch.
-  // Re-runs whenever the branch changes, and after Settings is saved.
-  // ----------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
 
@@ -78,7 +69,6 @@ const Layout = ({ children }) => {
 
     fetchShopName();
 
-    // Re-read after the admin saves General settings
     window.addEventListener("settings:updated", fetchShopName);
 
     return () => {
@@ -87,9 +77,6 @@ const Layout = ({ children }) => {
     };
   }, [branchId]);
 
-  // ----------------------------------------------------------
-  // Handle responsive layout
-  // ----------------------------------------------------------
   useEffect(() => {
     const handleResize = () => {
       setIsMobile(window.innerWidth < 768);
@@ -122,6 +109,27 @@ const Layout = ({ children }) => {
       label: "Broad Sheet",
       icon: "👥",
       permission: "view_broadsheet",
+    },
+    // 🆕 Managers
+    {
+      path: "/admin/managers",
+      label: "Managers",
+      icon: "👔",
+      permission: "manage_staff",
+    },
+    // 🆕 Reshuffle — right after Managers
+    {
+      path: "/admin/reshuffle",
+      label: "Reshuffle",
+      icon: "🔀",
+      permission: "manage_staff",
+    },
+    // 🆕 Daily Marks — right after Reshuffle
+    {
+      path: "/admin/daily-marks",
+      label: "Daily Marks",
+      icon: "✅",
+      permission: "view_dashboard",
     },
     {
       path: "/admin/transactions",
@@ -247,9 +255,6 @@ const Layout = ({ children }) => {
 
   const sidebarWidth = isCollapsed ? "70px" : "250px";
 
-  // ============================================================
-  // Bare layout — sidebar & navbar hidden (first-time profile only)
-  // ============================================================
   if (hideChrome) {
     return (
       <div
@@ -265,9 +270,6 @@ const Layout = ({ children }) => {
     );
   }
 
-  // ============================================================
-  // Full layout — sidebar + navbar + children
-  // ============================================================
   return (
     <>
       {isMobile && isMobileOpen && (

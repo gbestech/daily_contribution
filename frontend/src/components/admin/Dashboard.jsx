@@ -16,9 +16,6 @@ const AdminDashboard = () => {
 
   // ============================================================
   // Branch shown on the banner card.
-  // Admins get it from BranchContext. Managers often don't (no switcher /
-  // no full branch list), so fall back to looking it up by their own
-  // branch id, then to whatever the login response carried.
   // ============================================================
   const branchId = activeBranchId || user?.branch_id || null;
   const [fallbackBranch, setFallbackBranch] = useState(null);
@@ -52,6 +49,55 @@ const AdminDashboard = () => {
       (user?.branch_name
         ? { name: user.branch_name, code: user.branch_code }
         : null);
+
+  // ============================================================
+  // 🆕 Branch savings method ("both" | "cash" | "item")
+  // ============================================================
+  const [branchSavingsMethod, setBranchSavingsMethod] = useState("both");
+  const [branchSettingsLoaded, setBranchSettingsLoaded] = useState(false);
+
+  const fetchBranchSettings = useCallback(async () => {
+    if (!branchId) {
+      setBranchSavingsMethod("both");
+      setBranchSettingsLoaded(true);
+      return;
+    }
+    try {
+      const res = await fetch(
+        `${API_BASE_URL}/api/settings.php?branch_id=${branchId}`,
+      );
+      const data = await res.json();
+      const method = data?.data?.items?.savings_methods;
+      setBranchSavingsMethod(
+        method === "cash" || method === "item" || method === "both"
+          ? method
+          : "both",
+      );
+    } catch (err) {
+      console.warn("[dashboard] branch settings fetch failed:", err);
+      setBranchSavingsMethod("both");
+    } finally {
+      setBranchSettingsLoaded(true);
+    }
+  }, [branchId]);
+
+  useEffect(() => {
+    fetchBranchSettings();
+  }, [fetchBranchSettings]);
+
+  // Convenience flags
+  const allowCash =
+    branchSavingsMethod === "both" || branchSavingsMethod === "cash";
+  const allowItem =
+    branchSavingsMethod === "both" || branchSavingsMethod === "item";
+
+  const branchPlanLabel = !branchSettingsLoaded
+    ? "…"
+    : branchSavingsMethod === "cash"
+      ? "💵 Cash Only"
+      : branchSavingsMethod === "item"
+        ? "📦 Item Only"
+        : "💵 + 📦 Cash & Item";
 
   const [adminUsername, setAdminUsername] = useState("Admin");
   const [members, setMembers] = useState([]);
@@ -256,6 +302,7 @@ const AdminDashboard = () => {
     setError(null);
     try {
       await fetchAllData();
+      await fetchBranchSettings();
       toast.success("Data refreshed successfully!");
     } catch (error) {
       toast.error("Failed to refresh data");
@@ -534,7 +581,7 @@ const AdminDashboard = () => {
     };
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]); // 🆕 refetch when the branch changes
+  }, [activeBranchId]);
 
   const handleSelectAll = () => {
     if (selectAll) {
@@ -779,6 +826,11 @@ const AdminDashboard = () => {
   const handleTransaction = async (e) => {
     e.preventDefault();
 
+    if (!allowCash) {
+      toast.error("This branch does not allow cash transactions");
+      return;
+    }
+
     if (!transactionData.memberId) {
       toast.error("Please select a member");
       return;
@@ -858,6 +910,10 @@ const AdminDashboard = () => {
 
   const handleTransfer = async (e) => {
     e.preventDefault();
+    if (!allowCash) {
+      toast.error("This branch does not allow cash transfers");
+      return;
+    }
     if (!transferData.fromMemberId || !transferData.toMemberId) {
       toast.error("Please select both members");
       return;
@@ -1100,6 +1156,11 @@ const AdminDashboard = () => {
         text.includes("add transaction") ||
         text.includes("create transaction")
       ) {
+        if (!allowCash) {
+          showVoiceFeedback("🚫 This branch is item-only");
+          speak("This branch does not allow cash transactions");
+          return;
+        }
         setShowTransactionModal(true);
         showVoiceFeedback("💳 Opening transaction form");
         speak("Opening new transaction");
@@ -1111,6 +1172,11 @@ const AdminDashboard = () => {
         text.includes("make transfer") ||
         text.includes("transfer funds")
       ) {
+        if (!allowCash) {
+          showVoiceFeedback("🚫 This branch is item-only");
+          speak("This branch does not allow cash transfers");
+          return;
+        }
         setShowTransferModal(true);
         showVoiceFeedback("🔄 Opening transfer form");
         speak("Opening transfer form");
@@ -1166,9 +1232,28 @@ const AdminDashboard = () => {
         return;
       }
 
+      // 🆕 Branch plan query
+      if (
+        text.includes("branch plan") ||
+        text.includes("savings method") ||
+        text.includes("savings plan") ||
+        text.includes("what plan") ||
+        (text.includes("branch") && text.includes("method"))
+      ) {
+        const spoken =
+          branchSavingsMethod === "cash"
+            ? "This branch is cash only"
+            : branchSavingsMethod === "item"
+              ? "This branch is item only"
+              : "This branch allows both cash and item savings";
+        showVoiceFeedback(`🏢 ${spoken}`);
+        speak(spoken);
+        return;
+      }
+
       if (text.includes("help") || text.includes("what can i say")) {
         const helpMsg =
-          "You can say: open members, open transactions, open expenses, new transaction, new transfer, new expense, refresh data, search for a name, how many members, total balance, or close.";
+          "You can say: open members, open transactions, open expenses, new transaction, new transfer, new expense, refresh data, search for a name, how many members, total balance, branch plan, or close.";
         showVoiceFeedback(`ℹ️ ${helpMsg}`);
         speak(helpMsg);
         return;
@@ -1212,6 +1297,8 @@ const AdminDashboard = () => {
       members,
       pendingLoans.length,
       pendingExpenses.length,
+      allowCash,
+      branchSavingsMethod,
     ],
   );
 
@@ -1904,9 +1991,53 @@ const AdminDashboard = () => {
           border-radius: 6px;
           transition: width 0.6s ease;
         }
+
+        /* 🆕 Branch plan pill */
+        .branch-plan-pill {
+          display: inline-flex;
+          align-items: center;
+          gap: 6px;
+          padding: 5px 12px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
+          letter-spacing: 0.4px;
+          text-transform: uppercase;
+          white-space: nowrap;
+          border: 1px solid var(--border);
+        }
+        .branch-plan-pill.both {
+          background: rgba(59, 130, 246, 0.14);
+          color: var(--info);
+          border-color: rgba(59, 130, 246, 0.4);
+        }
+        .branch-plan-pill.cash {
+          background: rgba(16, 185, 129, 0.14);
+          color: var(--credit);
+          border-color: rgba(16, 185, 129, 0.4);
+        }
+        .branch-plan-pill.item {
+          background: rgba(168, 85, 247, 0.14);
+          color: var(--purple);
+          border-color: rgba(168, 85, 247, 0.4);
+        }
+
+        .branch-plan-warning {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 12px 16px;
+          margin-bottom: 16px;
+          border-radius: 10px;
+          background: rgba(234, 179, 8, 0.08);
+          border: 1px solid rgba(234, 179, 8, 0.35);
+          color: var(--text);
+          font-size: 13px;
+          line-height: 1.5;
+        }
       `}</style>
 
-      {/* BRANCH BANNER — shows which group is active */}
+      {/* BRANCH BANNER — shows which group is active + savings method */}
       <div
         style={{
           display: "flex",
@@ -1947,21 +2078,42 @@ const AdminDashboard = () => {
             </div>
           </div>
         </div>
-        <span
+        <div
           style={{
-            padding: "4px 12px",
-            borderRadius: "20px",
-            fontSize: "11px",
-            fontWeight: "700",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            background: "rgba(16, 185, 129, 0.2)",
-            color: "var(--credit)",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
+            display: "flex",
+            alignItems: "center",
+            gap: "8px",
+            flexWrap: "wrap",
           }}
         >
-          ● active group
-        </span>
+          {/* 🆕 Branch plan badge */}
+          <span
+            className={`branch-plan-pill ${branchSavingsMethod}`}
+            title="Savings method configured for this branch"
+          >
+            {branchSavingsMethod === "cash"
+              ? "💵 Cash Only"
+              : branchSavingsMethod === "item"
+                ? "📦 Item Only"
+                : "💵 + 📦 Cash & Item"}
+          </span>
+
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "var(--credit)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            ● active group
+          </span>
+        </div>
       </div>
 
       {/* Header */}
@@ -2039,32 +2191,54 @@ const AdminDashboard = () => {
           </button>
 
           <button
-            onClick={() => setShowTransactionModal(true)}
+            onClick={() => {
+              if (!allowCash) {
+                toast.error(
+                  "This branch is item-only — cash transactions are disabled.",
+                );
+                return;
+              }
+              setShowTransactionModal(true);
+            }}
+            disabled={!allowCash}
             style={{
               backgroundColor: "transparent",
-              color: "var(--info)",
+              color: allowCash ? "var(--info)" : "var(--text-dim)",
               padding: "10px 20px",
-              border: "1px solid var(--info)",
+              border: `1px solid ${allowCash ? "var(--info)" : "var(--border)"}`,
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
-              cursor: "pointer",
+              cursor: allowCash ? "pointer" : "not-allowed",
+              opacity: allowCash ? 1 : 0.5,
             }}
+            title={!allowCash ? "Branch is item-only" : "New cash transaction"}
           >
             💳 New Transaction
           </button>
           <button
-            onClick={() => setShowTransferModal(true)}
+            onClick={() => {
+              if (!allowCash) {
+                toast.error(
+                  "This branch is item-only — transfers are disabled.",
+                );
+                return;
+              }
+              setShowTransferModal(true);
+            }}
+            disabled={!allowCash}
             style={{
               backgroundColor: "transparent",
-              color: "var(--purple)",
+              color: allowCash ? "var(--purple)" : "var(--text-dim)",
               padding: "10px 20px",
-              border: "1px solid var(--purple)",
+              border: `1px solid ${allowCash ? "var(--purple)" : "var(--border)"}`,
               borderRadius: "8px",
               fontSize: "14px",
               fontWeight: "600",
-              cursor: "pointer",
+              cursor: allowCash ? "pointer" : "not-allowed",
+              opacity: allowCash ? 1 : 0.5,
             }}
+            title={!allowCash ? "Branch is item-only" : "Transfer funds"}
           >
             🔄 Transfer
           </button>
@@ -2085,6 +2259,24 @@ const AdminDashboard = () => {
           </button>
         </div>
       </div>
+
+      {/* 🆕 Branch plan info note when not "both" */}
+      {branchSettingsLoaded && branchSavingsMethod !== "both" && (
+        <div className="branch-plan-warning">
+          <span style={{ fontSize: 20 }}>
+            {branchSavingsMethod === "cash" ? "💵" : "📦"}
+          </span>
+          <div>
+            <strong>This branch is set to {branchPlanLabel}.</strong>{" "}
+            {branchSavingsMethod === "cash"
+              ? "Item savings features are hidden for members in this branch. Cash deposits, withdrawals, and transfers remain available."
+              : "Cash deposits, withdrawals, and transfers are disabled. Members save only via item-based plans."}{" "}
+            <span style={{ color: "var(--text-muted)" }}>
+              Change this in Settings → Items (or edit the branch).
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* Stats Grid */}
       <div
@@ -3407,10 +3599,18 @@ const AdminDashboard = () => {
             selectedMember.savingsPlan ||
             selectedMember.savings_plan ||
             "Daily";
-          const savingsMethod =
-            selectedMember.savingsMethod ||
-            selectedMember.savings_method ||
-            "Cash";
+
+          // 🆕 Fallback: if member has no savings method, use branch default
+          const memberMethodRaw =
+            selectedMember.savingsMethod || selectedMember.savings_method;
+          const savingsMethod = memberMethodRaw
+            ? memberMethodRaw
+            : branchSavingsMethod === "cash"
+              ? "Cash"
+              : branchSavingsMethod === "item"
+                ? "Item"
+                : "Cash";
+
           const planDuration =
             selectedMember.savingsDuration ||
             selectedMember.savings_duration ||
@@ -3528,7 +3728,22 @@ const AdminDashboard = () => {
                       <div className="sp-value info">{planType}</div>
                     </div>
                     <div className="savings-plan-item">
-                      <div className="sp-label">💵 Savings Method</div>
+                      <div className="sp-label">
+                        💵 Savings Method
+                        {!memberMethodRaw && (
+                          <span
+                            style={{
+                              fontSize: 9,
+                              color: "var(--text-dim)",
+                              marginLeft: 4,
+                              textTransform: "none",
+                              letterSpacing: 0,
+                            }}
+                          >
+                            (branch default)
+                          </span>
+                        )}
+                      </div>
                       <div className="sp-value purple">{savingsMethod}</div>
                     </div>
                     <div className="savings-plan-item">
