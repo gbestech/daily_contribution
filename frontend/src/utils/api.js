@@ -15,6 +15,7 @@ const PUBLIC_PATHS = [
     "/api/reset-password.php",
     "/api/get-branch.php",
     "/api/branches.php",
+    "/api/daily-marks.php",
 ];
 
 const isPublicPath = (path) =>
@@ -68,6 +69,9 @@ export const apiFetch = async (path, options = {}) => {
         ? path
         : `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
 
+    const method = String(options.method || "GET").toUpperCase();
+    const isWrite = method !== "GET" && method !== "HEAD";
+
     const branchId = resolveBranchId();
     const role = resolveRole();
     const userId = resolveUserId();
@@ -75,10 +79,6 @@ export const apiFetch = async (path, options = {}) => {
     const needsBranch = requiresBranch(path);
     const isAllQuery = /[?&]all=1(&|$)/.test(path);
 
-    // Only inject ?branch_id= if:
-    //   - endpoint needs branch
-    //   - not already present
-    //   - not the "all branches" admin query (backend doesn't need a branch in that case)
     if (!isPublic && needsBranch && !isAllQuery && !path.includes("branch_id=")) {
         if (branchId === null) {
             console.warn(
@@ -102,11 +102,18 @@ export const apiFetch = async (path, options = {}) => {
         ...(options.headers || {}),
     };
 
-    if (options.body && !headers["Content-Type"]) {
+    const hasBody =
+        options.body !== undefined &&
+        options.body !== null &&
+        !(typeof options.body === "string" && options.body.length === 0);
+    const isFormData =
+        typeof FormData !== "undefined" && options.body instanceof FormData;
+
+    if (hasBody && !isFormData && !headers["Content-Type"]) {
         headers["Content-Type"] = "application/json";
     }
 
-    if (!isPublic) {
+    if (!isPublic && isWrite) {
         if (branchId !== null) headers["X-User-Branch-Id"] = String(branchId);
         if (role) headers["X-User-Role"] = String(role);
         if (userId !== "" && userId !== null && userId !== undefined) {
