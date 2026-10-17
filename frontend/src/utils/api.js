@@ -1,29 +1,121 @@
 // src/utils/api.js
 const API_BASE_URL = "http://localhost:8000";
 
-/**
- * Read the currently active branch id from localStorage.
- * Returns 0 if nothing saved yet.
- */
-export const getActiveBranchId = () => {
-    const saved = localStorage.getItem("active_branch_id");
-    return saved ? parseInt(saved, 10) : 0;
+const BRANCH_REQUIRED_PATHS = [
+    "/api/members.php",
+    "/api/transactions.php",
+    "/api/settings.php",
+];
+
+const PUBLIC_PATHS = [
+    "/api/login.php",
+    "/api/register-member.php",
+    "/api/register.php",
+    "/api/forgot-password.php",
+    "/api/reset-password.php",
+    "/api/get-branch.php",
+    "/api/branches.php",
+];
+
+const isPublicPath = (path) =>
+    PUBLIC_PATHS.some((p) => path.startsWith(p));
+
+const requiresBranch = (path) =>
+    BRANCH_REQUIRED_PATHS.some((p) => path.startsWith(p));
+
+const resolveBranchId = () => {
+    try {
+        const stored = JSON.parse(localStorage.getItem("user") || "{}");
+        if (stored?.branch_id !== undefined && stored?.branch_id !== null) {
+            const n = Number(stored.branch_id);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+        if (stored?.branchId !== undefined && stored?.branchId !== null) {
+            const n = Number(stored.branchId);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+    } catch { }
+    try {
+        const params = new URLSearchParams(window.location.search);
+        const raw = params.get("branch");
+        if (raw) {
+            const n = Number(raw);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+    } catch { }
+    return null;
 };
 
-/**
- * Build a URL with the branch_id query param appended.
- *   apiUrl("/api/members.php") -> "http://.../api/members.php?branch_id=1"
- */
-export const apiUrl = (path) => {
-    const base = path.startsWith("http") ? path : `${API_BASE_URL}${path}`;
-    const branchId = getActiveBranchId();
-    const sep = base.includes("?") ? "&" : "?";
-    return branchId > 0 ? `${base}${sep}branch_id=${branchId}` : base;
+const resolveRole = () => {
+    try {
+        return JSON.parse(localStorage.getItem("user") || "{}")?.role || "";
+    } catch {
+        return "";
+    }
 };
 
-/**
- * fetch() wrapper that automatically adds ?branch_id=
- */
-export const apiFetch = (path, options = {}) => {
-    return fetch(apiUrl(path), options);
+const resolveUserId = () => {
+    try {
+        const u = JSON.parse(localStorage.getItem("user") || "{}");
+        return u?.id ?? u?.userId ?? "";
+    } catch {
+        return "";
+    }
 };
+
+export const apiFetch = async (path, options = {}) => {
+    let url = path.startsWith("http")
+        ? path
+        : `${API_BASE_URL}${path.startsWith("/") ? "" : "/"}${path}`;
+
+    const branchId = resolveBranchId();
+    const role = resolveRole();
+    const userId = resolveUserId();
+    const isPublic = isPublicPath(path);
+    const needsBranch = requiresBranch(path);
+    const isAllQuery = /[?&]all=1(&|$)/.test(path);
+
+    // Only inject ?branch_id= if:
+    //   - endpoint needs branch
+    //   - not already present
+    //   - not the "all branches" admin query (backend doesn't need a branch in that case)
+    if (!isPublic && needsBranch && !isAllQuery && !path.includes("branch_id=")) {
+        if (branchId === null) {
+            console.warn(
+                `[apiFetch] Skipped "${path}" — no branch_id available yet.`,
+            );
+            return new Response(
+                JSON.stringify({
+                    error: "branch_id is required",
+                    synthetic: true,
+                    path,
+                }),
+                { status: 400, headers: { "Content-Type": "application/json" } },
+            );
+        }
+        const sep = url.includes("?") ? "&" : "?";
+        url = `${url}${sep}branch_id=${encodeURIComponent(branchId)}`;
+    }
+
+    const headers = {
+        Accept: "application/json",
+        ...(options.headers || {}),
+    };
+
+    if (options.body && !headers["Content-Type"]) {
+        headers["Content-Type"] = "application/json";
+    }
+
+    if (!isPublic) {
+        if (branchId !== null) headers["X-User-Branch-Id"] = String(branchId);
+        if (role) headers["X-User-Role"] = String(role);
+        if (userId !== "" && userId !== null && userId !== undefined) {
+            headers["X-User-Id"] = String(userId);
+        }
+    }
+
+    return fetch(url, { ...options, headers });
+};
+
+export { resolveBranchId };
+export default apiFetch;

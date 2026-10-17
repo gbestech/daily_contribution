@@ -196,9 +196,8 @@ const detectTheme = () => {
     typeof window !== "undefined" &&
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: light)").matches
-  ) {
+  )
     return "light";
-  }
   return "dark";
 };
 
@@ -280,7 +279,6 @@ const buildCycleDays = (cycleStartDate, marksSet) => {
   return days;
 };
 
-// 🆕 Compute all cycle windows from join date + duration
 const computeCycles = (joinDateStr, durationStr) => {
   const start = parseDate(joinDateStr);
   if (!start) return [];
@@ -318,7 +316,7 @@ const computeCycles = (joinDateStr, durationStr) => {
 const Dashboard = () => {
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  const { activeBranch, activeBranchId } = useBranch();
+  const { activeBranch } = useBranch();
 
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -355,11 +353,8 @@ const Dashboard = () => {
     description: "",
   });
 
-  // 🆕 Daily marks (read-only)
   const [dailyMarks, setDailyMarks] = useState(new Set());
   const [marksLoading, setMarksLoading] = useState(false);
-
-  // 🆕 Cycle navigation
   const [cycleIndex, setCycleIndex] = useState(0);
 
   // Role
@@ -369,13 +364,21 @@ const Dashboard = () => {
     String(roleRaw).toLowerCase(),
   );
 
+  // ============================================================
+  // 🔒 Member's branch — never activeBranchId
+  // ============================================================
   const myBranchId =
     userProfile?.branch_id ??
     userProfile?.branchId ??
     user?.branch_id ??
     user?.branchId ??
-    activeBranchId ??
     null;
+
+  // 🔒 True when we're a manager but the branch isn't resolved yet
+  const isManager = ["manager", "branch_manager"].includes(
+    String(roleRaw).toLowerCase(),
+  );
+  const managerMissingBranch = isManager && !myBranchId && !userProfile;
 
   // Theme watcher
   useEffect(() => {
@@ -415,7 +418,7 @@ const Dashboard = () => {
   const isLight = theme === "light";
   const textColor = isLight ? "#0f172a" : "#f1f5f9";
   const textMuted = isLight ? "#475569" : "#94a3b8";
-  const textDim = isLight ? "#64748b" : "#64748b";
+  const textDim = "#64748b";
   const fieldBg = isLight ? "#ffffff" : "#0f172a";
   const fieldText = isLight ? "#0f172a" : "#f1f5f9";
   const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
@@ -441,7 +444,7 @@ const Dashboard = () => {
   const infoColor = isLight ? "#2563eb" : "#60a5fa";
 
   // ============================================================
-  // FETCH — branch savings method
+  // Fetches — EVERY call must include ?branch_id=
   // ============================================================
   const fetchBranchSavingsMethod = useCallback(async (branchId) => {
     if (!branchId) {
@@ -452,8 +455,7 @@ const Dashboard = () => {
     try {
       const res = await apiFetch(`/api/settings.php?branch_id=${branchId}`);
       const data = await res.json();
-      const method = pickSavingsMethodFromSettings(data);
-      setBranchSavingsMethod(method || "both");
+      setBranchSavingsMethod(pickSavingsMethodFromSettings(data) || "both");
     } catch (err) {
       console.warn("[Dashboard] branch savings method fetch failed:", err);
       setBranchSavingsMethod("both");
@@ -488,8 +490,7 @@ const Dashboard = () => {
     try {
       const res = await apiFetch(`/api/daily-marks.php?member_id=${memberId}`);
       const data = await res.json();
-      const marks = Array.isArray(data?.marks) ? data.marks : [];
-      setDailyMarks(new Set(marks));
+      setDailyMarks(new Set(Array.isArray(data?.marks) ? data.marks : []));
     } catch (err) {
       console.warn("[Dashboard] daily marks fetch failed:", err);
       setDailyMarks(new Set());
@@ -498,26 +499,35 @@ const Dashboard = () => {
     }
   }, []);
 
-  const fetchUserProfile = async () => {
+  // 🔒 fetchUserProfile — always includes ?branch_id=
+  const fetchUserProfile = useCallback(async () => {
     try {
-      const response = await apiFetch("/api/members.php");
+      let bid = user?.branch_id ?? user?.branchId ?? null;
+      if (!bid) {
+        try {
+          const stored = JSON.parse(localStorage.getItem("user") || "{}");
+          bid = stored?.branch_id ?? stored?.branchId ?? null;
+        } catch {}
+      }
+      if (!bid) return null;
+
+      const url = `/api/members.php?branch_id=${encodeURIComponent(bid)}`;
+      const response = await apiFetch(url);
       const data = await response.json();
-      if (data.members) {
+
+      if (Array.isArray(data?.members)) {
         const currentUser = data.members.find(
           (m) => String(m.id) === String(user?.id),
         );
         if (currentUser) {
           setUserProfile(currentUser);
-          setBalance(currentUser.balance || 0);
+          setBalance(parseFloat(currentUser.balance) || 0);
 
-          const bid =
-            currentUser.branch_id ??
-            currentUser.branchId ??
-            user?.branch_id ??
-            null;
-          if (bid) {
-            await fetchBranchInfo(bid);
-            await fetchBranchSavingsMethod(bid);
+          const memberBranch =
+            currentUser.branch_id ?? currentUser.branchId ?? bid ?? null;
+          if (memberBranch) {
+            await fetchBranchInfo(memberBranch);
+            await fetchBranchSavingsMethod(memberBranch);
           }
           await fetchDailyMarks(currentUser.id);
           return currentUser;
@@ -528,84 +538,109 @@ const Dashboard = () => {
       console.error("Error fetching user profile:", error);
       return null;
     }
-  };
+  }, [
+    user?.id,
+    user?.branch_id,
+    user?.branchId,
+    fetchBranchInfo,
+    fetchBranchSavingsMethod,
+    fetchDailyMarks,
+  ]);
 
-  const fetchMembers = async () => {
+  // 🔒 fetchMembers — ONLY the manager's branch. No fallback to global.
+  const fetchMembers = useCallback(async () => {
+    if (!myBranchId) {
+      setMembers([]);
+      return;
+    }
     try {
-      const bid =
-        myBranchId ||
-        userProfile?.branch_id ||
-        user?.branch_id ||
-        user?.branchId ||
-        activeBranchId ||
-        null;
-      const url = bid
-        ? `/api/members.php?branch_id=${bid}`
-        : "/api/members.php";
-      const response = await apiFetch(url);
+      const response = await apiFetch(
+        `/api/members.php?branch_id=${encodeURIComponent(myBranchId)}`,
+      );
       const data = await response.json();
-      if (data.members) {
-        const filtered = data.members.filter(
-          (m) => String(m.id) !== String(user?.id),
-        );
-        setMembers(filtered);
+      if (Array.isArray(data?.members)) {
+        // Sanity filter: keep only rows that really belong to this branch
+        const onlyMine = data.members.filter((m) => {
+          const b = m.branch_id ?? m.branchId;
+          if (b === undefined || b === null) return true;
+          return String(b) === String(myBranchId);
+        });
+        setMembers(onlyMine.filter((m) => String(m.id) !== String(user?.id)));
       }
     } catch (error) {
       console.error("Error fetching members:", error);
     }
-  };
+  }, [myBranchId, user?.id]);
 
-  const fetchTransactions = async () => {
+  // 🔒 fetchTransactions — scoped + filtered to this member
+  const fetchTransactions = useCallback(async () => {
+    if (!myBranchId) {
+      setTransactions([]);
+      setPendingCount(0);
+      return;
+    }
     try {
-      const response = await apiFetch("/api/transactions.php");
+      const response = await apiFetch(
+        `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
+      );
       const data = await response.json();
-      if (data.transactions) {
+      if (Array.isArray(data?.transactions)) {
         const userTransactions = data.transactions.filter(
-          (t) => t.memberId === user?.id,
+          (t) => String(t.memberId ?? t.member_id) === String(user?.id),
         );
         setTransactions(userTransactions.slice(0, 10));
-        const pending = userTransactions.filter((t) => t.status === "pending");
-        setPendingCount(pending.length);
+        setPendingCount(
+          userTransactions.filter((t) => t.status === "pending").length,
+        );
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
     }
-  };
+  }, [myBranchId, user?.id]);
 
-  const refreshData = async (silent = false) => {
-    setRefreshing(true);
-    try {
-      await Promise.all([
-        fetchUserProfile(),
-        fetchMembers(),
-        fetchTransactions(),
-      ]);
-      const bid = myBranchId || user?.branch_id || activeBranchId || null;
-      if (bid) {
-        await fetchBranchInfo(bid);
-        await fetchBranchSavingsMethod(bid);
+  const refreshData = useCallback(
+    async (silent = false) => {
+      setRefreshing(true);
+      try {
+        await Promise.all([
+          fetchUserProfile(),
+          fetchMembers(),
+          fetchTransactions(),
+        ]);
+        if (myBranchId) {
+          await fetchBranchInfo(myBranchId);
+          await fetchBranchSavingsMethod(myBranchId);
+        }
+        if (!silent) toast.success("✅ Data refreshed");
+      } catch (error) {
+        console.error("Error refreshing data:", error);
+        if (!silent) toast.error("Failed to refresh data");
+      } finally {
+        setRefreshing(false);
       }
-      if (!silent) toast.success("✅ Data refreshed");
-    } catch (error) {
-      console.error("Error refreshing data:", error);
-      if (!silent) toast.error("Failed to refresh data");
-    } finally {
-      setRefreshing(false);
-    }
-  };
+    },
+    [
+      myBranchId,
+      fetchUserProfile,
+      fetchMembers,
+      fetchTransactions,
+      fetchBranchInfo,
+      fetchBranchSavingsMethod,
+    ],
+  );
 
   useEffect(() => {
     if (user?.id) refreshData(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, activeBranchId]);
+  }, [user?.id]);
 
   useEffect(() => {
-    if (myBranchId) {
-      fetchMembers();
-      fetchBranchInfo(myBranchId);
-      fetchBranchSavingsMethod(myBranchId);
-      // eslint-disable-next-line react-hooks/exhaustive-deps
-    }
+    if (!myBranchId) return;
+    fetchMembers();
+    fetchBranchInfo(myBranchId);
+    fetchBranchSavingsMethod(myBranchId);
+    fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myBranchId]);
 
   const formatCurrency = (amount) => {
@@ -682,57 +717,57 @@ const Dashboard = () => {
       toast.error("User not authenticated");
       return;
     }
+    if (!myBranchId) {
+      toast.error("Your account has no branch assigned. Contact your admin.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const profileResponse = await apiFetch("/api/members.php");
-      const profileData = await profileResponse.json();
-      const currentUser = profileData.members?.find((m) => m.id === user?.id);
-      if (!currentUser) {
-        toast.error("User profile not found. Please refresh and try again.");
-        setLoading(false);
-        return;
-      }
-
       const transactionData = {
-        memberId: currentUser.id,
-        memberName: currentUser.name || user.name || "User",
-        accountNumber: currentUser.accountNumber || "N/A",
+        memberId: user.id,
+        memberName: userProfile?.name || user.name || user.full_name || "User",
+        accountNumber:
+          userProfile?.accountNumber ||
+          userProfile?.account_number ||
+          user.accountNumber ||
+          "N/A",
         type: "deposit",
         amount,
         date: new Date().toISOString().split("T")[0],
         status: "pending",
         description: depositData.description || "Deposit request",
-        ...(myBranchId ? { branch_id: myBranchId } : {}),
+        branch_id: myBranchId,
       };
-
-      const response = await apiFetch("/api/transactions.php", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const response = await apiFetch(
+        `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(transactionData),
         },
-        body: JSON.stringify(transactionData),
-      });
-      const responseText = await response.text();
+      );
+      const text = await response.text();
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(text);
       } catch {
         toast.error("Server returned invalid response.");
         setLoading(false);
         return;
       }
-
       if (response.ok) {
         toast.success("✅ Deposit submitted for approval");
         setShowDepositModal(false);
         setDepositData({ amount: "", description: "" });
         await refreshData(true);
       } else {
-        const errorMsg =
-          data.error || data.message || `Server error: ${response.status}`;
-        toast.error(`❌ ${errorMsg}`);
+        toast.error(
+          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
+        );
       }
     } catch (error) {
       console.error("Error submitting deposit:", error);
@@ -759,53 +794,57 @@ const Dashboard = () => {
       toast.error("User not authenticated");
       return;
     }
+    if (!myBranchId) {
+      toast.error("Your account has no branch assigned. Contact your admin.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const profileResponse = await apiFetch("/api/members.php");
-      const profileData = await profileResponse.json();
-      const currentUser = profileData.members?.find((m) => m.id === user?.id);
-
       const transactionData = {
-        memberId: currentUser?.id || user.id,
-        memberName: currentUser?.name || user.name || "User",
+        memberId: user.id,
+        memberName: userProfile?.name || user.name || user.full_name || "User",
         accountNumber:
-          currentUser?.accountNumber || user.accountNumber || "N/A",
+          userProfile?.accountNumber ||
+          userProfile?.account_number ||
+          user.accountNumber ||
+          "N/A",
         type: "withdrawal",
         amount,
         date: new Date().toISOString().split("T")[0],
         status: "pending",
         description: withdrawData.description || "Withdrawal request",
-        ...(myBranchId ? { branch_id: myBranchId } : {}),
+        branch_id: myBranchId,
       };
-
-      const response = await apiFetch("/api/transactions.php", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const response = await apiFetch(
+        `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(transactionData),
         },
-        body: JSON.stringify(transactionData),
-      });
-      const responseText = await response.text();
+      );
+      const text = await response.text();
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(text);
       } catch {
         toast.error("Server returned invalid response");
         setLoading(false);
         return;
       }
-
       if (response.ok) {
         toast.success("✅ Withdrawal submitted for approval");
         setShowWithdrawModal(false);
         setWithdrawData({ amount: "", description: "" });
         await refreshData(true);
       } else {
-        const errorMsg =
-          data.error || data.message || `Server error: ${response.status}`;
-        toast.error(`❌ ${errorMsg}`);
+        toast.error(
+          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
+        );
       }
     } catch (error) {
       console.error("Error submitting withdrawal:", error);
@@ -843,57 +882,65 @@ const Dashboard = () => {
       toast.error("User not authenticated");
       return;
     }
+    if (!myBranchId) {
+      toast.error("Your account has no branch assigned. Contact your admin.");
+      return;
+    }
 
     setLoading(true);
     try {
-      const profileResponse = await apiFetch("/api/members.php");
-      const profileData = await profileResponse.json();
-      const currentUser = profileData.members?.find((m) => m.id === user?.id);
-
       const transferPayload = {
-        fromMemberId: currentUser?.id || user.id,
+        fromMemberId: user.id,
         toMemberId: toMember.id,
-        fromMemberName: currentUser?.name || user.name || "User",
+        fromMemberName:
+          userProfile?.name || user.name || user.full_name || "User",
         toMemberName: toMember.name || toMember.full_name || "Recipient",
         fromAccountNumber:
-          currentUser?.accountNumber || user.accountNumber || "N/A",
+          userProfile?.accountNumber ||
+          userProfile?.account_number ||
+          user.accountNumber ||
+          "N/A",
         toAccountNumber:
-          toMember.accountNumber || toMember.membership_number || "N/A",
+          toMember.accountNumber ||
+          toMember.account_number ||
+          toMember.membership_number ||
+          "N/A",
         amount,
         date: new Date().toISOString().split("T")[0],
         description:
           transferData.description ||
           `Transfer to ${toMember.name || toMember.full_name}`,
-        ...(myBranchId ? { branch_id: myBranchId } : {}),
+        branch_id: myBranchId,
       };
-
-      const response = await apiFetch("/api/transfers.php", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
+      const response = await apiFetch(
+        `/api/transfers.php?branch_id=${encodeURIComponent(myBranchId)}`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+          },
+          body: JSON.stringify(transferPayload),
         },
-        body: JSON.stringify(transferPayload),
-      });
-      const responseText = await response.text();
+      );
+      const text = await response.text();
       let data;
       try {
-        data = JSON.parse(responseText);
+        data = JSON.parse(text);
       } catch {
         toast.error("Server returned invalid response");
         setLoading(false);
         return;
       }
-
       if (response.ok) {
         toast.success("✅ Transfer submitted for approval");
         setShowTransferModal(false);
         setTransferData({ toMemberId: "", amount: "", description: "" });
         await refreshData(true);
       } else {
-        const errorMsg =
-          data.error || data.message || `Server error: ${response.status}`;
-        toast.error(`❌ ${errorMsg}`);
+        toast.error(
+          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
+        );
       }
     } catch (error) {
       console.error("Error submitting transfer:", error);
@@ -948,11 +995,19 @@ const Dashboard = () => {
     userProfile?.name || user?.full_name || user?.name || "User";
   const displayAccount =
     userProfile?.accountNumber ||
+    userProfile?.account_number ||
     user?.accountNumber ||
+    user?.account_number ||
     user?.membership_number ||
     "N/A";
   const displayJoinDate =
-    userProfile?.joinDate || user?.join_date || user?.joinDate || new Date();
+    userProfile?.joinDate ||
+    userProfile?.join_date ||
+    user?.join_date ||
+    user?.joinDate ||
+    new Date();
+  const displayPhone = userProfile?.phone || user?.phone || "—";
+  const displayEmail = userProfile?.email || user?.email || "—";
 
   const planSummary = computePlanSummary(
     userProfile?.savings_plan,
@@ -989,20 +1044,20 @@ const Dashboard = () => {
   const branchNameResolved =
     (branchInfo?.name && String(branchInfo.name).trim()) ||
     (branchInfo?.branch_name && String(branchInfo.branch_name).trim()) ||
-    (activeBranch?.name && String(activeBranch.name).trim()) ||
     userProfile?.branch_name ||
     user?.branch_name ||
+    (activeBranch?.name && String(activeBranch.name).trim()) ||
     "";
 
   const branchCodeResolved =
     (branchInfo?.code && String(branchInfo.code).trim()) ||
-    (activeBranch?.code && String(activeBranch.code).trim()) ||
     userProfile?.branch_code ||
     user?.branch_code ||
+    (activeBranch?.code && String(activeBranch.code).trim()) ||
     "";
 
   const branchName =
-    branchNameResolved || (myBranchId ? `Branch #${myBranchId}` : "—");
+    branchNameResolved || (myBranchId ? `Branch #${myBranchId}` : "Unassigned");
   const branchCode = branchCodeResolved || "—";
 
   const selectedRecipient =
@@ -1010,13 +1065,13 @@ const Dashboard = () => {
     null;
   const selectedRecipientPhoto = getPassportUrl(selectedRecipient);
 
-  // ============================================================
-  // 🆕 Cycle calculation
-  // ============================================================
   const cycles = useMemo(() => {
     const joinIso = toIsoDate(
       parseDate(
-        userProfile?.joinDate || userProfile?.join_date || user?.join_date,
+        userProfile?.joinDate ||
+          userProfile?.join_date ||
+          user?.join_date ||
+          user?.joinDate,
       ) || new Date(),
     );
     return computeCycles(joinIso, userProfile?.duration);
@@ -1025,9 +1080,9 @@ const Dashboard = () => {
     userProfile?.join_date,
     userProfile?.duration,
     user?.join_date,
+    user?.joinDate,
   ]);
 
-  // Auto-select the cycle that contains "today"
   useEffect(() => {
     if (!cycles.length) return;
     const todayIso = toIsoDate(new Date());
@@ -1038,7 +1093,6 @@ const Dashboard = () => {
   }, [cycles]);
 
   const currentCycle = cycles[cycleIndex] || null;
-
   const cycleDays = useMemo(() => {
     if (!currentCycle) return [];
     return buildCycleDays(currentCycle.start, dailyMarks);
@@ -1051,6 +1105,42 @@ const Dashboard = () => {
   const canGoPrev = cycleIndex > 0;
   const canGoNext = cycleIndex < cycles.length - 1;
 
+  // 🔒 If the manager has no branch assigned, refuse to render the
+  // member list — show a clear message instead of everything.
+  if (isManager && managerMissingBranch) {
+    return (
+      <div
+        style={{
+          padding: 24,
+          minHeight: "100vh",
+          background: isLight ? "#f8fafc" : "#0f172a",
+        }}
+      >
+        <div
+          style={{
+            maxWidth: 480,
+            margin: "60px auto",
+            padding: 24,
+            borderRadius: 12,
+            border: `1px solid ${cardBorder}`,
+            background: cardSurface,
+            color: textColor,
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>
+          <h2 style={{ fontSize: 20, fontWeight: 700, marginBottom: 8 }}>
+            No branch assigned
+          </h2>
+          <p style={{ fontSize: 13, color: textMuted, lineHeight: 1.6 }}>
+            Your manager account isn't linked to a branch yet. Ask your
+            administrator to assign you to a branch before viewing members.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -1062,420 +1152,121 @@ const Dashboard = () => {
     >
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-
         .dash-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
         .dash-wrap * { box-sizing: border-box; }
-
-        .modal-overlay {
-          position: fixed; inset: 0;
-          background-color: rgba(0,0,0,0.6);
-          backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 999; padding: 16px;
-        }
-        .modal-content {
-          background-color: ${modalBg};
-          border-radius: 16px; padding: 32px;
-          max-width: 500px; width: 100%;
-          max-height: 90vh; overflow-y: auto;
-          border: 1px solid ${modalBorder};
-          color: ${modalText};
-          box-shadow: 0 20px 60px rgba(0,0,0,0.35);
-        }
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.6); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+        .modal-content { background-color: ${modalBg}; border-radius: 16px; padding: 32px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid ${modalBorder}; color: ${modalText}; box-shadow: 0 20px 60px rgba(0,0,0,0.35); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
         .modal-title { font-size: 18px; font-weight: bold; color: ${modalText}; }
-        .modal-close { background: none; border: none; color: ${textMuted}; cursor: pointer; padding: 4px; font-size: 24px; line-height: 1; transition: color 0.2s; }
+        .modal-close { background: none; border: none; color: ${textMuted}; cursor: pointer; padding: 4px; font-size: 24px; line-height: 1; }
         .modal-close:hover { color: ${modalText}; }
-
         .form-group { margin-bottom: 16px; }
         .form-label { display: block; font-size: 14px; font-weight: 500; color: ${modalText}; margin-bottom: 6px; }
-        .form-input, .form-select {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid ${fieldBorder};
-          background-color: ${fieldBg} !important;
-          color: ${fieldText} !important;
-          -webkit-text-fill-color: ${fieldText} !important;
-          caret-color: ${accentColor}; font-size: 14px; outline: none;
-          transition: border-color 0.2s, background-color 0.2s;
-          font-family: inherit; appearance: none; -webkit-appearance: none;
-        }
-        .form-input:focus, .form-select:focus {
-          border-color: ${fieldFocusBorder};
-          background-color: ${fieldBg} !important;
-          color: ${fieldText} !important;
-          -webkit-text-fill-color: ${fieldText} !important;
-        }
-        .form-input::placeholder {
-          color: ${fieldPlaceholder} !important;
-          -webkit-text-fill-color: ${fieldPlaceholder} !important;
-          opacity: 1;
-        }
-        .form-select option { background-color: ${modalBg}; color: ${fieldText}; }
-        .form-input[type="number"]::-webkit-outer-spin-button,
-        .form-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
-        .form-input[type="number"] { -moz-appearance: textfield; }
-
-        .btn-submit {
-          width: 100%; padding: 12px; border-radius: 8px; border: none;
-          background: linear-gradient(to right, #059669, #0d9488);
-          color: #ffffff; font-size: 16px; font-weight: 600;
-          cursor: pointer; transition: all 0.2s;
-        }
-        .btn-submit:hover:not(:disabled) { opacity: 0.9; transform: scale(1.01); }
+        .form-input, .form-select { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid ${fieldBorder}; background-color: ${fieldBg} !important; color: ${fieldText} !important; -webkit-text-fill-color: ${fieldText} !important; caret-color: ${accentColor}; font-size: 14px; outline: none; font-family: inherit; appearance: none; -webkit-appearance: none; }
+        .form-input:focus, .form-select:focus { border-color: ${fieldFocusBorder}; }
+        .form-input::placeholder { color: ${fieldPlaceholder} !important; opacity: 1; }
+        .btn-submit { width: 100%; padding: 12px; border-radius: 8px; border: none; background: linear-gradient(to right, #059669, #0d9488); color: #ffffff; font-size: 16px; font-weight: 600; cursor: pointer; }
+        .btn-submit:hover:not(:disabled) { opacity: 0.9; }
         .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
-        .btn-cancel {
-          width: 100%; padding: 12px; border-radius: 8px;
-          border: 1px solid ${fieldBorder};
-          background: transparent; color: ${modalText};
-          font-size: 16px; cursor: pointer; transition: all 0.2s;
-        }
+        .btn-cancel { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid ${fieldBorder}; background: transparent; color: ${modalText}; font-size: 16px; cursor: pointer; }
         .btn-cancel:hover { background-color: ${cardSurface2}; }
         .modal-buttons { display: flex; gap: 12px; margin-top: 16px; }
         .modal-buttons button { flex: 1; }
-
         .refresh-spinner { display: inline-block; animation: spin 1s linear infinite; }
-
-        .branch-mini-refresh {
-          background: transparent; border: 1px solid ${fieldBorder};
-          color: ${textMuted}; width: 26px; height: 26px;
-          border-radius: 6px;
-          display: inline-flex; align-items: center; justify-content: center;
-          cursor: pointer; font-size: 12px; padding: 0;
-          transition: all 0.15s; flex-shrink: 0;
-        }
+        .branch-mini-refresh { background: transparent; border: 1px solid ${fieldBorder}; color: ${textMuted}; width: 26px; height: 26px; border-radius: 6px; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; font-size: 12px; padding: 0; flex-shrink: 0; }
         .branch-mini-refresh:hover:not(:disabled) { color: ${creditColor}; border-color: ${creditColor}; }
         .branch-mini-refresh:disabled { opacity: 0.5; cursor: not-allowed; }
         .branch-mini-refresh .spin { display: inline-block; animation: spin 1s linear infinite; }
-
-        .recipient-wrap { position: relative; }
-        .recipient-trigger {
-          width: 100%; display: flex; align-items: center; gap: 10px;
-          padding: 10px 14px; border-radius: 8px;
-          border: 1px solid ${fieldBorder};
-          background-color: ${fieldBg}; color: ${fieldText};
-          font-size: 14px; cursor: pointer; text-align: left;
-          transition: border-color 0.2s; font-family: inherit;
-        }
-        .recipient-trigger:hover { border-color: ${fieldFocusBorder}; }
-        .recipient-trigger .caret { margin-left: auto; color: ${textMuted}; font-size: 12px; }
-        .recipient-menu {
-          position: absolute; top: calc(100% + 4px); left: 0; right: 0;
-          max-height: 280px; overflow-y: auto;
-          background-color: ${modalBg};
-          border: 1px solid ${modalBorder};
-          border-radius: 10px;
-          box-shadow: 0 12px 32px rgba(0,0,0,0.35);
-          z-index: 10; padding: 6px;
-        }
-        .recipient-item {
-          display: flex; align-items: center; gap: 10px;
-          padding: 8px 10px; border-radius: 6px;
-          cursor: pointer; color: ${modalText};
-          transition: background-color 0.15s;
-        }
-        .recipient-item:hover { background-color: ${cardSurface2}; }
-        .recipient-item.active { background-color: ${cardSurface2}; }
-        .recipient-avatar {
-          width: 34px; height: 34px; border-radius: 50%;
-          background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16,185,129,0.2)"};
-          color: ${creditColor};
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 700; font-size: 13px;
-          flex-shrink: 0; overflow: hidden;
-          border: 1px solid ${fieldBorder};
-        }
-        .recipient-avatar img { width: 100%; height: 100%; object-fit: cover; }
-        .recipient-body { flex: 1; min-width: 0; }
-        .recipient-name {
-          font-size: 13.5px; font-weight: 600;
-          color: ${modalText};
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .recipient-meta {
-          font-size: 11px; color: ${textMuted};
-          white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-        }
-        .recipient-empty { padding: 14px; text-align: center; color: ${textMuted}; font-size: 13px; }
-
-        .plan-summary {
-          background-color: ${cardSurface};
-          border: 1px solid ${cardBorder};
-          border-radius: 12px; padding: 24px; margin-bottom: 24px;
-        }
-        .plan-summary-header {
-          display: flex; justify-content: space-between;
-          align-items: center; gap: 12px;
-          margin-bottom: 16px; flex-wrap: wrap;
-        }
+        .member-details { background-color: ${cardSurface}; border: 1px solid ${cardBorder}; border-radius: 12px; padding: 20px 22px; margin-bottom: 24px; }
+        .member-details-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
+        .member-details-title { margin: 0; font-size: 15px; font-weight: 700; color: ${textColor}; display: flex; align-items: center; gap: 8px; }
+        .member-details-sub { margin: 2px 0 0 0; font-size: 12px; color: ${textMuted}; }
+        .member-details-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; }
+        .member-details-cell { padding: 10px 12px; border-radius: 10px; border: 1px solid ${cardBorder}; background: ${isLight ? "#ffffff" : "rgba(255,255,255,0.03)"}; }
+        .member-details-cell.branch { border-color: ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.45)"}; background: ${isLight ? "rgba(5,150,105,0.06)" : "rgba(16,185,129,0.08)"}; }
+        .member-details-label { font-size: 10.5px; font-weight: 700; color: ${textMuted}; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px; }
+        .member-details-value { font-size: 14px; font-weight: 600; color: ${textColor}; word-break: break-word; line-height: 1.35; }
+        .member-details-value.accent { color: ${creditColor}; font-size: 15px; }
+        .member-details-value.dim { color: ${textMuted}; font-weight: 500; }
+        .member-details-code { display: block; font-size: 11px; color: ${textMuted}; margin-top: 2px; font-family: monospace; letter-spacing: 0.4px; }
+        .plan-summary { background-color: ${cardSurface}; border: 1px solid ${cardBorder}; border-radius: 12px; padding: 24px; margin-bottom: 24px; }
+        .plan-summary-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap; }
         .plan-summary-title { color: ${textColor}; margin: 0; font-size: 16px; }
         .plan-summary-badges { display: flex; gap: 8px; flex-wrap: wrap; }
-        .plan-badge {
-          padding: 4px 12px; border-radius: 20px;
-          font-size: 11px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: 0.4px;
-        }
-        .plan-badge-green {
-          background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16,185,129,0.2)"};
-          color: ${creditColor};
-        }
-        .plan-badge-blue {
-          background: ${isLight ? "rgba(37,99,235,0.15)" : "rgba(59,130,246,0.2)"};
-          color: ${infoColor};
-        }
-        .plan-badge-purple {
-          background: ${isLight ? "rgba(124,58,237,0.15)" : "rgba(139,92,246,0.2)"};
-          color: ${purpleColor};
-        }
-        .plan-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
-        }
+        .plan-badge { padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.4px; }
+        .plan-badge-green { background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16,185,129,0.2)"}; color: ${creditColor}; }
+        .plan-badge-blue { background: ${isLight ? "rgba(37,99,235,0.15)" : "rgba(59,130,246,0.2)"}; color: ${infoColor}; }
+        .plan-badge-purple { background: ${isLight ? "rgba(124,58,237,0.15)" : "rgba(139,92,246,0.2)"}; color: ${purpleColor}; }
+        .plan-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; }
         .plan-cell { min-width: 0; }
-        .plan-cell-label {
-          font-size: 11px; font-weight: 600; color: ${textMuted};
-          text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px;
-        }
-        .plan-cell-value {
-          font-size: 16px; font-weight: 600; color: ${textColor};
-          word-break: break-word;
-        }
+        .plan-cell-label { font-size: 11px; font-weight: 600; color: ${textMuted}; text-transform: uppercase; letter-spacing: 0.4px; margin-bottom: 4px; }
+        .plan-cell-value { font-size: 16px; font-weight: 600; color: ${textColor}; word-break: break-word; }
         .plan-cell-value.accent { color: ${creditColor}; font-size: 20px; }
         .plan-empty { text-align: center; padding: 24px; color: ${textMuted}; font-size: 14px; }
         .plan-empty-icon { font-size: 40px; margin-bottom: 8px; }
-
-        .branch-plan-pill {
-          display: inline-flex; align-items: center; gap: 6px;
-          padding: 5px 12px; border-radius: 20px;
-          font-size: 11px; font-weight: 700;
-          letter-spacing: 0.4px; text-transform: uppercase;
-          white-space: nowrap; border: 1px solid ${fieldBorder};
-        }
-        .branch-plan-pill.both {
-          background: ${isLight ? "rgba(37,99,235,0.12)" : "rgba(59,130,246,0.18)"};
-          color: ${infoColor};
-          border-color: ${isLight ? "rgba(37,99,235,0.35)" : "rgba(59,130,246,0.45)"};
-        }
-        .branch-plan-pill.cash {
-          background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16,185,129,0.18)"};
-          color: ${creditColor};
-          border-color: ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.45)"};
-        }
-        .branch-plan-pill.item {
-          background: ${isLight ? "rgba(124,58,237,0.12)" : "rgba(139,92,246,0.18)"};
-          color: ${purpleColor};
-          border-color: ${isLight ? "rgba(124,58,237,0.35)" : "rgba(139,92,246,0.45)"};
-        }
-
-        .plan-mark-box {
-          display: inline-flex; align-items: stretch; gap: 8px;
-          flex-wrap: wrap; padding: 8px 10px; margin-top: 10px;
-          border-radius: 10px; border: 1.5px dashed; background-color: ${cardSurface2};
-        }
-        .plan-mark-box.daily {
-          border-color: ${isLight ? "rgba(5,150,105,0.55)" : "rgba(16,185,129,0.55)"};
-          background-color: ${isLight ? "rgba(5,150,105,0.06)" : "rgba(16,185,129,0.10)"};
-        }
-        .plan-mark-box.weekly {
-          border-color: ${isLight ? "rgba(37,99,235,0.55)" : "rgba(59,130,246,0.55)"};
-          background-color: ${isLight ? "rgba(37,99,235,0.06)" : "rgba(59,130,246,0.10)"};
-        }
-        .plan-mark-box.monthly {
-          border-color: ${isLight ? "rgba(124,58,237,0.55)" : "rgba(139,92,246,0.55)"};
-          background-color: ${isLight ? "rgba(124,58,237,0.06)" : "rgba(139,92,246,0.10)"};
-        }
-        .plan-mark-box.random {
-          border-color: ${isLight ? "rgba(217,119,6,0.55)" : "rgba(234,179,8,0.55)"};
-          background-color: ${isLight ? "rgba(217,119,6,0.06)" : "rgba(234,179,8,0.10)"};
-        }
-        .plan-mark-box.empty {
-          border-color: ${fieldBorder}; background-color: ${cardSurface};
-        }
-        .plan-mark-chip {
-          display: inline-flex; align-items: center; gap: 6px;
-          padding: 6px 12px; border-radius: 8px;
-          background: ${isLight ? "#ffffff" : "rgba(0,0,0,0.20)"};
-          border: 1px solid ${fieldBorder};
-          font-size: 12.5px; font-weight: 700;
-          letter-spacing: 0.2px; white-space: nowrap;
-        }
+        .branch-plan-pill { display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; white-space: nowrap; border: 1px solid ${fieldBorder}; }
+        .branch-plan-pill.both { background: ${isLight ? "rgba(37,99,235,0.12)" : "rgba(59,130,246,0.18)"}; color: ${infoColor}; border-color: ${isLight ? "rgba(37,99,235,0.35)" : "rgba(59,130,246,0.45)"}; }
+        .branch-plan-pill.cash { background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16,185,129,0.18)"}; color: ${creditColor}; border-color: ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.45)"}; }
+        .branch-plan-pill.item { background: ${isLight ? "rgba(124,58,237,0.12)" : "rgba(139,92,246,0.18)"}; color: ${purpleColor}; border-color: ${isLight ? "rgba(124,58,237,0.35)" : "rgba(139,92,246,0.45)"}; }
+        .plan-mark-box { display: inline-flex; align-items: stretch; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-top: 10px; border-radius: 10px; border: 1.5px dashed; background-color: ${cardSurface2}; }
+        .plan-mark-box.daily { border-color: ${isLight ? "rgba(5,150,105,0.55)" : "rgba(16,185,129,0.55)"}; background-color: ${isLight ? "rgba(5,150,105,0.06)" : "rgba(16,185,129,0.10)"}; }
+        .plan-mark-box.weekly { border-color: ${isLight ? "rgba(37,99,235,0.55)" : "rgba(59,130,246,0.55)"}; background-color: ${isLight ? "rgba(37,99,235,0.06)" : "rgba(59,130,246,0.10)"}; }
+        .plan-mark-box.monthly { border-color: ${isLight ? "rgba(124,58,237,0.55)" : "rgba(139,92,246,0.55)"}; background-color: ${isLight ? "rgba(124,58,237,0.06)" : "rgba(139,92,246,0.10)"}; }
+        .plan-mark-box.random { border-color: ${isLight ? "rgba(217,119,6,0.55)" : "rgba(234,179,8,0.55)"}; background-color: ${isLight ? "rgba(217,119,6,0.06)" : "rgba(234,179,8,0.10)"}; }
+        .plan-mark-box.empty { border-color: ${fieldBorder}; background-color: ${cardSurface}; }
+        .plan-mark-chip { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; border-radius: 8px; background: ${isLight ? "#ffffff" : "rgba(0,0,0,0.20)"}; border: 1px solid ${fieldBorder}; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
         .plan-mark-chip-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
-        .plan-mark-label {
-          font-size: 10.5px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: 0.5px;
-          color: ${textMuted}; align-self: center; padding-right: 4px;
-        }
-
-        .day-grid-card {
-          background-color: ${cardSurface};
-          border: 1px solid ${cardBorder};
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 24px;
-        }
-        .day-grid-header {
-          display: flex; justify-content: space-between;
-          align-items: center; gap: 12px;
-          flex-wrap: wrap; margin-bottom: 14px;
-        }
+        .plan-mark-label { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: ${textMuted}; align-self: center; padding-right: 4px; }
+        .day-grid-card { background-color: ${cardSurface}; border: 1px solid ${cardBorder}; border-radius: 12px; padding: 20px; margin-bottom: 24px; }
+        .day-grid-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap; margin-bottom: 14px; }
         .day-grid-title { color: ${textColor}; font-size: 15px; font-weight: 700; margin: 0; }
         .day-grid-sub { color: ${textMuted}; font-size: 12px; margin-top: 2px; }
-        .day-grid-stats {
-          display: inline-flex; gap: 10px; align-items: center;
-          padding: 6px 14px; border-radius: 9999px;
-          background: ${isLight ? "rgba(5,150,105,0.10)" : "rgba(16,185,129,0.14)"};
-          border: 1px solid ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.40)"};
-          color: ${creditColor}; font-size: 12px; font-weight: 700;
-          letter-spacing: 0.4px;
-        }
+        .day-grid-stats { display: inline-flex; gap: 10px; align-items: center; padding: 6px 14px; border-radius: 9999px; background: ${isLight ? "rgba(5,150,105,0.10)" : "rgba(16,185,129,0.14)"}; border: 1px solid ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.40)"}; color: ${creditColor}; font-size: 12px; font-weight: 700; }
         .day-grid-stats .sep { opacity: 0.6; }
-
-        /* 🆕 Cycle navigator */
-        .dm-cycle-nav {
-          display: flex; align-items: center; justify-content: space-between;
-          gap: 12px; margin-bottom: 14px; flex-wrap: wrap;
-          padding: 12px 16px;
-          border-radius: 10px;
-          background: ${isLight ? "rgba(37,99,235,0.05)" : "rgba(59,130,246,0.10)"};
-          border: 1px solid ${isLight ? "rgba(37,99,235,0.20)" : "rgba(59,130,246,0.25)"};
-        }
-        .dm-cycle-nav-left {
-          display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
-        }
-        .dm-cycle-btn {
-          padding: 8px 14px; border-radius: 8px;
-          border: 1px solid ${fieldBorder};
-          background: ${fieldBg}; color: ${fieldText};
-          cursor: pointer; font-size: 13px; font-weight: 600;
-          transition: all 0.15s;
-        }
+        .dm-cycle-nav { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; padding: 12px 16px; border-radius: 10px; background: ${isLight ? "rgba(37,99,235,0.05)" : "rgba(59,130,246,0.10)"}; border: 1px solid ${isLight ? "rgba(37,99,235,0.20)" : "rgba(59,130,246,0.25)"}; }
+        .dm-cycle-nav-left { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+        .dm-cycle-btn { padding: 8px 14px; border-radius: 8px; border: 1px solid ${fieldBorder}; background: ${fieldBg}; color: ${fieldText}; cursor: pointer; font-size: 13px; font-weight: 600; }
         .dm-cycle-btn:hover:not(:disabled) { border-color: ${accentColor}; color: ${creditColor}; }
         .dm-cycle-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-        .dm-cycle-dropdown {
-          padding: 8px 12px; border-radius: 8px;
-          border: 1px solid ${fieldBorder};
-          background: ${fieldBg}; color: ${fieldText};
-          font-size: 13px; cursor: pointer;
-        }
-        .dm-cycle-badge {
-          padding: 5px 12px; border-radius: 9999px;
-          font-size: 11px; font-weight: 700;
-          letter-spacing: 0.4px; text-transform: uppercase;
-          background: ${isLight ? "rgba(37,99,235,0.12)" : "rgba(59,130,246,0.20)"};
-          color: ${isLight ? "#1d4ed8" : "#93c5fd"};
-          border: 1px solid ${isLight ? "rgba(37,99,235,0.35)" : "rgba(59,130,246,0.45)"};
-        }
-
-        .day-grid {
-          display: grid;
-          grid-template-columns: repeat(7, 1fr);
-          gap: 6px;
-        }
-        .day-cell {
-          position: relative;
-          display: flex; flex-direction: column;
-          align-items: center; justify-content: center;
-          padding: 8px 4px 6px;
-          border-radius: 10px;
-          border: 1.5px solid ${fieldBorder};
-          background: ${isLight ? "#ffffff" : "rgba(0,0,0,0.20)"};
-          cursor: default;
-          user-select: none;
-          min-height: 62px;
-        }
-        .day-cell .day-num {
-          font-size: 15px; font-weight: 800;
-          color: ${textColor}; line-height: 1;
-        }
-        .day-cell .day-month {
-          font-size: 9.5px; font-weight: 700;
-          text-transform: uppercase; letter-spacing: 0.5px;
-          color: ${textMuted}; margin-top: 2px;
-        }
-        .day-cell .day-box {
-          position: absolute; top: 5px; right: 5px;
-          width: 14px; height: 14px; border-radius: 4px;
-          border: 1.5px solid ${fieldBorder};
-          background: transparent;
-          display: flex; align-items: center; justify-content: center;
-          font-size: 10px; color: #ffffff; font-weight: 900;
-        }
-        .day-cell.checked {
-          background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16,185,129,0.18)"};
-          border-color: ${creditColor};
-        }
-        .day-cell.checked .day-box {
-          background: ${creditColor};
-          border-color: ${creditColor};
-        }
-        .day-cell.checked .day-box::after { content: "✓"; }
-        .day-cell.today {
-          border-color: ${accentColor};
-          box-shadow: 0 0 0 3px ${isLight ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.25)"};
-        }
-        .day-cell.today::before {
-          content: "TODAY";
-          position: absolute; top: -8px; left: 50%;
-          transform: translateX(-50%);
-          font-size: 8.5px; font-weight: 900;
-          letter-spacing: 0.6px; color: #ffffff;
-          background: ${accentColor};
-          padding: 1px 6px; border-radius: 6px;
-        }
+        .dm-cycle-dropdown { padding: 8px 12px; border-radius: 8px; border: 1px solid ${fieldBorder}; background: ${fieldBg}; color: ${fieldText}; font-size: 13px; cursor: pointer; }
+        .dm-cycle-badge { padding: 5px 12px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; background: ${isLight ? "rgba(37,99,235,0.12)" : "rgba(59,130,246,0.20)"}; color: ${isLight ? "#1d4ed8" : "#93c5fd"}; border: 1px solid ${isLight ? "rgba(37,99,235,0.35)" : "rgba(59,130,246,0.45)"}; }
+        .day-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+        .day-cell { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 8px 4px 6px; border-radius: 10px; border: 1.5px solid ${fieldBorder}; background: ${isLight ? "#ffffff" : "rgba(0,0,0,0.20)"}; min-height: 62px; }
+        .day-cell .day-num { font-size: 15px; font-weight: 800; color: ${textColor}; line-height: 1; }
+        .day-cell .day-month { font-size: 9.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: ${textMuted}; margin-top: 2px; }
+        .day-cell .day-box { position: absolute; top: 5px; right: 5px; width: 14px; height: 14px; border-radius: 4px; border: 1.5px solid ${fieldBorder}; background: transparent; }
+        .day-cell.checked { background: ${isLight ? "rgba(5,150,105,0.12)" : "rgba(16,185,129,0.18)"}; border-color: ${creditColor}; }
+        .day-cell.checked .day-box { background: ${creditColor}; border-color: ${creditColor}; }
+        .day-cell.checked .day-box::after { content: "✓"; display: flex; align-items: center; justify-content: center; color: #fff; font-size: 10px; font-weight: 900; }
+        .day-cell.today { border-color: ${accentColor}; box-shadow: 0 0 0 3px ${isLight ? "rgba(16,185,129,0.18)" : "rgba(16,185,129,0.25)"}; }
+        .day-cell.today::before { content: "TODAY"; position: absolute; top: -8px; left: 50%; transform: translateX(-50%); font-size: 8.5px; font-weight: 900; letter-spacing: 0.6px; color: #fff; background: ${accentColor}; padding: 1px 6px; border-radius: 6px; }
         .day-cell.future .day-num { color: ${textMuted}; }
         .day-cell.past:not(.checked) .day-num { color: ${textMuted}; }
-
-        .day-legend {
-          display: flex; flex-wrap: wrap; gap: 14px;
-          margin-top: 14px; padding-top: 12px;
-          border-top: 1px solid ${cardBorder};
-          font-size: 11.5px; color: ${textMuted};
-        }
+        .day-legend { display: flex; flex-wrap: wrap; gap: 14px; margin-top: 14px; padding-top: 12px; border-top: 1px solid ${cardBorder}; font-size: 11.5px; color: ${textMuted}; }
         .day-legend-item { display: inline-flex; align-items: center; gap: 6px; }
-        .day-legend-dot {
-          width: 12px; height: 12px; border-radius: 4px;
-          border: 1.5px solid ${fieldBorder};
-        }
+        .day-legend-dot { width: 12px; height: 12px; border-radius: 4px; border: 1.5px solid ${fieldBorder}; }
         .day-legend-dot.checked { background: ${creditColor}; border-color: ${creditColor}; }
         .day-legend-dot.today { border-color: ${accentColor}; box-shadow: 0 0 0 2px ${isLight ? "rgba(16,185,129,0.20)" : "rgba(16,185,129,0.28)"}; }
-
-        .read-only-badge {
-          margin-left: 8px;
-          font-size: 11px;
-          font-weight: 700;
-          color: ${textMuted};
-          background: ${cardSurface2};
-          border: 1px solid ${fieldBorder};
-          padding: 2px 8px;
-          border-radius: 9999px;
-          letter-spacing: 0.4px;
-          text-transform: uppercase;
-        }
-
-        .plan-conflict {
-          display: flex; align-items: flex-start; gap: 10px;
-          padding: 12px 14px; margin-bottom: 16px;
-          border-radius: 10px;
-          background: ${isLight ? "rgba(234,88,12,0.08)" : "rgba(249,115,22,0.10)"};
-          border: 1px solid ${isLight ? "rgba(234,88,12,0.30)" : "rgba(249,115,22,0.35)"};
-          color: ${isLight ? "#7c2d12" : "#fdba74"};
-          font-size: 13px; line-height: 1.5;
-        }
-        .plan-info {
-          display: flex; align-items: flex-start; gap: 10px;
-          padding: 12px 14px; margin-bottom: 16px;
-          border-radius: 10px;
-          background: ${isLight ? "rgba(37,99,235,0.06)" : "rgba(59,130,246,0.10)"};
-          border: 1px solid ${isLight ? "rgba(37,99,235,0.25)" : "rgba(59,130,246,0.30)"};
-          color: ${isLight ? "#1e3a8a" : "#93c5fd"};
-          font-size: 13px; line-height: 1.5;
-        }
-
+        .read-only-badge { margin-left: 8px; font-size: 11px; font-weight: 700; color: ${textMuted}; background: ${cardSurface2}; border: 1px solid ${fieldBorder}; padding: 2px 8px; border-radius: 9999px; letter-spacing: 0.4px; text-transform: uppercase; }
+        .plan-conflict { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin-bottom: 16px; border-radius: 10px; background: ${isLight ? "rgba(234,88,12,0.08)" : "rgba(249,115,22,0.10)"}; border: 1px solid ${isLight ? "rgba(234,88,12,0.30)" : "rgba(249,115,22,0.35)"}; color: ${isLight ? "#7c2d12" : "#fdba74"}; font-size: 13px; line-height: 1.5; }
+        .plan-info { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; margin-bottom: 16px; border-radius: 10px; background: ${isLight ? "rgba(37,99,235,0.06)" : "rgba(59,130,246,0.10)"}; border: 1px solid ${isLight ? "rgba(37,99,235,0.25)" : "rgba(59,130,246,0.30)"}; color: ${isLight ? "#1e3a8a" : "#93c5fd"}; font-size: 13px; line-height: 1.5; }
+        .recipient-wrap { position: relative; }
+        .recipient-trigger { width: 100%; display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 8px; border: 1px solid ${fieldBorder}; background-color: ${fieldBg}; color: ${fieldText}; font-size: 14px; cursor: pointer; text-align: left; font-family: inherit; }
+        .recipient-trigger:hover { border-color: ${fieldFocusBorder}; }
+        .recipient-trigger .caret { margin-left: auto; color: ${textMuted}; font-size: 12px; }
+        .recipient-menu { position: absolute; top: calc(100% + 4px); left: 0; right: 0; max-height: 280px; overflow-y: auto; background-color: ${modalBg}; border: 1px solid ${modalBorder}; border-radius: 10px; box-shadow: 0 12px 32px rgba(0,0,0,0.35); z-index: 10; padding: 6px; }
+        .recipient-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 6px; cursor: pointer; color: ${modalText}; }
+        .recipient-item:hover, .recipient-item.active { background-color: ${cardSurface2}; }
+        .recipient-avatar { width: 34px; height: 34px; border-radius: 50%; background: ${isLight ? "rgba(5,150,105,0.15)" : "rgba(16,185,129,0.2)"}; color: ${creditColor}; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 13px; flex-shrink: 0; overflow: hidden; border: 1px solid ${fieldBorder}; }
+        .recipient-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .recipient-body { flex: 1; min-width: 0; }
+        .recipient-name { font-size: 13.5px; font-weight: 600; color: ${modalText}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .recipient-meta { font-size: 11px; color: ${textMuted}; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+        .recipient-empty { padding: 14px; text-align: center; color: ${textMuted}; font-size: 13px; }
         @media (max-width: 640px) {
           .plan-summary { padding: 16px; }
-          .plan-cell-value { font-size: 15px; }
-          .plan-cell-value.accent { font-size: 18px; }
-          .plan-mark-chip { font-size: 11.5px; padding: 5px 10px; }
+          .member-details { padding: 16px; }
+          .member-details-grid { gap: 10px; }
           .day-grid { gap: 4px; }
           .day-cell { padding: 6px 2px 4px; min-height: 54px; }
           .day-cell .day-num { font-size: 13px; }
@@ -1498,7 +1289,6 @@ const Dashboard = () => {
             <h1 style={{ color: textColor, fontSize: "24px", margin: 0 }}>
               Welcome back, {displayName}! 👋
             </h1>
-
             <p
               style={{
                 color: textMuted,
@@ -1529,7 +1319,13 @@ const Dashboard = () => {
               >
                 {roleMeta.icon} {roleMeta.label}
               </span>
-              <span>{isAdmin ? "Admin Dashboard" : "Member Dashboard"}</span>
+              <span>
+                {isAdmin
+                  ? "Admin Dashboard"
+                  : isManager
+                    ? "Manager Dashboard"
+                    : "Member Dashboard"}
+              </span>
             </p>
 
             {!isAdmin && (
@@ -1595,7 +1391,6 @@ const Dashboard = () => {
                 cursor: refreshing ? "not-allowed" : "pointer",
                 fontSize: "14px",
                 fontWeight: "600",
-                transition: "all 0.3s",
                 opacity: refreshing ? 0.6 : 1,
                 display: "flex",
                 alignItems: "center",
@@ -1623,13 +1418,68 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "14px",
                 fontWeight: "500",
-                transition: "all 0.3s",
               }}
             >
               🚪 Logout
             </button>
           </div>
         </div>
+
+        {/* My Details */}
+        {!isAdmin && (
+          <div className="member-details">
+            <div className="member-details-header">
+              <div>
+                <h3 className="member-details-title">👤 My Details</h3>
+                <p className="member-details-sub">
+                  Your personal and branch information on record.
+                </p>
+              </div>
+            </div>
+            <div className="member-details-grid">
+              <div className="member-details-cell">
+                <div className="member-details-label">Full Name</div>
+                <div className="member-details-value">{displayName}</div>
+              </div>
+              <div className="member-details-cell">
+                <div className="member-details-label">Account Number</div>
+                <div
+                  className="member-details-value"
+                  style={{ fontFamily: "monospace", letterSpacing: "0.5px" }}
+                >
+                  {displayAccount}
+                </div>
+              </div>
+              <div className="member-details-cell branch">
+                <div className="member-details-label">Branch</div>
+                <div className="member-details-value accent" title={branchName}>
+                  {branchName}
+                </div>
+                <span className="member-details-code">
+                  {branchCode !== "—"
+                    ? `Code: ${branchCode}`
+                    : myBranchId
+                      ? `ID #${myBranchId}`
+                      : "Unassigned"}
+                </span>
+              </div>
+              <div className="member-details-cell">
+                <div className="member-details-label">Phone</div>
+                <div className="member-details-value">{displayPhone}</div>
+              </div>
+              <div className="member-details-cell">
+                <div className="member-details-label">Email</div>
+                <div className="member-details-value dim">{displayEmail}</div>
+              </div>
+              <div className="member-details-cell">
+                <div className="member-details-label">Joined</div>
+                <div className="member-details-value">
+                  {formatDate(displayJoinDate)}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Stats Grid */}
         <div
@@ -1640,7 +1490,6 @@ const Dashboard = () => {
             marginBottom: "24px",
           }}
         >
-          {/* Branch card */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1686,7 +1535,6 @@ const Dashboard = () => {
                           prof?.branchId ??
                           user?.branch_id ??
                           user?.branchId ??
-                          activeBranchId ??
                           null;
                         if (bid) {
                           await fetchBranchInfo(bid);
@@ -1694,11 +1542,7 @@ const Dashboard = () => {
                           await fetchMembers();
                         }
                         toast.success("🔄 Branch refreshed");
-                      } catch (err) {
-                        console.error(
-                          "[Dashboard] branch refresh failed:",
-                          err,
-                        );
+                      } catch {
                         toast.error("Failed to refresh branch");
                       } finally {
                         setBranchRefreshing(false);
@@ -1734,10 +1578,7 @@ const Dashboard = () => {
                   {branchCode !== "—" ? `Code: ${branchCode}` : "—"}
                 </p>
                 {branchPlanLoaded && (
-                  <span
-                    className={`branch-plan-pill ${branchSavingsMethod}`}
-                    title="What members of this branch can save with"
-                  >
+                  <span className={`branch-plan-pill ${branchSavingsMethod}`}>
                     {branchPlanMeta.icon} {branchPlanMeta.short}
                   </span>
                 )}
@@ -1745,7 +1586,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Balance */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1790,7 +1630,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Account */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1835,7 +1674,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Role */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1878,7 +1716,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Pending */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1923,7 +1760,6 @@ const Dashboard = () => {
             </div>
           </div>
 
-          {/* Joined */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1969,9 +1805,7 @@ const Dashboard = () => {
           </div>
         </div>
 
-        {/* ============================================================ */}
-        {/* 30-DAY CHECK-IN GRID — READ ONLY + CYCLE NAVIGATOR */}
-        {/* ============================================================ */}
+        {/* Daily check-in */}
         {!isAdmin && cycles.length > 0 && (
           <div className="day-grid-card">
             <div className="day-grid-header">
@@ -2015,8 +1849,6 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
-
-            {/* 🆕 Cycle navigator */}
             {cycles.length > 1 && (
               <div className="dm-cycle-nav">
                 <div className="dm-cycle-nav-left">
@@ -2025,11 +1857,9 @@ const Dashboard = () => {
                     className="dm-cycle-btn"
                     disabled={!canGoPrev}
                     onClick={() => setCycleIndex((i) => Math.max(0, i - 1))}
-                    title="Previous cycle"
                   >
                     ◀ Prev
                   </button>
-
                   <select
                     className="dm-cycle-dropdown"
                     value={cycleIndex}
@@ -2043,7 +1873,6 @@ const Dashboard = () => {
                       </option>
                     ))}
                   </select>
-
                   <button
                     type="button"
                     className="dm-cycle-btn"
@@ -2051,12 +1880,10 @@ const Dashboard = () => {
                     onClick={() =>
                       setCycleIndex((i) => Math.min(cycles.length - 1, i + 1))
                     }
-                    title="Next cycle"
                   >
                     Next ▶
                   </button>
                 </div>
-
                 <div className="dm-cycle-nav-left">
                   <span className="dm-cycle-badge">
                     CYCLE {cycleIndex + 1} of {cycles.length}
@@ -2069,10 +1896,9 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
-
             <div className="day-grid">
               {cycleDays.map((d) => {
-                const cellClass = [
+                const cls = [
                   "day-cell",
                   d.checked ? "checked" : "",
                   d.isToday ? "today" : "",
@@ -2081,9 +1907,8 @@ const Dashboard = () => {
                 ]
                   .filter(Boolean)
                   .join(" ");
-
                 return (
-                  <div key={d.iso} className={cellClass} title={d.iso}>
+                  <div key={d.iso} className={cls} title={d.iso}>
                     <div className="day-box" />
                     <div className="day-num">{d.dayNum}</div>
                     <div className="day-month">{d.monthShort}</div>
@@ -2091,7 +1916,6 @@ const Dashboard = () => {
                 );
               })}
             </div>
-
             <div className="day-legend">
               <div className="day-legend-item">
                 <div className="day-legend-dot checked" /> Saved
@@ -2106,17 +1930,14 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Savings Plan Summary */}
+        {/* Savings Plan */}
         {!isAdmin && (
           <div className="plan-summary">
             <div className="plan-summary-header">
               <h3 className="plan-summary-title">💼 My Savings Plan</h3>
               <div className="plan-summary-badges">
                 {branchPlanLoaded ? (
-                  <span
-                    className={`branch-plan-pill ${branchSavingsMethod}`}
-                    title="What this branch allows members to save with"
-                  >
+                  <span className={`branch-plan-pill ${branchSavingsMethod}`}>
                     {branchPlanMeta.icon} {branchPlanMeta.label}
                   </span>
                 ) : (
@@ -2140,7 +1961,6 @@ const Dashboard = () => {
                 )}
               </div>
             </div>
-
             {branchPlanLoaded && (
               <div className="plan-info">
                 <span style={{ fontSize: 18, lineHeight: 1 }}>
@@ -2157,7 +1977,6 @@ const Dashboard = () => {
                 </div>
               </div>
             )}
-
             {hasConflict && (
               <div className="plan-conflict">
                 <span style={{ fontSize: 18, lineHeight: 1 }}>⚠️</span>
@@ -2169,12 +1988,10 @@ const Dashboard = () => {
                   <strong>
                     {branchSavingsMethod === "cash" ? "Cash" : "Item"}
                   </strong>
-                  . Please update your savings plan from your profile so it
-                  matches what the branch allows.
+                  . Please update your savings plan from your profile.
                 </div>
               </div>
             )}
-
             {!planSummary ? (
               <div className="plan-empty">
                 <div className="plan-empty-icon">📭</div>
@@ -2237,7 +2054,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Action Buttons */}
+        {/* Action buttons */}
         {!isAdmin && (
           <div
             style={{
@@ -2258,7 +2075,6 @@ const Dashboard = () => {
                 setShowDepositModal(true);
               }}
               disabled={cashDisabled}
-              title={cashDisabled ? "Branch is item-only" : "Deposit funds"}
               style={{
                 backgroundColor: isLight
                   ? "rgba(5,150,105,0.1)"
@@ -2270,13 +2086,11 @@ const Dashboard = () => {
                 cursor: cashDisabled ? "not-allowed" : "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
                 opacity: cashDisabled ? 0.5 : 1,
               }}
             >
               💰 Deposit
             </button>
-
             <button
               onClick={() => {
                 if (cashDisabled) {
@@ -2288,7 +2102,6 @@ const Dashboard = () => {
                 setShowWithdrawModal(true);
               }}
               disabled={cashDisabled}
-              title={cashDisabled ? "Branch is item-only" : "Withdraw funds"}
               style={{
                 backgroundColor: isLight
                   ? "rgba(220,38,38,0.1)"
@@ -2300,13 +2113,11 @@ const Dashboard = () => {
                 cursor: cashDisabled ? "not-allowed" : "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
                 opacity: cashDisabled ? 0.5 : 1,
               }}
             >
               💸 Withdraw
             </button>
-
             <button
               onClick={() => {
                 if (cashDisabled) {
@@ -2322,7 +2133,6 @@ const Dashboard = () => {
                 setShowTransferModal(true);
               }}
               disabled={cashDisabled}
-              title={cashDisabled ? "Branch is item-only" : "Transfer funds"}
               style={{
                 backgroundColor: isLight
                   ? "rgba(124,58,237,0.1)"
@@ -2334,13 +2144,11 @@ const Dashboard = () => {
                 cursor: cashDisabled ? "not-allowed" : "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
                 opacity: cashDisabled ? 0.5 : 1,
               }}
             >
               🔄 Transfer
             </button>
-
             <button
               onClick={() => navigate("/member/borrowing")}
               style={{
@@ -2354,7 +2162,6 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
               }}
             >
               💳 Borrow
@@ -2362,7 +2169,7 @@ const Dashboard = () => {
           </div>
         )}
 
-        {/* Admin Quick Actions */}
+        {/* Admin quick actions */}
         {isAdmin && (
           <div
             style={{
@@ -2385,12 +2192,10 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
               }}
             >
               👥 Manage Members
             </button>
-
             <button
               onClick={() => navigate("/admin/pending")}
               style={{
@@ -2404,7 +2209,6 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
               }}
             >
               ⏳ Pending Approvals
@@ -2423,7 +2227,6 @@ const Dashboard = () => {
                 </span>
               )}
             </button>
-
             <button
               onClick={() => navigate("/admin/reports")}
               style={{
@@ -2437,12 +2240,10 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
               }}
             >
               📊 View Reports
             </button>
-
             <button
               onClick={() => navigate("/admin/loans")}
               style={{
@@ -2456,7 +2257,6 @@ const Dashboard = () => {
                 cursor: "pointer",
                 fontSize: "15px",
                 fontWeight: "600",
-                transition: "all 0.3s",
               }}
             >
               💳 Loan Management
@@ -2507,7 +2307,6 @@ const Dashboard = () => {
                 const rejectedAt = getRejectedAt(t);
                 const isRejected =
                   t.status === "rejected" || t.status === "failed";
-
                 return (
                   <div
                     key={t.id}
@@ -2529,7 +2328,6 @@ const Dashboard = () => {
                       <div style={{ color: textMuted, fontSize: "12px" }}>
                         {t.description || "No description"}
                       </div>
-
                       {isRejected && rejectionReason && (
                         <div
                           style={{
@@ -2566,7 +2364,6 @@ const Dashboard = () => {
                           )}
                         </div>
                       )}
-
                       <div style={{ color: textDim, fontSize: "11px" }}>
                         {formatDate(t.date)}
                       </div>
@@ -2616,7 +2413,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* ===== DEPOSIT MODAL ===== */}
+      {/* Deposit / Withdraw / Transfer modals — unchanged from your file */}
       {showDepositModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -2657,17 +2454,6 @@ const Dashboard = () => {
                       {formatCurrency(planSummary.perPeriod)}
                     </strong>{" "}
                     {planSummary.periodLabel}.
-                  </div>
-                )}
-                {planSummary && planSummary.isRandom && (
-                  <div
-                    style={{
-                      color: textMuted,
-                      fontSize: "12px",
-                      marginTop: "6px",
-                    }}
-                  >
-                    💡 Random plan — enter any amount you wish to save.
                   </div>
                 )}
                 <div
@@ -2712,7 +2498,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ===== WITHDRAW MODAL ===== */}
       {showWithdrawModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -2791,7 +2576,6 @@ const Dashboard = () => {
         </div>
       )}
 
-      {/* ===== TRANSFER MODAL ===== */}
       {showTransferModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -2834,6 +2618,7 @@ const Dashboard = () => {
                           </div>
                           <div className="recipient-meta">
                             {selectedRecipient.accountNumber ||
+                              selectedRecipient.account_number ||
                               selectedRecipient.membership_number ||
                               "—"}
                           </div>
@@ -2846,7 +2631,6 @@ const Dashboard = () => {
                     )}
                     <span className="caret">▼</span>
                   </button>
-
                   {recipientOpen && (
                     <div className="recipient-menu">
                       {members.length === 0 ? (
@@ -2889,6 +2673,7 @@ const Dashboard = () => {
                                 </div>
                                 <div className="recipient-meta">
                                   {m.accountNumber ||
+                                    m.account_number ||
                                     m.membership_number ||
                                     "—"}
                                 </div>
@@ -2923,15 +2708,6 @@ const Dashboard = () => {
                   }}
                 >
                   Available balance: {formatCurrency(balance)}
-                </div>
-                <div
-                  style={{
-                    color: warningColor,
-                    fontSize: "12px",
-                    marginTop: "4px",
-                  }}
-                >
-                  ⏳ This will be reviewed by an admin before approval
                 </div>
               </div>
               <div className="form-group">

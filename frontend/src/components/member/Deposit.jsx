@@ -7,7 +7,7 @@ const API_BASE_URL = "http://localhost:8000";
 const MAX_SLIP_SIZE_MB = 2;
 
 // ------------------------------------------------------------
-// Safe numeric parsing — rejects 0, "", null, NaN
+// Safe numeric parsing
 // ------------------------------------------------------------
 const toPositiveNumber = (val, fallback) => {
   if (val === null || val === undefined || val === "") return fallback;
@@ -24,7 +24,7 @@ const toNonNegativeNumber = (val, fallback = 0) => {
 };
 
 // ------------------------------------------------------------
-// Pull a balance out of any plausible API response shape
+// Extract balance from any API response shape
 // ------------------------------------------------------------
 const extractBalance = (obj) => {
   if (!obj || typeof obj !== "object") return undefined;
@@ -123,7 +123,7 @@ const computePlanSummary = (plan, duration, amountPerPeriod) => {
 };
 
 // ============================================================
-// Detect the current theme
+// Theme detection
 // ============================================================
 const detectTheme = () => {
   if (typeof document === "undefined") return "dark";
@@ -198,9 +198,7 @@ const MemberDeposit = ({ onClose }) => {
   });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  // ============================================================
-  // Watch for theme changes
-  // ============================================================
+  // Watch theme changes
   useEffect(() => {
     const update = () => setTheme(detectTheme());
     update();
@@ -231,8 +229,7 @@ const MemberDeposit = ({ onClose }) => {
 
   const textColor = isLight ? "#0f172a" : "#f1f5f9";
   const textMuted = isLight ? "#475569" : "#94a3b8";
-  const textDim = isLight ? "#64748b" : "#64748b";
-
+  const textDim = "#64748b";
   const fieldBg = isLight ? "#ffffff" : "#0f172a";
   const fieldText = isLight ? "#0f172a" : "#f1f5f9";
   const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
@@ -240,34 +237,23 @@ const MemberDeposit = ({ onClose }) => {
     ? "rgba(15,23,42,0.20)"
     : "rgba(255,255,255,0.15)";
   const fieldFocusBorder = "#10b981";
-
   const surfaceColor = isLight ? "#ffffff" : "#1e293b";
   const surface2Color = isLight ? "#f1f5f9" : "#334155";
   const borderColor = isLight
     ? "rgba(15,23,42,0.15)"
     : "rgba(255,255,255,0.12)";
-
   const accentColor = "#10b981";
   const creditColor = isLight ? "#059669" : "#34d399";
   const warningColor = isLight ? "#d97706" : "#fbbf24";
   const debitColor = isLight ? "#dc2626" : "#f87171";
   const purpleColor = isLight ? "#7c3aed" : "#a78bfa";
 
-  // ============================================================
-  // Handle close
-  // ============================================================
   const handleClose = () => {
     if (loading) return;
-    if (typeof onClose === "function") {
-      onClose();
-    } else {
-      navigate(-1);
-    }
+    if (typeof onClose === "function") onClose();
+    else navigate(-1);
   };
 
-  // ============================================================
-  // Apply settings safely
-  // ============================================================
   const applySettings = (raw) => {
     if (!raw || typeof raw !== "object") return;
 
@@ -311,9 +297,7 @@ const MemberDeposit = ({ onClose }) => {
     });
   };
 
-  // ============================================================
   // Load user + initial data
-  // ============================================================
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -335,9 +319,6 @@ const MemberDeposit = ({ onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ============================================================
-  // Fetch contribution settings
-  // ============================================================
   const fetchSettings = async () => {
     try {
       const res = await fetch(
@@ -372,26 +353,18 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
-  // ============================================================
-  // Fetch members
-  // ============================================================
   const fetchMembers = async () => {
     try {
       const response = await fetch(`${API_BASE_URL}/api/members.php`);
       const data = await response.json();
       const list =
         data.members || data.data?.members || data.data || data.users || [];
-      if (Array.isArray(list)) {
-        setMembers(list);
-      }
+      if (Array.isArray(list)) setMembers(list);
     } catch (error) {
       console.error("Error fetching members:", error);
     }
   };
 
-  // ============================================================
-  // Fetch the savings plan for a specific member
-  // ============================================================
   const fetchMemberPlan = async (memberId) => {
     if (!memberId) {
       setMemberPlan(null);
@@ -448,9 +421,6 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
-  // ============================================================
-  // Member balance
-  // ============================================================
   const fetchMemberBalance = async (memberId) => {
     const idNum = parseInt(memberId, 10);
 
@@ -486,9 +456,6 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
-  // ============================================================
-  // Daily total + count
-  // ============================================================
   const fetchDailyTotal = async (memberId) => {
     try {
       const today = new Date().toISOString().split("T")[0];
@@ -541,8 +508,7 @@ const MemberDeposit = ({ onClose }) => {
   };
 
   // ============================================================
-  // STRICT plan validation — must equal exactly.
-  // Random plans skip this check (any amount allowed).
+  // 🔑 STRICT plan validation — must match exactly, no tolerance
   // ============================================================
   const validateAgainstPlan = (depositAmount) => {
     if (!memberPlan) return { ok: true };
@@ -551,35 +517,36 @@ const MemberDeposit = ({ onClose }) => {
     const expected = parseFloat(memberPlan.perPeriod);
     if (!Number.isFinite(expected) || expected <= 0) return { ok: true };
 
-    const amt = parseFloat(depositAmount);
-    const EPS = 0.01; // allow 1 kobo rounding tolerance
-    const diff = amt - expected;
+    // Round to kobo to kill floating-point noise (500.00000001 → 500.00)
+    const round2 = (x) => Math.round(x * 100) / 100;
+    const amt = round2(parseFloat(depositAmount));
+    const exp = round2(expected);
 
-    if (diff > EPS) {
+    if (amt === exp) return { ok: true, expected: exp };
+
+    if (amt > exp) {
       return {
         ok: false,
         reason: "greater",
-        expected,
+        expected: exp,
         message:
           `❌ Deposit amount is GREATER than your savings plan.\n\n` +
-          `Your plan expects exactly ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
+          `Your plan expects exactly ${formatCurrency(exp)} ${memberPlan.periodLabel}.\n` +
           `You entered ${formatCurrency(amt)}.\n\n` +
-          `Please enter the exact amount.`,
+          `Please enter exactly ${formatCurrency(exp)}.`,
       };
     }
-    if (diff < -EPS) {
-      return {
-        ok: false,
-        reason: "less",
-        expected,
-        message:
-          `❌ Deposit amount is LESS than your savings plan.\n\n` +
-          `Your plan expects exactly ${formatCurrency(expected)} ${memberPlan.periodLabel}.\n` +
-          `You entered ${formatCurrency(amt)}.\n\n` +
-          `Please enter the exact amount.`,
-      };
-    }
-    return { ok: true, expected };
+
+    return {
+      ok: false,
+      reason: "less",
+      expected: exp,
+      message:
+        `❌ Deposit amount is LESS than your savings plan.\n\n` +
+        `Your plan expects exactly ${formatCurrency(exp)} ${memberPlan.periodLabel}.\n` +
+        `You entered ${formatCurrency(amt)}.\n\n` +
+        `Please enter exactly ${formatCurrency(exp)}.`,
+    };
   };
 
   // ============================================================
@@ -650,7 +617,7 @@ const MemberDeposit = ({ onClose }) => {
       return;
     }
 
-    // 🆕 STRICT plan check — must equal plan amount exactly
+    // 🔑 Plan-match check runs first
     const planCheck = validateAgainstPlan(depositAmount);
     if (!planCheck.ok) {
       toast.error(planCheck.message, { duration: 8000 });
@@ -751,12 +718,8 @@ const MemberDeposit = ({ onClose }) => {
         await fetchMembers();
         fetchMemberBalance(selectedMember);
         fetchDailyTotal(selectedMember);
-
-        // 🆕 Take the user to the dashboard after a successful deposit
         setTimeout(() => {
-          if (typeof onClose === "function") {
-            onClose(); // if opened as modal, close it first
-          }
+          if (typeof onClose === "function") onClose();
           navigate("/member/dashboard", { replace: true });
         }, 800);
       } else {
@@ -774,7 +737,7 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
-  // Quick amount buttons — for plan members, only ONE button: the exact amount
+  // Quick amount buttons — plan members only get the exact amount
   const quickAmounts = (() => {
     if (memberPlan && !memberPlan.isRandom) {
       const expected = parseFloat(memberPlan.perPeriod);
@@ -793,14 +756,15 @@ const MemberDeposit = ({ onClose }) => {
     return options.length ? options : [min_deposit];
   })();
 
-  // Helper: is the current amount valid?
+  // Is the current typed amount valid?
   const amountIsValid = (() => {
     if (!amount) return true;
     const n = toPositiveNumber(amount, NaN);
     if (!Number.isFinite(n) || n <= 0) return false;
     if (memberPlan && !memberPlan.isRandom) {
       const expected = parseFloat(memberPlan.perPeriod);
-      return Math.abs(n - expected) < 0.01;
+      const round2 = (x) => Math.round(x * 100) / 100;
+      return round2(n) === round2(expected);
     }
     return true;
   })();
@@ -991,7 +955,7 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Savings plan badge */}
+        {/* Plan badge — exact amount required */}
         {memberPlan && !memberPlan.isRandom && (
           <div
             style={{
@@ -1105,7 +1069,7 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         )}
 
-        {/* Settings summary */}
+        {/* Settings summary from settings.php */}
         {settingsLoaded && (
           <div
             style={{
@@ -1155,7 +1119,7 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         )}
 
-        {/* Balance Display */}
+        {/* Balance display */}
         {selectedMember && (
           <div
             style={{
@@ -1360,7 +1324,7 @@ const MemberDeposit = ({ onClose }) => {
             />
           </div>
 
-          {/* Payment Slip Upload */}
+          {/* Payment slip upload */}
           <div style={{ marginBottom: "24px" }}>
             <label className="mdp-label">Payment Slip (Optional)</label>
 

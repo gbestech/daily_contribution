@@ -1,2384 +1,1344 @@
-// src/components/admin/Members.jsx
-import React, { useState, useEffect, useRef } from "react";
-import { Link, useNavigate } from "react-router-dom";
+// src/components/admin/AdminMembers.jsx
+import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
-import * as XLSX from "xlsx";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
+import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "http://localhost:8000";
 
-const capitalizeWords = (str) =>
-  str
-    .split(" ")
-    .map((w) =>
-      w.length ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : "",
-    )
-    .join(" ");
+// ============================================================
+// Helpers
+// ============================================================
+const formatCurrency = (amount) => {
+  const n = parseFloat(amount) || 0;
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(n);
+};
 
-const AdminMembers = ({ publicMode = false }) => {
-  const navigate = useNavigate();
-  const { activeBranch, activeBranchId } = useBranch();
+const formatDate = (dateString) => {
+  if (!dateString) return "—";
+  try {
+    return new Date(dateString).toLocaleDateString("en-NG", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  } catch {
+    return dateString;
+  }
+};
 
-  // 🆕 Public-mode branch (from ?branch= in the URL)
-  const [publicBranch, setPublicBranch] = useState(null);
-  const [publicBranchError, setPublicBranchError] = useState("");
+const resolveMemberBranchId = (member, fallbackBranchId) => {
+  if (member) {
+    const b = member.branch_id ?? member.branchId;
+    if (b !== undefined && b !== null && String(b).trim() !== "") return b;
+  }
+  return fallbackBranchId ?? null;
+};
 
-  const [members, setMembers] = useState([]);
-  const [transactions, setTransactions] = useState([]);
+// ============================================================
+// Member details modal — fully branch-scoped
+// ============================================================
+const MemberDetailsModal = ({ member, branchId, onClose }) => {
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [showAddModal, setShowAddModal] = useState(false);
-  const [showEditModal, setShowEditModal] = useState(false);
-  const [showCredentialsModal, setShowCredentialsModal] = useState(false);
-  const [createdCredentials, setCreatedCredentials] = useState(null);
-  const [selectedMember, setSelectedMember] = useState(null);
-  const [editPassword, setEditPassword] = useState("");
-  const [newMember, setNewMember] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    password: "",
-  });
-  const [showRoleModal, setShowRoleModal] = useState(false);
-  const [roleAssignment, setRoleAssignment] = useState({
-    memberId: "",
-    role: "member",
-  });
+  const [profile, setProfile] = useState(null);
+  const [branchInfo, setBranchInfo] = useState(null);
+  const [transactions, setTransactions] = useState([]);
+  const [loans, setLoans] = useState([]);
+  const [loadError, setLoadError] = useState(null);
 
-  // ===== Bulk upload state =====
-  const [showBulkModal, setShowBulkModal] = useState(false);
-  const [bulkRows, setBulkRows] = useState([]);
-  const [bulkUploading, setBulkUploading] = useState(false);
-  const [bulkResults, setBulkResults] = useState(null);
-  const fileInputRef = useRef(null);
+  const memberBranchId = useMemo(
+    () => resolveMemberBranchId(member, branchId),
+    [member, branchId],
+  );
 
-  const generateAccountNumber = () => {
-    const prefix = "10";
-    const randomDigits = Math.floor(Math.random() * 100000000)
-      .toString()
-      .padStart(8, "0");
-    return prefix + randomDigits;
-  };
-
-  const generateRandomNumber = () => Math.floor(Math.random() * 90000) + 10000;
-
-  useEffect(() => {
-    const firstName = newMember.firstName.trim().toLowerCase();
-    if (firstName) {
-      const randomNum = generateRandomNumber();
-      const email = `${firstName}${randomNum}@gmail.com`;
-      setNewMember((prev) => ({ ...prev, email }));
-    } else {
-      setNewMember((prev) => ({ ...prev, email: "" }));
-    }
-  }, [newMember.firstName]);
-
-  useEffect(() => {
-    if (publicMode) {
+  const loadAll = useCallback(async () => {
+    if (!member?.id) {
+      setLoadError("No member provided");
       setLoading(false);
+      return;
+    }
+    if (!memberBranchId) {
+      setLoadError(
+        "This member has no branch assigned. Ask an admin to set their branch first.",
+      );
+      setLoading(false);
+      return;
+    }
 
-      const params = new URLSearchParams(window.location.search);
-      const raw = params.get("branch") || "";
-      if (!raw) {
-        setPublicBranchError(
-          "No branch specified in this link. Please use the link your branch admin gave you.",
+    setLoading(true);
+    setLoadError(null);
+
+    try {
+      // 1. Branch name
+      try {
+        const br = await apiFetch(
+          `/api/get-branch.php?id=${encodeURIComponent(memberBranchId)}`,
         );
+        const brData = await br.json();
+        const branch =
+          brData?.branch || brData?.data?.branch || brData?.data || null;
+        setBranchInfo(branch);
+      } catch (e) {
+        console.warn("[MemberDetails] branch fetch failed:", e);
+      }
+
+      // 2. Profile — try single-member endpoint first, then list
+      let prof = null;
+      try {
+        const res = await apiFetch(
+          `/api/members.php/${member.id}?branch_id=${encodeURIComponent(memberBranchId)}`,
+        );
+        if (res.ok) {
+          const data = await res.json();
+          prof = data?.member || data?.data?.member || data?.data || null;
+        }
+      } catch {
+        /* endpoint may not exist — fall through */
+      }
+
+      if (!prof) {
+        const listRes = await apiFetch(
+          `/api/members.php?branch_id=${encodeURIComponent(memberBranchId)}`,
+        );
+        if (listRes.ok) {
+          const listData = await listRes.json();
+          const arr = Array.isArray(listData?.members)
+            ? listData.members
+            : Array.isArray(listData?.data)
+              ? listData.data
+              : [];
+          prof = arr.find((m) => String(m.id) === String(member.id)) || null;
+        }
+      }
+
+      if (!prof) {
+        setLoadError(
+          `This member could not be found in branch #${memberBranchId}. They may have been moved or deleted.`,
+        );
+        setLoading(false);
         return;
       }
 
-      const resolveBranch = async () => {
-        try {
-          const isNumeric = /^\d+$/.test(raw);
-          const url = isNumeric
-            ? `/api/get-branch.php?id=${raw}`
-            : `/api/get-branch.php?code=${encodeURIComponent(raw)}`;
+      setProfile(prof);
 
-          const res = await apiFetch(url);
-          const data = await res.json();
-          if (data.status && data.branch) {
-            setPublicBranch(data.branch);
-            setPublicBranchError("");
-          } else {
-            setPublicBranch(null);
-            setPublicBranchError(data.error || "Invalid branch link");
-          }
-        } catch (err) {
-          console.error("[Members] Branch resolve error:", err);
-          setPublicBranch(null);
-          setPublicBranchError(
-            "Could not load branch details. Please try again.",
+      // 3. Transactions — scoped to member's branch, filtered by member id
+      try {
+        const txRes = await apiFetch(
+          `/api/transactions.php?branch_id=${encodeURIComponent(memberBranchId)}&limit=500`,
+        );
+        if (txRes.ok) {
+          const txData = await txRes.json();
+          const all = Array.isArray(txData?.transactions)
+            ? txData.transactions
+            : Array.isArray(txData?.data)
+              ? txData.data
+              : [];
+          setTransactions(
+            all.filter(
+              (t) => String(t.memberId ?? t.member_id) === String(member.id),
+            ),
           );
         }
-      };
-      resolveBranch();
-      return;
-    }
-
-    setSearchTerm("");
-    fetchMembers();
-    fetchTransactions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId, publicMode]);
-
-  const fetchMembers = async () => {
-    setLoading(true);
-    try {
-      const response = await apiFetch("/api/members.php");
-      if (!response.ok) throw new Error("Failed");
-      const data = await response.json();
-      if (data.members) {
-        setMembers(
-          data.members.map((m) => ({
-            id: m.id,
-            membership_number:
-              m.accountNumber || `MEM-${String(m.id).padStart(4, "0")}`,
-            full_name: m.name,
-            email: m.email,
-            phone: m.phone,
-            balance: m.balance || 0,
-            status: m.status?.toLowerCase() || "active",
-            join_date: m.joinDate || new Date().toISOString().split("T")[0],
-            role: m.role || "member",
-            profile_completed: m.profile_completed || 0,
-            passport_photo: m.passport_photo || null,
-            branch_id: m.branch_id || null,
-          })),
-        );
-      } else {
-        setMembers([]);
+      } catch (e) {
+        console.warn("[MemberDetails] transactions fetch failed:", e);
       }
-    } catch (e) {
-      if (!publicMode) toast.error("Failed to fetch members");
-      setMembers([]);
+
+      // 4. Loans (optional — skip if endpoint is missing)
+      try {
+        const loanRes = await apiFetch(
+          `/api/loans.php?branch_id=${encodeURIComponent(memberBranchId)}&member_id=${encodeURIComponent(member.id)}`,
+        );
+        if (loanRes.ok) {
+          const loanData = await loanRes.json();
+          const all = Array.isArray(loanData?.loans)
+            ? loanData.loans
+            : Array.isArray(loanData?.data)
+              ? loanData.data
+              : [];
+          setLoans(
+            all.filter(
+              (l) => String(l.member_id ?? l.memberId) === String(member.id),
+            ),
+          );
+        }
+      } catch {
+        /* no loans endpoint */
+      }
+    } catch (err) {
+      console.error("[MemberDetails] load failed:", err);
+      setLoadError(err.message || "Failed to load member details");
     } finally {
       setLoading(false);
     }
-  };
+  }, [member?.id, memberBranchId]);
 
-  const fetchTransactions = async () => {
-    try {
-      const response = await apiFetch("/api/transactions.php");
-      const data = await response.json();
-      if (data.transactions) {
-        setTransactions(
-          data.transactions.map((t) => ({
-            id: t.id,
-            member_id: t.memberId,
-            transaction_type: t.type,
-            amount: t.amount,
-            charge: t.charge || 0,
-            status: t.status,
-            description: t.description || "",
-            created_at: t.date,
-          })),
-        );
-      }
-    } catch (e) {
-      setTransactions([]);
-    }
-  };
+  useEffect(() => {
+    loadAll();
+  }, [loadAll]);
 
-  const handleAddMember = async (e) => {
-    e.preventDefault();
-
-    if (publicMode && !publicBranch?.id) {
-      toast.error(
-        publicBranchError || "Cannot register: no valid branch selected.",
-      );
-      return;
-    }
-
-    if (!newMember.password || newMember.password.trim().length < 6) {
-      toast.error("Password must be at least 6 characters");
-      return;
-    }
-    try {
-      const fullName = capitalizeWords(
-        `${newMember.firstName.trim()} ${newMember.lastName.trim()}`.trim(),
-      );
-      const accountNumber = generateAccountNumber();
-
-      const payload = {
-        accountNumber,
-        account_number: accountNumber,
-        name: fullName,
-        full_name: fullName,
-        email: newMember.email,
-        phone: "",
-        password: newMember.password,
-        role: "member",
-        status: "Active",
-        membership_type: "Standard",
-        join_date: new Date().toISOString().split("T")[0],
-        balance: 0,
-        profile_completed: 0,
-        branch_id: publicMode
-          ? (publicBranch?.id ?? null)
-          : (activeBranchId ?? null),
-      };
-
-      const res = await apiFetch("/api/members.php", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      const data = await res.json();
-      if (res.ok) {
-        setCreatedCredentials({
-          name: fullName,
-          email: newMember.email,
-          password: newMember.password,
-          accountNumber,
-        });
-
-        setShowAddModal(false);
-        setShowCredentialsModal(true);
-        setNewMember({ firstName: "", lastName: "", email: "", password: "" });
-        if (!publicMode) fetchMembers();
-      } else {
-        toast.error(data.message || data.error || "Failed to create member");
-      }
-    } catch (e) {
-      toast.error("Failed to create member");
-    }
-  };
-
-  const copyToClipboard = (text, label) => {
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast.success(`📋 ${label} copied!`))
-      .catch(() => toast.error("Copy failed"));
-  };
-
-  const copyAllCredentials = () => {
-    if (!createdCredentials) return;
-    const text = `Welcome ${createdCredentials.name}!
-Your account details:
-📧 Email: ${createdCredentials.email}
-🔑 Password: ${createdCredentials.password}
-💳 Account Number: ${createdCredentials.accountNumber}
-
-Please log in and complete your profile.`;
-    navigator.clipboard
-      .writeText(text)
-      .then(() => toast.success("📋 All credentials copied!"))
-      .catch(() => toast.error("Copy failed"));
-  };
-
-  const handleEditMember = (m) => {
-    setSelectedMember({ ...m });
-    setEditPassword("");
-    setShowEditModal(true);
-  };
-
-  const handleUpdateMember = async (e) => {
-    e.preventDefault();
-    const payload = {
-      name: capitalizeWords(selectedMember.full_name || ""),
-      email: selectedMember.email,
-      phone: selectedMember.phone || "",
-      balance: parseFloat(selectedMember.balance) || 0,
-      status: selectedMember.status,
-      role: selectedMember.role,
+  // Derived stats from scoped transactions
+  const stats = useMemo(() => {
+    const deposits = transactions
+      .filter((t) => t.type === "deposit" || t.type === "credit")
+      .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+    const withdrawals = transactions
+      .filter((t) => t.type === "withdrawal" || t.type === "debit")
+      .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+    const transfersOut = transactions
+      .filter((t) => t.type === "transfer")
+      .reduce((s, t) => s + (parseFloat(t.amount) || 0), 0);
+    const charges = transactions.reduce(
+      (s, t) => s + (parseFloat(t.charge) || 0),
+      0,
+    );
+    return {
+      deposits,
+      withdrawals,
+      transfersOut,
+      charges,
+      net: deposits - withdrawals - transfersOut - charges,
     };
-    if (editPassword.trim()) payload.password = editPassword.trim();
+  }, [transactions]);
 
-    try {
-      const res = await apiFetch(`/api/members.php/${selectedMember.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      const data = await res.json();
-      if (res.ok) {
-        toast.success("✅ Member updated!");
-        setShowEditModal(false);
-        setSelectedMember(null);
-        setEditPassword("");
-        fetchMembers();
-      } else {
-        toast.error(data.message || "Update failed");
-      }
-    } catch {
-      toast.error("Failed to update");
-    }
-  };
+  const plan = useMemo(() => {
+    if (!profile) return null;
+    const planName = profile.savings_plan || profile.savingsPlan || "";
+    const duration = profile.duration || "";
+    const amount = parseFloat(profile.amount) || 0;
+    const method = profile.savings_method || profile.savingsMethod || "";
+    const itemName = profile.item_name || profile.itemName || "";
 
-  const handleDeleteMember = async (id) => {
-    if (!window.confirm("Delete this member?")) return;
-    try {
-      const res = await apiFetch(`/api/members.php/${id}`, {
-        method: "DELETE",
-      });
-      if (res.ok) {
-        toast.success("✅ Deleted!");
-        fetchMembers();
-      } else {
-        const data = await res.json();
-        toast.error(data.message || "Delete failed");
-      }
-    } catch {
-      toast.error("Failed to delete");
-    }
-  };
-
-  const handleAssignRole = async () => {
-    if (!roleAssignment.memberId) {
-      toast.error("Please select a member");
-      return;
-    }
-    const m = members.find((x) => x.id === parseInt(roleAssignment.memberId));
-    try {
-      const res = await apiFetch(
-        `/api/members.php/${roleAssignment.memberId}`,
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            role: roleAssignment.role,
-            name: m?.full_name,
-            email: m?.email,
-            phone: m?.phone || "",
-            status: m?.status,
-            balance: m?.balance || 0,
-          }),
-        },
-      );
-      if (res.ok) {
-        toast.success(`✅ Role assigned: ${roleAssignment.role}`);
-        setShowRoleModal(false);
-        setRoleAssignment({ memberId: "", role: "member" });
-        fetchMembers();
-      } else {
-        toast.error("Failed to assign role");
-      }
-    } catch {
-      toast.error("Failed to assign role");
-    }
-  };
-
-  // ============================================================
-  // ===== EXCEL BULK UPLOAD HELPERS =====
-  // ============================================================
-
-  const downloadTemplate = () => {
-    const templateData = [
-      { "First Name": "John", "Last Name": "Doe", Password: "john1234" },
-      { "First Name": "Jane", "Last Name": "Smith", Password: "jane1234" },
-    ];
-
-    const worksheet = XLSX.utils.json_to_sheet(templateData);
-    worksheet["!cols"] = [{ wch: 18 }, { wch: 18 }, { wch: 18 }];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Members");
-    XLSX.writeFile(workbook, "members_upload_template.xlsx");
-    toast.success("📥 Template downloaded!");
-  };
-
-  const handleExcelUpload = (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = evt.target.result;
-        const workbook = XLSX.read(data, { type: "binary" });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-        const json = XLSX.utils.sheet_to_json(worksheet, { defval: "" });
-
-        if (!json.length) {
-          toast.error("Excel file is empty");
-          return;
-        }
-
-        const normalized = json.map((row, idx) => {
-          const get = (key) => {
-            const found = Object.keys(row).find(
-              (k) => k.trim().toLowerCase() === key.toLowerCase(),
-            );
-            return found ? String(row[found]).trim() : "";
-          };
-          return {
-            _row: idx + 2,
-            firstName: get("First Name"),
-            lastName: get("Last Name"),
-            password: get("Password"),
-          };
-        });
-
-        const validated = normalized.map((r) => {
-          const errors = [];
-          if (!r.firstName) errors.push("First Name required");
-          if (!r.lastName) errors.push("Last Name required");
-          if (!r.password) errors.push("Password required");
-          else if (r.password.length < 6)
-            errors.push("Password must be ≥ 6 characters");
-          return { ...r, errors };
-        });
-
-        setBulkRows(validated);
-        setBulkResults(null);
-        setShowBulkModal(true);
-      } catch (err) {
-        console.error(err);
-        toast.error("Failed to read Excel file");
-      }
+    const periodsPerMonth = { Daily: 30, Weekly: 4, Monthly: 1, Random: 1 };
+    const durationMonths = {
+      "6 months": 6,
+      "1 year": 12,
+      "2 years": 24,
+      "3 years": 36,
+      "4 years": 48,
     };
-    reader.readAsBinaryString(file);
-    e.target.value = "";
-  };
+    const ppm = periodsPerMonth[planName] || 0;
+    const months = durationMonths[duration] || 0;
+    const totalPeriods = ppm && months ? ppm * months : null;
+    const total = totalPeriods && amount ? totalPeriods * amount : null;
+    return {
+      name: planName,
+      duration,
+      amount,
+      method,
+      itemName,
+      totalPeriods,
+      total,
+    };
+  }, [profile]);
 
-  const generateEmail = (firstName) => {
-    const firstNameLower = firstName.trim().toLowerCase();
-    const randomNum = Math.floor(Math.random() * 90000) + 10000;
-    return `${firstNameLower}${randomNum}@gmail.com`;
-  };
+  const branchLabel = (() => {
+    const name =
+      branchInfo?.name || profile?.branch_name || member?.branch_name;
+    const code =
+      branchInfo?.code || profile?.branch_code || member?.branch_code;
+    if (name && code) return `${name} · ${code}`;
+    if (name) return name;
+    if (code) return code;
+    if (memberBranchId) return `Branch #${memberBranchId}`;
+    return "Unassigned";
+  })();
 
-  const handleBulkUpload = async () => {
-    const validRows = bulkRows.filter((r) => r.errors.length === 0);
-    if (!validRows.length) {
-      toast.error("No valid rows to upload");
-      return;
-    }
+  const displayName =
+    profile?.name || member?.name || member?.full_name || "Unknown";
+  const displayEmail = profile?.email || member?.email || "";
+  const displayPhone = profile?.phone || member?.phone || "";
+  const displayAccount =
+    profile?.accountNumber ||
+    profile?.account_number ||
+    member?.accountNumber ||
+    member?.account_number ||
+    "—";
+  const displayMembership =
+    profile?.membershipType ||
+    profile?.membership_type ||
+    member?.membershipType ||
+    "Standard";
+  const displayJoinDate =
+    profile?.joinDate ||
+    profile?.join_date ||
+    member?.joinDate ||
+    member?.join_date ||
+    "";
+  const displayStatus = profile?.status || member?.status || "Active";
+  const displayBalance = parseFloat(profile?.balance ?? member?.balance ?? 0);
 
-    setBulkUploading(true);
-    const results = [];
-
-    for (const row of validRows) {
-      try {
-        const fullName = capitalizeWords(
-          `${row.firstName} ${row.lastName}`.trim(),
-        );
-        const email = generateEmail(row.firstName);
-        const accountNumber = generateAccountNumber();
-
-        const payload = {
-          accountNumber,
-          account_number: accountNumber,
-          name: fullName,
-          full_name: fullName,
-          email,
-          phone: "",
-          password: row.password,
-          role: "member",
-          status: "Active",
-          membership_type: "Standard",
-          join_date: new Date().toISOString().split("T")[0],
-          balance: 0,
-          profile_completed: 0,
-          ...(activeBranchId ? { branch_id: activeBranchId } : {}),
-        };
-
-        const res = await apiFetch("/api/members.php", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(payload),
-        });
-
-        const data = await res.json();
-        if (res.ok) {
-          results.push({
-            row: row._row,
-            name: fullName,
-            email,
-            password: row.password,
-            accountNumber,
-            status: "success",
-          });
-        } else {
-          results.push({
-            row: row._row,
-            name: fullName,
-            email,
-            status: "failed",
-            error: data.message || data.error || "Failed",
-          });
-        }
-      } catch (err) {
-        results.push({
-          row: row._row,
-          name: `${row.firstName} ${row.lastName}`,
-          email: "",
-          status: "failed",
-          error: "Network error",
-        });
-      }
-    }
-
-    setBulkResults(results);
-    setBulkUploading(false);
-
-    const successCount = results.filter((r) => r.status === "success").length;
-    const failCount = results.filter((r) => r.status === "failed").length;
-
-    if (successCount) toast.success(`✅ ${successCount} member(s) created!`);
-    if (failCount) toast.error(`⚠️ ${failCount} row(s) failed`);
-
-    fetchMembers();
-  };
-
-  const downloadBulkResults = () => {
-    if (!bulkResults?.length) return;
-
-    const data = bulkResults.map((r) => ({
-      Row: r.row,
-      Name: r.name,
-      Email: r.email || "—",
-      Password: r.password || "—",
-      "Account Number": r.accountNumber || "—",
-      Status: r.status === "success" ? "Success" : "Failed",
-      Error: r.error || "",
-    }));
-
-    const worksheet = XLSX.utils.json_to_sheet(data);
-    worksheet["!cols"] = [
-      { wch: 6 },
-      { wch: 22 },
-      { wch: 28 },
-      { wch: 14 },
-      { wch: 16 },
-      { wch: 10 },
-      { wch: 24 },
-    ];
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
-    XLSX.writeFile(
-      workbook,
-      `members_upload_results_${activeBranch?.code || "branch"}_${
-        new Date().toISOString().split("T")[0]
-      }.xlsx`,
-    );
-    toast.success("📥 Results downloaded!");
-  };
-
-  const filteredMembers = members.filter(
-    (m) =>
-      (m.full_name || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (m.email || "").toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (m.membership_number || "").includes(searchTerm) ||
-      (m.phone || "").includes(searchTerm),
-  );
-
-  const getRoleColor = (role) => {
-    switch (role?.toLowerCase()) {
-      case "admin":
-      case "administrator":
-        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
-      case "manager":
-        return { bg: "var(--info)", color: "var(--badge-text)" };
-      default:
-        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
-    }
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case "active":
-        return { bg: "var(--approved-bg)", color: "var(--badge-text)" };
-      case "inactive":
-        return { bg: "var(--rejected-bg)", color: "var(--badge-text)" };
-      case "suspended":
-        return { bg: "var(--pending-bg)", color: "var(--badge-text)" };
-      default:
-        return { bg: "var(--bg-surface-3)", color: "var(--text)" };
-    }
-  };
-
-  // ============================================================
-  // PUBLIC MODE
-  // ============================================================
-  if (publicMode) {
-    return (
-      <div
-        style={{
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          background:
-            "radial-gradient(circle at top, var(--bg-surface) 0%, var(--bg-app) 60%)",
-          padding: "20px",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-        }}
-      >
-        <style>{`
-          .pub-card {
-            width: 100%;
-            max-width: 440px;
-            background: var(--bg-surface);
-            backdrop-filter: blur(12px);
-            border: 1px solid var(--border);
-            border-radius: 20px;
-            padding: 36px 30px 28px;
-            box-shadow: var(--shadow-lg);
-            position: relative;
-            overflow: hidden;
-            color: var(--text);
-          }
-          .pub-card::before {
-            content: "";
-            position: absolute;
-            top: 0; left: 0; right: 0;
-            height: 3px;
-            background: linear-gradient(90deg, #059669, #0d9488, var(--accent));
-          }
-          .pub-logo {
-            width: 64px; height: 64px;
-            border-radius: 50%;
-            background: linear-gradient(135deg, #059669, #0d9488);
-            display: flex; align-items: center; justify-content: center;
-            font-size: 28px; color: white;
-            margin: 0 auto 14px;
-            box-shadow: 0 8px 24px rgba(5, 150, 105, 0.4);
-          }
-          .pub-title {
-            font-size: 22px; font-weight: 700;
-            color: var(--text); text-align: center;
-            margin: 0 0 4px 0; letter-spacing: -0.3px;
-          }
-          .pub-subtitle {
-            font-size: 13px; color: var(--text-muted);
-            text-align: center; margin: 0 0 22px 0;
-          }
-          .pub-info {
-            background: var(--accent-bg);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            padding: 12px 14px;
-            margin-bottom: 20px;
-            font-size: 12px;
-            color: var(--text);
-            line-height: 1.5;
-          }
-          .pub-group { margin-bottom: 14px; }
-          .pub-label {
-            display: block; font-size: 12px;
-            font-weight: 600; color: var(--text);
-            margin-bottom: 6px;
-            letter-spacing: 0.3px; text-transform: uppercase;
-          }
-          .pub-input {
-            width: 100%;
-            padding: 12px 14px;
-            font-size: 14px; color: var(--text);
-            background: var(--bg-surface-2);
-            border: 1px solid var(--border);
-            border-radius: 10px;
-            outline: none;
-            box-sizing: border-box;
-            transition: all 0.2s;
-          }
-          .pub-input::placeholder { color: var(--text-dim); }
-          .pub-input:focus {
-            border-color: var(--accent);
-            box-shadow: 0 0 0 3px var(--accent-bg);
-          }
-          .pub-email-note {
-            background: var(--approved-bg);
-            border: 1px solid var(--border);
-            border-radius: 8px;
-            padding: 10px 14px;
-            margin-bottom: 14px;
-            font-size: 12px;
-            color: var(--text);
-            word-break: break-all;
-          }
-          .pub-submit {
-            width: 100%; padding: 13px;
-            border: none; border-radius: 10px;
-            font-size: 15px; font-weight: 600;
-            color: white; cursor: pointer;
-            background: linear-gradient(135deg, #059669, #0d9488);
-            box-shadow: 0 8px 24px -8px rgba(5, 150, 105, 0.5);
-            transition: all 0.2s;
-            margin-top: 6px;
-          }
-          .pub-submit:hover:not(:disabled) {
-            transform: translateY(-1px);
-            box-shadow: 0 12px 28px -8px rgba(5, 150, 105, 0.7);
-          }
-          .pub-submit:disabled {
-            opacity: 0.6; cursor: not-allowed;
-          }
-          .pub-footer {
-            text-align: center;
-            margin-top: 20px;
-            font-size: 13px;
-            color: var(--text-muted);
-          }
-          .pub-footer a {
-            color: var(--accent);
-            text-decoration: none;
-            font-weight: 600;
-          }
-          .pub-footer a:hover { text-decoration: underline; }
-          .pub-note {
-            text-align: center;
-            font-size: 10px;
-            color: var(--text-dim);
-            margin-top: 18px;
-          }
-        `}</style>
-
-        <div className="pub-card">
-          <div className="pub-logo">🏦</div>
-          <h1 className="pub-title">Create Account</h1>
-          <p className="pub-subtitle">Join AR-RIYAADAH SAVINGS HUB</p>
-
-          {publicBranch ? (
-            <div
-              style={{
-                background: "var(--approved-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "10px",
-                padding: "12px 14px",
-                marginBottom: "20px",
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                fontSize: "13px",
-                color: "var(--text)",
-              }}
-            >
-              <span style={{ fontSize: "22px" }}>🏢</span>
-              <div>
-                <div style={{ fontWeight: "700" }}>{publicBranch.name}</div>
-                <div style={{ color: "var(--text-muted)", fontSize: "11px" }}>
-                  Branch code: {publicBranch.code}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div
-              style={{
-                background: "var(--rejected-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "10px",
-                padding: "12px 14px",
-                marginBottom: "20px",
-                fontSize: "13px",
-                color: "var(--text)",
-                lineHeight: 1.5,
-              }}
-            >
-              ⚠️ {publicBranchError || "Loading branch details…"}
-            </div>
-          )}
-
-          <div className="pub-info">
-            💡 Enter your details below. You'll receive your account number
-            after registration and can log in to complete your profile.
-          </div>
-
-          <form onSubmit={handleAddMember}>
-            <div className="pub-group">
-              <label className="pub-label">First Name *</label>
-              <input
-                type="text"
-                className="pub-input"
-                value={newMember.firstName}
-                onChange={(e) =>
-                  setNewMember({
-                    ...newMember,
-                    firstName: capitalizeWords(e.target.value),
-                  })
-                }
-                required
-                placeholder="Enter your first name"
-                autoComplete="given-name"
-              />
-            </div>
-
-            <div className="pub-group">
-              <label className="pub-label">Last Name *</label>
-              <input
-                type="text"
-                className="pub-input"
-                value={newMember.lastName}
-                onChange={(e) =>
-                  setNewMember({
-                    ...newMember,
-                    lastName: capitalizeWords(e.target.value),
-                  })
-                }
-                required
-                placeholder="Enter your last name"
-                autoComplete="family-name"
-              />
-            </div>
-
-            <div className="pub-group">
-              <label className="pub-label">Password *</label>
-              <input
-                type="password"
-                className="pub-input"
-                value={newMember.password}
-                onChange={(e) =>
-                  setNewMember({ ...newMember, password: e.target.value })
-                }
-                required
-                minLength="6"
-                placeholder="Min 6 characters"
-                autoComplete="new-password"
-              />
-            </div>
-
-            <div className="pub-email-note">
-              📧 Your login email will be:{" "}
-              <strong style={{ color: "var(--text)" }}>
-                {newMember.email || "—"}
-              </strong>
-            </div>
-
-            <button
-              type="submit"
-              className="pub-submit"
-              disabled={!publicBranch?.id}
-            >
-              {publicBranch?.id ? "Create Account" : "Branch Required"}
-            </button>
-          </form>
-
-          <div className="pub-footer">
-            Already have an account? <Link to="/login">Sign in here</Link>
-          </div>
-
-          <div className="pub-note">
-            © {new Date().getFullYear()} AR-RIYAADAH SAVINGS HUB. All rights
-            reserved.
-          </div>
-        </div>
-
-        {showCredentialsModal && createdCredentials && (
-          <div
-            style={{
-              position: "fixed",
-              inset: 0,
-              background: "var(--bg-overlay)",
-              backdropFilter: "blur(6px)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              zIndex: 1000,
-              padding: "16px",
-            }}
-          >
-            <div
-              style={{
-                background: "var(--bg-surface)",
-                borderRadius: "14px",
-                padding: "28px",
-                maxWidth: "460px",
-                width: "100%",
-                maxHeight: "90vh",
-                overflowY: "auto",
-                border: "1px solid var(--border)",
-                color: "var(--text)",
-              }}
-            >
-              <h3
-                style={{
-                  fontSize: "18px",
-                  fontWeight: "bold",
-                  margin: "0 0 16px 0",
-                }}
-              >
-                🎉 Account Created!
-              </h3>
-
-              <div
-                style={{
-                  background: "var(--approved-bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  padding: "12px 14px",
-                  marginBottom: "16px",
-                  fontSize: "13px",
-                  color: "var(--text)",
-                  lineHeight: 1.5,
-                }}
-              >
-                ⚠️ <strong>Save these credentials</strong>. You'll need them to
-                log in.
-              </div>
-
-              {[
-                { label: "📧 Email", value: createdCredentials.email },
-                { label: "🔑 Password", value: createdCredentials.password },
-                {
-                  label: "💳 Account Number",
-                  value: createdCredentials.accountNumber,
-                },
-              ].map((row) => (
-                <div
-                  key={row.label}
-                  style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    gap: "8px",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    background: "var(--bg-surface-2)",
-                    border: "1px solid var(--border)",
-                    marginBottom: "8px",
-                  }}
-                >
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--text-muted)",
-                        textTransform: "uppercase",
-                        letterSpacing: "0.5px",
-                        marginBottom: "2px",
-                      }}
-                    >
-                      {row.label}
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        color: "var(--text)",
-                        fontWeight: "600",
-                        fontFamily: "monospace",
-                        wordBreak: "break-all",
-                      }}
-                    >
-                      {row.value}
-                    </div>
-                  </div>
-                  <button
-                    onClick={() => copyToClipboard(row.value, row.label)}
-                    style={{
-                      background: "var(--accent-bg)",
-                      color: "var(--text)",
-                      border: "1px solid var(--border)",
-                      padding: "6px 12px",
-                      borderRadius: "6px",
-                      cursor: "pointer",
-                      fontSize: "12px",
-                      fontWeight: "500",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Copy
-                  </button>
-                </div>
-              ))}
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "16px" }}>
-                <button
-                  onClick={copyAllCredentials}
-                  style={{
-                    flex: 1,
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "none",
-                    background:
-                      "linear-gradient(to right, var(--purple), #6d28d9)",
-                    color: "white",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: "500",
-                  }}
-                >
-                  📋 Copy All
-                </button>
-                <button
-                  onClick={() => {
-                    setShowCredentialsModal(false);
-                    setCreatedCredentials(null);
-                    navigate("/login");
-                  }}
-                  style={{
-                    flex: 1,
-                    padding: "10px 20px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--border)",
-                    background: "transparent",
-                    color: "var(--text)",
-                    cursor: "pointer",
-                    fontSize: "13px",
-                    fontWeight: "500",
-                  }}
-                >
-                  ✅ Go to Login
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-    );
-  }
-
-  // ============================================================
-  // ADMIN MODE
-  // ============================================================
-  if (loading) {
-    return (
-      <div
-        style={{
-          padding: "24px",
-          color: "var(--text)",
-          backgroundColor: "var(--bg-app)",
-          minHeight: "100vh",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div style={{ color: "var(--text)" }}>Loading...</div>
-      </div>
-    );
-  }
+  const progressPercent =
+    plan?.total && displayBalance > 0
+      ? Math.min(100, Math.round((displayBalance / plan.total) * 1000) / 10)
+      : 0;
 
   return (
     <div
       style={{
-        padding: "24px",
-        color: "var(--text)",
-        backgroundColor: "var(--bg-app)",
-        minHeight: "100vh",
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.72)",
+        backdropFilter: "blur(6px)",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        zIndex: 1100,
+        padding: 16,
+        fontFamily: "system-ui, -apple-system, sans-serif",
       }}
+      onClick={onClose}
     >
-      <style>{`
-        .modal-overlay {
-          position: fixed; inset: 0;
-          background: var(--bg-overlay);
-          backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 1000; padding: 16px;
-        }
-        .modal-content {
-          background: var(--bg-surface);
-          border-radius: 12px;
-          padding: 28px;
-          max-width: 480px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: 1px solid var(--border);
-          color: var(--text);
-        }
-        .modal-content-lg { max-width: 820px; }
-        .modal-header {
-          display: flex; justify-content: space-between;
-          align-items: center; margin-bottom: 20px;
-        }
-        .modal-title {
-          font-size: 18px; font-weight: bold; margin: 0;
-          color: var(--text);
-        }
-        .modal-close {
-          background: none; border: none; color: var(--text-muted);
-          font-size: 26px; cursor: pointer; padding: 0 6px;
-        }
-        .form-group { margin-bottom: 14px; }
-        .form-label {
-          display: block; font-size: 13px; font-weight: 500;
-          color: var(--text); margin-bottom: 4px;
-        }
-        .form-input {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text); font-size: 14px; outline: none;
-          box-sizing: border-box;
-        }
-        .form-input:focus { border-color: var(--accent); }
-        .form-input:disabled { opacity: 0.6; }
-        .form-input::placeholder { color: var(--text-dim); }
-        .form-select {
-          width: 100%; padding: 10px 14px; border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text); font-size: 14px; outline: none;
-        }
-        .form-select option { background: var(--bg-surface); color: var(--text); }
-        .btn-primary {
-          padding: 10px 24px; border-radius: 8px; border: none;
-          background: var(--accent); color: white; cursor: pointer;
-          font-size: 14px; font-weight: 500;
-        }
-        .btn-primary:hover { background: var(--accent-hover); }
-        .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
-        .btn-secondary {
-          padding: 10px 24px; border-radius: 8px;
-          border: 1px solid var(--border);
-          background: transparent; color: var(--text);
-          cursor: pointer; font-size: 14px;
-        }
-        .btn-add {
-          padding: 10px 20px; border-radius: 8px; border: none;
-          background: var(--approved-bg); color: var(--badge-text);
-          cursor: pointer; font-size: 14px; font-weight: 500;
-        }
-        .btn-add:hover { opacity: 0.85; }
-        .btn-excel {
-          padding: 10px 20px; border-radius: 8px; border: none;
-          background: #1d6f42; color: white;
-          cursor: pointer; font-size: 14px; font-weight: 500;
-        }
-        .btn-excel:hover { opacity: 0.9; }
-        .btn-role {
-          padding: 10px 20px; border-radius: 8px; border: none;
-          background: var(--accent-bg); color: var(--purple);
-          cursor: pointer; font-size: 14px;
-        }
-        .credential-row {
-          display: flex; justify-content: space-between; align-items: center;
-          gap: 8px; padding: 10px 12px; border-radius: 8px;
-          background: var(--bg-surface-2);
-          border: 1px solid var(--border);
-          margin-bottom: 8px;
-        }
-        .credential-label {
-          font-size: 11px; color: var(--text-muted); text-transform: uppercase;
-          letter-spacing: 0.5px; margin-bottom: 2px;
-        }
-        .credential-value {
-          font-size: 14px; color: var(--text); font-weight: 600;
-          font-family: monospace; word-break: break-all;
-        }
-        .cred-copy-btn {
-          background: var(--accent-bg);
-          color: var(--text);
-          border: 1px solid var(--border);
-          padding: 6px 12px; border-radius: 6px; cursor: pointer;
-          font-size: 12px; font-weight: 500; white-space: nowrap;
-        }
-        .cred-copy-btn:hover { opacity: 0.85; }
-
-        .am-table {
-          width: 100%;
-          border-collapse: collapse;
-          border: none;
-          background: transparent;
-        }
-        .am-table thead { background: transparent; }
-        .am-table thead th {
-          padding: 12px 16px;
-          text-align: left;
-          font-size: 12px;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          font-weight: 600;
-          border: none;
-        }
-        .am-table tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
-        .am-table tbody tr:hover { background: var(--bg-surface-2); }
-        .am-table tbody td {
-          padding: 12px 16px;
-          border: none;
-          color: var(--text);
-        }
-
-        .am-search {
-          width: 100%;
-          background: transparent;
-          color: var(--text);
-          padding: 10px 0;
-          border: none;
-          border-bottom: 1px solid var(--border);
-          border-radius: 0;
-          outline: none;
-          font-size: 14px;
-          box-sizing: border-box;
-          transition: border-color 0.2s ease;
-        }
-        .am-search::placeholder { color: var(--text-dim); }
-        .am-search:focus { border-bottom-color: var(--accent); }
-
-        .bulk-table {
-          width: 100%;
-          border-collapse: collapse;
-          font-size: 13px;
-        }
-        .bulk-table th {
-          text-align: left;
-          padding: 8px 10px;
-          font-size: 11px;
-          text-transform: uppercase;
-          color: var(--text-muted);
-          border-bottom: 1px solid var(--border);
-          font-weight: 600;
-        }
-        .bulk-table td {
-          padding: 8px 10px;
-          border-bottom: 1px solid var(--border);
-          color: var(--text);
-        }
-        .bulk-table tr.row-error td { background: var(--rejected-bg); }
-        .bulk-table tr.row-ok td { background: transparent; }
-
-        .action-btn {
-          background: none;
-          border: none;
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px 6px;
-          border-radius: 6px;
-          transition: background 0.15s;
-        }
-        .action-btn:hover { background: var(--bg-surface-3); }
-      `}</style>
-
-      {/* BRANCH BANNER */}
       <div
+        onClick={(e) => e.stopPropagation()}
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
-          gap: "12px",
-          padding: "14px 18px",
-          marginBottom: "20px",
-          borderRadius: "12px",
-          border: "1px solid rgba(16, 185, 129, 0.35)",
-          background: "rgba(16, 185, 129, 0.06)",
-          flexWrap: "wrap",
+          background: "#1e293b",
+          color: "#f1f5f9",
+          borderRadius: 16,
+          border: "1px solid rgba(255,255,255,0.10)",
+          boxShadow: "0 24px 60px rgba(0,0,0,0.55)",
+          width: "100%",
+          maxWidth: 720,
+          maxHeight: "92vh",
+          overflowY: "auto",
+          padding: "24px 26px",
         }}
       >
-        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
-          <span style={{ fontSize: "26px" }}>🏢</span>
-          <div>
-            <div
-              style={{
-                color: "var(--text)",
-                fontSize: "15px",
-                fontWeight: "700",
-              }}
-            >
-              {activeBranch?.name || "Branch"}
-            </div>
-            <div
-              style={{
-                color: "var(--text-muted)",
-                fontSize: "12px",
-                marginTop: "2px",
-              }}
-            >
-              {activeBranch?.code || "—"} · Members for this branch only ·{" "}
-              <strong style={{ color: "var(--credit)" }}>
-                {members.length}
-              </strong>{" "}
-              members ·{" "}
-              <strong style={{ color: "var(--info)" }}>
-                {transactions.length}
-              </strong>{" "}
-              transactions
-            </div>
-          </div>
-        </div>
-        <span
+        {/* Header */}
+        <div
           style={{
-            padding: "4px 12px",
-            borderRadius: "20px",
-            fontSize: "11px",
-            fontWeight: "700",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            background: "rgba(16, 185, 129, 0.2)",
-            color: "var(--credit)",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            gap: 12,
+            marginBottom: 20,
           }}
         >
-          ● active branch
-        </span>
-      </div>
-
-      {/* Header */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          marginBottom: "24px",
-          flexWrap: "wrap",
-          gap: "16px",
-        }}
-      >
-        <div>
-          <h2 style={{ fontSize: "24px", fontWeight: "bold", margin: 0 }}>
-            👥 Members Management
-          </h2>
-          <p
-            style={{
-              color: "var(--text-muted)",
-              margin: "4px 0 0 0",
-              fontSize: "14px",
-            }}
-          >
-            Manage members for {activeBranch?.name || "your branch"}, assign
-            roles, view balances
-          </p>
-        </div>
-        <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
-          <button onClick={() => setShowRoleModal(true)} className="btn-role">
-            🔑 Assign Role
-          </button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept=".xlsx,.xls,.csv"
-            style={{ display: "none" }}
-            onChange={handleExcelUpload}
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            className="btn-excel"
-          >
-            📤 Bulk Upload (Excel)
-          </button>
-          <button onClick={() => setShowAddModal(true)} className="btn-add">
-            + Add New Member
-          </button>
-        </div>
-      </div>
-
-      <div style={{ marginBottom: "20px" }}>
-        <input
-          type="text"
-          className="am-search"
-          placeholder="🔍 Search by name, email, phone, or account number..."
-          value={searchTerm}
-          onChange={(e) => setSearchTerm(e.target.value)}
-        />
-      </div>
-
-      <div>
-        <div style={{ overflowX: "auto" }}>
-          <table className="am-table">
-            <thead>
-              <tr>
-                {[
-                  "Membership",
-                  "Member",
-                  "Contact",
-                  "Role",
-                  "Status",
-                  "Profile",
-                  "Balance",
-                  "Actions",
-                ].map((h) => (
-                  <th key={h}>{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {filteredMembers.map((member) => (
-                <tr key={member.id}>
-                  <td>
-                    <div
-                      style={{
-                        fontSize: "14px",
-                        fontWeight: "600",
-                        color: "var(--info)",
-                        fontFamily: "monospace",
-                      }}
-                    >
-                      {member.membership_number}
-                    </div>
-                  </td>
-                  <td>
-                    <div
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: "10px",
-                      }}
-                    >
-                      <div
-                        style={{
-                          width: "36px",
-                          height: "36px",
-                          borderRadius: "50%",
-                          backgroundColor: "var(--approved-bg)",
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "var(--badge-text)",
-                          fontWeight: "bold",
-                          overflow: "hidden",
-                        }}
-                      >
-                        {member.passport_photo ? (
-                          <img
-                            src={`${API_BASE_URL}/api/uploads/passports/${member.passport_photo}`}
-                            alt=""
-                            style={{
-                              width: "100%",
-                              height: "100%",
-                              objectFit: "cover",
-                            }}
-                          />
-                        ) : (
-                          (member.full_name || "U").charAt(0)
-                        )}
-                      </div>
-                      <div
-                        style={{
-                          color: "var(--text)",
-                          fontSize: "14px",
-                          fontWeight: "500",
-                        }}
-                      >
-                        {member.full_name}
-                      </div>
-                    </div>
-                  </td>
-                  <td>
-                    <div style={{ fontSize: "13px", color: "var(--text)" }}>
-                      {member.email}
-                    </div>
-                    <div
-                      style={{ fontSize: "12px", color: "var(--text-muted)" }}
-                    >
-                      {member.phone || "—"}
-                    </div>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: "3px 10px",
-                        fontSize: "11px",
-                        borderRadius: "12px",
-                        fontWeight: "600",
-                        backgroundColor: getRoleColor(member.role).bg,
-                        color: getRoleColor(member.role).color,
-                      }}
-                    >
-                      {member.role}
-                    </span>
-                  </td>
-                  <td>
-                    <span
-                      style={{
-                        padding: "4px 12px",
-                        fontSize: "12px",
-                        borderRadius: "20px",
-                        fontWeight: "600",
-                        backgroundColor: getStatusColor(member.status).bg,
-                        color: getStatusColor(member.status).color,
-                      }}
-                    >
-                      {member.status}
-                    </span>
-                  </td>
-                  <td>
-                    {member.profile_completed ? (
-                      <span
-                        style={{
-                          color: "var(--credit)",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ✅ Complete
-                      </span>
-                    ) : (
-                      <span
-                        style={{
-                          color: "var(--warning)",
-                          fontSize: "12px",
-                          fontWeight: "600",
-                        }}
-                      >
-                        ⏳ Pending
-                      </span>
-                    )}
-                  </td>
-                  <td
-                    style={{
-                      fontSize: "14px",
-                      fontWeight: "600",
-                      color: "var(--credit)",
-                    }}
-                  >
-                    ₦{parseFloat(member.balance || 0).toLocaleString()}
-                  </td>
-                  <td>
-                    <div style={{ display: "flex", gap: "8px" }}>
-                      <button
-                        onClick={() => handleEditMember(member)}
-                        className="action-btn"
-                        title="Edit"
-                      >
-                        ✏️
-                      </button>
-                      <button
-                        onClick={() => handleDeleteMember(member.id)}
-                        className="action-btn"
-                        title="Delete"
-                      >
-                        🗑️
-                      </button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filteredMembers.length === 0 && (
-          <div
-            style={{
-              textAlign: "center",
-              padding: "40px",
-              color: "var(--text-muted)",
-            }}
-          >
-            <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
-            <p>No members found in {activeBranch?.name || "this branch"}</p>
-          </div>
-        )}
-      </div>
-
-      {/* Add Member Modal */}
-      {showAddModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">➕ Add New Member</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowAddModal(false);
-                  setNewMember({
-                    firstName: "",
-                    lastName: "",
-                    email: "",
-                    password: "",
-                  });
-                }}
-              >
-                ×
-              </button>
-            </div>
-
+          <div style={{ minWidth: 0 }}>
             <div
               style={{
-                backgroundColor: "var(--accent-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "12px 14px",
-                marginBottom: "16px",
+                fontSize: 11,
+                fontWeight: 700,
+                letterSpacing: 0.6,
+                textTransform: "uppercase",
+                color: "#64748b",
+                marginBottom: 6,
               }}
             >
-              <p style={{ margin: 0, fontSize: "13px", color: "var(--text)" }}>
-                💡 New member will be created in{" "}
-                <strong>{activeBranch?.name || "this branch"}</strong>. They'll
-                complete their profile after logging in.
-              </p>
+              Member Full Details
             </div>
-
+            <h2
+              style={{
+                margin: 0,
+                fontSize: 22,
+                fontWeight: 800,
+                color: "#f1f5f9",
+                wordBreak: "break-word",
+              }}
+            >
+              {displayName}
+            </h2>
             <div
               style={{
+                margin: "6px 0 0 0",
+                fontSize: 13,
+                color: "#94a3b8",
                 display: "flex",
-                gap: "10px",
-                marginBottom: "16px",
+                gap: 8,
+                alignItems: "center",
                 flexWrap: "wrap",
               }}
             >
-              <button
-                type="button"
-                onClick={downloadTemplate}
+              <span
                 style={{
-                  flex: 1,
-                  minWidth: "150px",
-                  padding: "10px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--border)",
-                  background: "var(--bg-surface-2)",
-                  color: "var(--text)",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: "500",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 10px",
+                  borderRadius: 9999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                  background: "rgba(16,185,129,0.15)",
+                  color: "#34d399",
+                  border: "1px solid rgba(16,185,129,0.35)",
                 }}
               >
-                📥 Download Template
-              </button>
-              <button
-                type="button"
-                onClick={() => fileInputRef.current?.click()}
+                🏢 {branchLabel}
+              </span>
+              <span
                 style={{
-                  flex: 1,
-                  minWidth: "150px",
-                  padding: "10px 14px",
-                  borderRadius: "8px",
-                  border: "none",
-                  background: "#1d6f42",
-                  color: "white",
-                  cursor: "pointer",
-                  fontSize: "13px",
-                  fontWeight: "500",
+                  display: "inline-flex",
+                  alignItems: "center",
+                  gap: 4,
+                  padding: "2px 10px",
+                  borderRadius: 9999,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  letterSpacing: 0.4,
+                  textTransform: "uppercase",
+                  background: "rgba(16,185,129,0.15)",
+                  color: "#34d399",
+                  border: "1px solid rgba(16,185,129,0.35)",
                 }}
               >
-                📤 Upload Excel
-              </button>
+                ● {displayStatus}
+              </span>
+              <span>{displayMembership} Member</span>
             </div>
+          </div>
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "#94a3b8",
+              cursor: "pointer",
+              fontSize: 24,
+              lineHeight: 1,
+              padding: "4px 8px",
+              borderRadius: 8,
+            }}
+          >
+            ✕
+          </button>
+        </div>
 
+        {/* Loading */}
+        {loading && (
+          <div
+            style={{
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              gap: 12,
+              padding: "40px 0",
+              color: "#94a3b8",
+              fontSize: 13,
+            }}
+          >
             <div
               style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "10px",
-                marginBottom: "16px",
-                color: "var(--text-muted)",
-                fontSize: "12px",
+                width: 22,
+                height: 22,
+                border: "3px solid rgba(255,255,255,0.15)",
+                borderTopColor: "#34d399",
+                borderRadius: "50%",
+                animation: "mdspin 0.9s linear infinite",
               }}
-            >
-              <div
-                style={{ flex: 1, height: "1px", background: "var(--border)" }}
-              />
-              <span>OR fill manually</span>
-              <div
-                style={{ flex: 1, height: "1px", background: "var(--border)" }}
-              />
-            </div>
+            />
+            <style>{`@keyframes mdspin { to { transform: rotate(360deg); } }`}</style>
+            Loading member details…
+          </div>
+        )}
 
-            <form onSubmit={handleAddMember}>
-              <div className="form-group">
-                <label className="form-label">First Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={newMember.firstName}
-                  onChange={(e) =>
-                    setNewMember({
-                      ...newMember,
-                      firstName: capitalizeWords(e.target.value),
-                    })
-                  }
-                  required
-                  placeholder="First name"
-                />
-              </div>
+        {/* Error */}
+        {!loading && loadError && (
+          <div
+            style={{
+              padding: "16px 18px",
+              borderRadius: 10,
+              background: "rgba(239,68,68,0.10)",
+              border: "1px solid rgba(239,68,68,0.35)",
+              color: "#fca5a5",
+              fontSize: 13,
+              lineHeight: 1.5,
+            }}
+          >
+            ⚠️ {loadError}
+          </div>
+        )}
 
-              <div className="form-group">
-                <label className="form-label">Last Name *</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  value={newMember.lastName}
-                  onChange={(e) =>
-                    setNewMember({
-                      ...newMember,
-                      lastName: capitalizeWords(e.target.value),
-                    })
-                  }
-                  required
-                  placeholder="Last name"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Password *</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  value={newMember.password}
-                  onChange={(e) =>
-                    setNewMember({ ...newMember, password: e.target.value })
-                  }
-                  required
-                  minLength="6"
-                  placeholder="Min 6 characters"
-                />
-              </div>
-
+        {/* Body */}
+        {!loading && !loadError && profile && (
+          <>
+            {plan && plan.name && (
               <div
                 style={{
-                  backgroundColor: "var(--approved-bg)",
-                  border: "1px solid var(--border)",
-                  borderRadius: "8px",
-                  padding: "10px 14px",
-                  marginBottom: "12px",
+                  borderTop: "1px solid rgba(255,255,255,0.08)",
+                  paddingTop: 16,
+                  marginTop: 16,
                 }}
               >
-                <p
-                  style={{ margin: 0, fontSize: "12px", color: "var(--text)" }}
-                >
-                  📧 Auto email:{" "}
-                  <strong style={{ color: "var(--text)" }}>
-                    {newMember.email || "—"}
-                  </strong>
-                </p>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ flex: 1 }}
-                >
-                  Create Member
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setShowAddModal(false);
-                    setNewMember({
-                      firstName: "",
-                      lastName: "",
-                      email: "",
-                      password: "",
-                    });
+                <h3
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 800,
+                    letterSpacing: 0.5,
+                    textTransform: "uppercase",
+                    color: "#94a3b8",
+                    margin: "0 0 12px 0",
                   }}
-                  style={{ flex: 1 }}
                 >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Bulk Upload Preview Modal */}
-      {showBulkModal && (
-        <div className="modal-overlay">
-          <div className="modal-content modal-content-lg">
-            <div className="modal-header">
-              <h3 className="modal-title">📤 Bulk Upload Preview</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowBulkModal(false);
-                  setBulkRows([]);
-                  setBulkResults(null);
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            {!bulkResults ? (
-              <>
+                  💼 Savings Plan
+                </h3>
                 <div
                   style={{
-                    backgroundColor: "var(--accent-bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    padding: "12px 14px",
-                    marginBottom: "16px",
-                    fontSize: "13px",
-                    color: "var(--text)",
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 10,
+                    padding: "10px 14px",
+                    borderRadius: 10,
+                    marginBottom: 12,
+                    background: "rgba(37,99,235,0.10)",
+                    border: "1px solid rgba(59,130,246,0.30)",
+                    color: "#93c5fd",
+                    fontSize: 13,
                   }}
                 >
-                  Found <strong>{bulkRows.length}</strong> row(s).{" "}
-                  <strong style={{ color: "var(--credit)" }}>
-                    {bulkRows.filter((r) => !r.errors.length).length} valid
-                  </strong>
-                  {bulkRows.filter((r) => r.errors.length).length > 0 && (
-                    <>
-                      ,{" "}
-                      <strong style={{ color: "var(--rejected)" }}>
-                        {bulkRows.filter((r) => r.errors.length).length} with
-                        errors
-                      </strong>{" "}
-                      (will be skipped)
-                    </>
-                  )}
-                  <div style={{ marginTop: "6px", fontSize: "12px" }}>
-                    🏢 Will be created in{" "}
-                    <strong>{activeBranch?.name || "this branch"}</strong>
+                  <span style={{ fontSize: 18 }}>📋</span>
+                  <div>
+                    <strong style={{ color: "#f1f5f9" }}>{plan.name}</strong>
+                    {plan.duration && <> · {plan.duration}</>}
+                    {plan.method && (
+                      <>
+                        {" "}
+                        · {plan.method}
+                        {plan.itemName ? ` (${plan.itemName})` : ""}
+                      </>
+                    )}
                   </div>
                 </div>
-
                 <div
                   style={{
-                    maxHeight: "360px",
-                    overflowY: "auto",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
+                    display: "grid",
+                    gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                    gap: 12,
                   }}
                 >
-                  <table className="bulk-table">
-                    <thead>
-                      <tr>
-                        <th>Row</th>
-                        <th>First Name</th>
-                        <th>Last Name</th>
-                        <th>Password</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkRows.map((r, i) => (
-                        <tr
-                          key={i}
-                          className={r.errors.length ? "row-error" : "row-ok"}
-                        >
-                          <td>{r._row}</td>
-                          <td>{r.firstName || "—"}</td>
-                          <td>{r.lastName || "—"}</td>
-                          <td>{r.password || "—"}</td>
-                          <td>
-                            {r.errors.length ? (
-                              <span
-                                style={{
-                                  color: "var(--rejected)",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                ⚠️ {r.errors.join(", ")}
-                              </span>
-                            ) : (
-                              <span
-                                style={{
-                                  color: "var(--credit)",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                ✅ Ready
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  {[
+                    { label: "Savings Plan", value: plan.name },
+                    { label: "Savings Method", value: plan.method },
+                    ...(plan.itemName
+                      ? [{ label: "Item", value: plan.itemName }]
+                      : []),
+                    { label: "Duration", value: plan.duration },
+                    {
+                      label:
+                        plan.name === "Daily"
+                          ? "Amount per Day"
+                          : plan.name === "Weekly"
+                            ? "Amount per Week"
+                            : plan.name === "Monthly"
+                              ? "Amount per Month"
+                              : "Amount per Period",
+                      value: formatCurrency(plan.amount),
+                      accent: true,
+                    },
+                    ...(plan.totalPeriods
+                      ? [
+                          {
+                            label: "Number of Payments",
+                            value: plan.totalPeriods.toLocaleString(),
+                          },
+                        ]
+                      : []),
+                    ...(plan.total
+                      ? [
+                          {
+                            label: "Total to Save",
+                            value: formatCurrency(plan.total),
+                            accent: true,
+                          },
+                        ]
+                      : []),
+                  ].map((c, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: "10px 12px",
+                        borderRadius: 10,
+                        background: "rgba(255,255,255,0.03)",
+                        border: "1px solid rgba(255,255,255,0.08)",
+                      }}
+                    >
+                      <div
+                        style={{
+                          fontSize: 10.5,
+                          fontWeight: 700,
+                          letterSpacing: 0.4,
+                          textTransform: "uppercase",
+                          color: "#64748b",
+                          marginBottom: 4,
+                        }}
+                      >
+                        {c.label}
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 600,
+                          color: c.accent ? "#34d399" : "#f1f5f9",
+                          wordBreak: "break-word",
+                        }}
+                      >
+                        {c.value || "—"}
+                      </div>
+                    </div>
+                  ))}
                 </div>
 
-                <div
-                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
-                >
-                  <button
-                    className="btn-primary"
-                    style={{ flex: 1, background: "#1d6f42" }}
-                    disabled={
-                      bulkUploading ||
-                      bulkRows.filter((r) => !r.errors.length).length === 0
-                    }
-                    onClick={handleBulkUpload}
-                  >
-                    {bulkUploading
-                      ? "Uploading..."
-                      : `Upload ${
-                          bulkRows.filter((r) => !r.errors.length).length
-                        } Member(s)`}
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => {
-                      setShowBulkModal(false);
-                      setBulkRows([]);
-                      setBulkResults(null);
-                    }}
-                    disabled={bulkUploading}
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div
-                  style={{
-                    backgroundColor: "var(--approved-bg)",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                    padding: "12px 14px",
-                    marginBottom: "16px",
-                    fontSize: "13px",
-                    color: "var(--text)",
-                  }}
-                >
-                  ✅{" "}
-                  <strong>
-                    {bulkResults.filter((r) => r.status === "success").length}
-                  </strong>{" "}
-                  succeeded,{" "}
-                  <strong style={{ color: "var(--rejected)" }}>
-                    {bulkResults.filter((r) => r.status === "failed").length}
-                  </strong>{" "}
-                  failed.
-                </div>
-
-                <div
-                  style={{
-                    maxHeight: "360px",
-                    overflowY: "auto",
-                    border: "1px solid var(--border)",
-                    borderRadius: "8px",
-                  }}
-                >
-                  <table className="bulk-table">
-                    <thead>
-                      <tr>
-                        <th>Row</th>
-                        <th>Name</th>
-                        <th>Email</th>
-                        <th>Password</th>
-                        <th>Account No.</th>
-                        <th>Status</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bulkResults.map((r, i) => (
-                        <tr
-                          key={i}
-                          className={
-                            r.status === "failed" ? "row-error" : "row-ok"
-                          }
-                        >
-                          <td>{r.row}</td>
-                          <td>{r.name}</td>
-                          <td>{r.email || "—"}</td>
-                          <td>{r.password || "—"}</td>
-                          <td>{r.accountNumber || "—"}</td>
-                          <td>
-                            {r.status === "success" ? (
-                              <span
-                                style={{
-                                  color: "var(--credit)",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                ✅ Success
-                              </span>
-                            ) : (
-                              <span
-                                style={{
-                                  color: "var(--rejected)",
-                                  fontSize: "12px",
-                                }}
-                              >
-                                ❌ {r.error}
-                              </span>
-                            )}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-
-                <div
-                  style={{ display: "flex", gap: "10px", marginTop: "18px" }}
-                >
-                  <button
-                    className="btn-primary"
-                    style={{ flex: 1 }}
-                    onClick={downloadBulkResults}
-                  >
-                    📥 Download Results
-                  </button>
-                  <button
-                    type="button"
-                    className="btn-secondary"
-                    style={{ flex: 1 }}
-                    onClick={() => {
-                      setShowBulkModal(false);
-                      setBulkRows([]);
-                      setBulkResults(null);
-                    }}
-                  >
-                    Done
-                  </button>
-                </div>
-              </>
+                {plan.total && (
+                  <div style={{ marginTop: 14 }}>
+                    <div
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                        gap: 12,
+                        fontSize: 12,
+                        color: "#94a3b8",
+                        marginTop: 6,
+                      }}
+                    >
+                      <span>
+                        Progress:{" "}
+                        <strong style={{ color: "#f1f5f9" }}>
+                          {formatCurrency(displayBalance)}
+                        </strong>{" "}
+                        of{" "}
+                        <strong style={{ color: "#f1f5f9" }}>
+                          {formatCurrency(plan.total)}
+                        </strong>
+                      </span>
+                      <strong style={{ color: "#f1f5f9" }}>
+                        {progressPercent}%
+                      </strong>
+                    </div>
+                    <div
+                      style={{
+                        width: "100%",
+                        height: 10,
+                        borderRadius: 9999,
+                        background: "rgba(255,255,255,0.08)",
+                        overflow: "hidden",
+                        marginTop: 6,
+                      }}
+                    >
+                      <div
+                        style={{
+                          height: "100%",
+                          borderRadius: 9999,
+                          background:
+                            "linear-gradient(90deg, #059669, #34d399)",
+                          width: `${progressPercent}%`,
+                          transition: "width 0.4s ease",
+                        }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
-          </div>
-        </div>
-      )}
 
-      {/* Credentials Modal — 🆕 "Done" now goes to /login with credentials */}
-      {showCredentialsModal && createdCredentials && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">🎉 Member Created!</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowCredentialsModal(false);
-                  setCreatedCredentials(null);
-                }}
-              >
-                ×
-              </button>
-            </div>
-
+            {/* Personal info — with branch */}
             <div
               style={{
-                backgroundColor: "var(--approved-bg)",
-                border: "1px solid var(--border)",
-                borderRadius: "8px",
-                padding: "12px 14px",
-                marginBottom: "16px",
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 16,
+                marginTop: 16,
               }}
             >
-              <p
+              <h3
                 style={{
-                  margin: 0,
-                  fontSize: "13px",
-                  color: "var(--text)",
-                  lineHeight: 1.5,
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: "#94a3b8",
+                  margin: "0 0 12px 0",
                 }}
               >
-                ⚠️ <strong>Share these credentials</strong> with{" "}
-                <strong>{createdCredentials.name}</strong>. They'll need them to
-                log in and complete their profile.
-              </p>
-            </div>
-
-            <div className="credential-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="credential-label">📧 Email</div>
-                <div className="credential-value">
-                  {createdCredentials.email}
-                </div>
-              </div>
-              <button
-                className="cred-copy-btn"
-                onClick={() =>
-                  copyToClipboard(createdCredentials.email, "Email")
-                }
-              >
-                Copy
-              </button>
-            </div>
-
-            <div className="credential-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="credential-label">🔑 Password</div>
-                <div className="credential-value">
-                  {createdCredentials.password}
-                </div>
-              </div>
-              <button
-                className="cred-copy-btn"
-                onClick={() =>
-                  copyToClipboard(createdCredentials.password, "Password")
-                }
-              >
-                Copy
-              </button>
-            </div>
-
-            <div className="credential-row">
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div className="credential-label">💳 Account Number</div>
-                <div className="credential-value">
-                  {createdCredentials.accountNumber}
-                </div>
-              </div>
-              <button
-                className="cred-copy-btn"
-                onClick={() =>
-                  copyToClipboard(
-                    createdCredentials.accountNumber,
-                    "Account number",
-                  )
-                }
-              >
-                Copy
-              </button>
-            </div>
-
-            <div style={{ display: "flex", gap: "10px" }}>
-              <button
-                className="btn-primary"
+                📋 Personal Information
+              </h3>
+              <div
                 style={{
-                  flex: 1,
-                  background:
-                    "linear-gradient(to right, var(--purple), #6d28d9)",
-                  color: "white",
-                }}
-                onClick={copyAllCredentials}
-              >
-                📋 Copy All
-              </button>
-              {/* 🆕 Done → send admin to login with credentials prefilled */}
-              <button
-                className="btn-secondary"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  const creds = {
-                    email: createdCredentials.email,
-                    password: createdCredentials.password,
-                    justRegistered: true,
-                    redirectTo: "/member/profile", // login lands on profile
-                  };
-                  setShowCredentialsModal(false);
-                  setCreatedCredentials(null);
-                  navigate(
-                    activeBranchId
-                      ? `/login?branch=${activeBranchId}`
-                      : "/login",
-                    { state: creds },
-                  );
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))",
+                  gap: 12,
                 }}
               >
-                Done
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                {[
+                  { label: "Full Name", value: displayName },
+                  { label: "Email", value: displayEmail },
+                  { label: "Phone", value: displayPhone },
+                  {
+                    label: "Account Number",
+                    value: displayAccount,
+                    mono: true,
+                  },
+                  { label: "Membership Type", value: displayMembership },
+                  { label: "Join Date", value: formatDate(displayJoinDate) },
+                  { label: "Status", value: displayStatus },
+                ].map((c, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: "10px 12px",
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {c.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: 14,
+                        fontWeight: 600,
+                        color: "#f1f5f9",
+                        wordBreak: "break-word",
+                        fontFamily: c.mono ? "monospace" : undefined,
+                      }}
+                    >
+                      {c.value || "—"}
+                    </div>
+                  </div>
+                ))}
 
-      {/* Edit Member Modal */}
-      {showEditModal && selectedMember && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">✏️ Edit Member</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowEditModal(false);
-                  setSelectedMember(null);
-                  setEditPassword("");
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <form onSubmit={handleUpdateMember}>
-              <div className="form-group">
-                <label className="form-label">Membership Number</label>
-                <input
-                  className="form-input"
-                  value={selectedMember.membership_number || "N/A"}
-                  disabled
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Full Name</label>
-                <input
-                  className="form-input"
-                  value={selectedMember.full_name || ""}
-                  disabled
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Email</label>
-                <input
-                  type="email"
-                  className="form-input"
-                  value={selectedMember.email || ""}
-                  onChange={(e) =>
-                    setSelectedMember({
-                      ...selectedMember,
-                      email: e.target.value,
-                    })
-                  }
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Phone</label>
-                <input
-                  type="tel"
-                  className="form-input"
-                  value={selectedMember.phone || ""}
-                  onChange={(e) => {
-                    const v = e.target.value.replace(/\D/g, "");
-                    setSelectedMember({ ...selectedMember, phone: v });
-                  }}
-                  maxLength="11"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Role</label>
-                <select
-                  className="form-select"
-                  value={selectedMember.role}
-                  onChange={(e) =>
-                    setSelectedMember({
-                      ...selectedMember,
-                      role: e.target.value,
-                    })
-                  }
-                >
-                  <option value="member">👤 Member</option>
-                  <option value="manager">📊 Manager</option>
-                  <option value="admin">👑 Admin</option>
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">New Password (optional)</label>
-                <input
-                  type="password"
-                  className="form-input"
-                  value={editPassword}
-                  onChange={(e) => setEditPassword(e.target.value)}
-                  minLength="6"
-                  placeholder="Leave blank to keep current"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Balance (₦)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  value={selectedMember.balance || 0}
-                  onChange={(e) =>
-                    setSelectedMember({
-                      ...selectedMember,
-                      balance: parseFloat(e.target.value) || 0,
-                    })
-                  }
-                  min="0"
-                  step="0.01"
-                />
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Status</label>
-                <select
-                  className="form-select"
-                  value={selectedMember.status}
-                  onChange={(e) =>
-                    setSelectedMember({
-                      ...selectedMember,
-                      status: e.target.value,
-                    })
-                  }
-                >
-                  <option value="active">Active</option>
-                  <option value="inactive">Inactive</option>
-                  <option value="suspended">Suspended</option>
-                </select>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-                <button
-                  type="submit"
-                  className="btn-primary"
-                  style={{ flex: 1 }}
-                >
-                  Update
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setShowEditModal(false);
-                    setSelectedMember(null);
-                    setEditPassword("");
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
-
-      {/* Assign Role Modal */}
-      {showRoleModal && (
-        <div className="modal-overlay">
-          <div className="modal-content">
-            <div className="modal-header">
-              <h3 className="modal-title">🔑 Assign Role</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowRoleModal(false);
-                  setRoleAssignment({ memberId: "", role: "member" });
-                }}
-              >
-                ×
-              </button>
-            </div>
-
-            <form
-              onSubmit={(e) => {
-                e.preventDefault();
-                handleAssignRole();
-              }}
-            >
-              <div className="form-group">
-                <label className="form-label">Select Member *</label>
-                <select
-                  className="form-select"
-                  required
-                  value={roleAssignment.memberId}
-                  onChange={(e) =>
-                    setRoleAssignment({
-                      ...roleAssignment,
-                      memberId: e.target.value,
-                    })
-                  }
-                >
-                  <option value="">Choose a member</option>
-                  {members.map((m) => (
-                    <option key={m.id} value={m.id}>
-                      {m.full_name} ({m.membership_number}) — {m.role}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div className="form-group">
-                <label className="form-label">Assign Role *</label>
-                <select
-                  className="form-select"
-                  required
-                  value={roleAssignment.role}
-                  onChange={(e) =>
-                    setRoleAssignment({
-                      ...roleAssignment,
-                      role: e.target.value,
-                    })
-                  }
-                >
-                  <option value="member">👤 Member</option>
-                  <option value="manager">📊 Manager</option>
-                  <option value="admin">👑 Admin</option>
-                </select>
-              </div>
-
-              <div style={{ display: "flex", gap: "10px", marginTop: "18px" }}>
-                <button
-                  type="submit"
-                  className="btn-primary"
+                {/* Branch cell — highlighted */}
+                <div
                   style={{
-                    flex: 1,
-                    background: "var(--purple)",
-                    color: "white",
+                    padding: "10px 12px",
+                    borderRadius: 10,
+                    background: "rgba(16,185,129,0.08)",
+                    border: "1px solid rgba(16,185,129,0.35)",
                   }}
                 >
-                  Assign Role
-                </button>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    setShowRoleModal(false);
-                    setRoleAssignment({ memberId: "", role: "member" });
-                  }}
-                  style={{ flex: 1 }}
-                >
-                  Cancel
-                </button>
+                  <div
+                    style={{
+                      fontSize: 10.5,
+                      fontWeight: 700,
+                      letterSpacing: 0.4,
+                      textTransform: "uppercase",
+                      color: "#64748b",
+                      marginBottom: 4,
+                    }}
+                  >
+                    Branch
+                  </div>
+                  <div
+                    style={{
+                      fontSize: 14,
+                      fontWeight: 700,
+                      color: "#34d399",
+                      wordBreak: "break-word",
+                    }}
+                  >
+                    {branchLabel}
+                  </div>
+                </div>
               </div>
-            </form>
-          </div>
+            </div>
+
+            {/* Savings & balance */}
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 16,
+                marginTop: 16,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: "#94a3b8",
+                  margin: "0 0 12px 0",
+                }}
+              >
+                💰 Savings & Balance
+              </h3>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))",
+                  gap: 10,
+                }}
+              >
+                {[
+                  {
+                    label: "Current Balance",
+                    value: formatCurrency(displayBalance),
+                    color: "#34d399",
+                  },
+                  {
+                    label: "Total Deposits",
+                    value: formatCurrency(stats.deposits),
+                    color: "#34d399",
+                  },
+                  {
+                    label: "Total Withdrawals",
+                    value: formatCurrency(stats.withdrawals),
+                    color: "#f87171",
+                  },
+                  {
+                    label: "Transfers Out",
+                    value: formatCurrency(stats.transfersOut),
+                    color: "#a78bfa",
+                  },
+                  {
+                    label: "Total Charges",
+                    value: formatCurrency(stats.charges),
+                    color: "#fbbf24",
+                  },
+                  {
+                    label:
+                      "Net Savings (Deposits − Withdrawals − Transfers − Charges)",
+                    value: formatCurrency(stats.net),
+                    color: "#34d399",
+                    big: true,
+                  },
+                ].map((s, i) => (
+                  <div
+                    key={i}
+                    style={{
+                      padding: 12,
+                      borderRadius: 10,
+                      background: "rgba(255,255,255,0.03)",
+                      border: "1px solid rgba(255,255,255,0.08)",
+                    }}
+                  >
+                    <div
+                      style={{
+                        fontSize: 10.5,
+                        fontWeight: 700,
+                        letterSpacing: 0.4,
+                        textTransform: "uppercase",
+                        color: "#64748b",
+                        marginBottom: 4,
+                      }}
+                    >
+                      {s.label}
+                    </div>
+                    <div
+                      style={{
+                        fontSize: s.big ? 18 : 16,
+                        fontWeight: 700,
+                        color: s.color || "#f1f5f9",
+                      }}
+                    >
+                      {s.value}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Loans */}
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 16,
+                marginTop: 16,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: "#94a3b8",
+                  margin: "0 0 12px 0",
+                }}
+              >
+                🏦 Loan Summary
+              </h3>
+              {loans.length === 0 ? (
+                <div
+                  style={{
+                    padding: 20,
+                    textAlign: "center",
+                    color: "#64748b",
+                    fontSize: 13,
+                    borderRadius: 10,
+                    border: "1px dashed rgba(255,255,255,0.10)",
+                  }}
+                >
+                  No loans on record
+                </div>
+              ) : (
+                <div>
+                  {loans.map((l) => (
+                    <div
+                      key={l.id}
+                      style={{
+                        display: "flex",
+                        justifyContent: "space-between",
+                        alignItems: "flex-start",
+                        gap: 12,
+                        padding: "10px 0",
+                        borderBottom: "1px solid rgba(255,255,255,0.06)",
+                      }}
+                    >
+                      <div>
+                        <div
+                          style={{
+                            fontSize: 13,
+                            fontWeight: 600,
+                            color: "#f1f5f9",
+                          }}
+                        >
+                          Loan #{l.id} · {l.type || "Standard"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11.5,
+                            color: "#94a3b8",
+                            marginTop: 2,
+                          }}
+                        >
+                          {l.description || "—"}
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 11,
+                            color: "#64748b",
+                            marginTop: 4,
+                          }}
+                        >
+                          {formatDate(l.created_at || l.date)}
+                        </div>
+                      </div>
+                      <div
+                        style={{
+                          fontSize: 14,
+                          fontWeight: 700,
+                          textAlign: "right",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {formatCurrency(l.amount)}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Transactions */}
+            <div
+              style={{
+                borderTop: "1px solid rgba(255,255,255,0.08)",
+                paddingTop: 16,
+                marginTop: 16,
+              }}
+            >
+              <h3
+                style={{
+                  fontSize: 13,
+                  fontWeight: 800,
+                  letterSpacing: 0.5,
+                  textTransform: "uppercase",
+                  color: "#94a3b8",
+                  margin: "0 0 12px 0",
+                }}
+              >
+                📊 Transaction History ({transactions.length})
+              </h3>
+              {transactions.length === 0 ? (
+                <div
+                  style={{
+                    padding: 20,
+                    textAlign: "center",
+                    color: "#64748b",
+                    fontSize: 13,
+                    borderRadius: 10,
+                    border: "1px dashed rgba(255,255,255,0.10)",
+                  }}
+                >
+                  No transactions on record
+                </div>
+              ) : (
+                <div>
+                  {transactions.slice(0, 20).map((t) => {
+                    const isCredit =
+                      t.type === "deposit" || t.type === "credit";
+                    return (
+                      <div
+                        key={t.id}
+                        style={{
+                          display: "flex",
+                          justifyContent: "space-between",
+                          alignItems: "flex-start",
+                          gap: 12,
+                          padding: "10px 0",
+                          borderBottom: "1px solid rgba(255,255,255,0.06)",
+                        }}
+                      >
+                        <div>
+                          <div
+                            style={{
+                              fontSize: 13,
+                              fontWeight: 600,
+                              color: "#f1f5f9",
+                              textTransform: "capitalize",
+                            }}
+                          >
+                            {t.type || "transaction"}
+                            {t.type === "transfer" && t.toMemberName
+                              ? ` to ${t.toMemberName}`
+                              : ""}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11.5,
+                              color: "#94a3b8",
+                              marginTop: 2,
+                            }}
+                          >
+                            {t.description || "No description"}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: 11,
+                              color: "#64748b",
+                              marginTop: 4,
+                            }}
+                          >
+                            {formatDate(t.date || t.created_at)}
+                          </div>
+                        </div>
+                        <div
+                          style={{
+                            fontSize: 14,
+                            fontWeight: 700,
+                            textAlign: "right",
+                            whiteSpace: "nowrap",
+                            color: isCredit ? "#34d399" : "#f87171",
+                          }}
+                        >
+                          {isCredit ? "+" : "-"}
+                          {formatCurrency(t.amount)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          </>
+        )}
+
+        {/* Footer */}
+        <div
+          style={{
+            display: "flex",
+            justifyContent: "flex-end",
+            gap: 10,
+            marginTop: 22,
+            paddingTop: 16,
+            borderTop: "1px solid rgba(255,255,255,0.08)",
+          }}
+        >
+          <button
+            onClick={onClose}
+            style={{
+              padding: "10px 18px",
+              borderRadius: 8,
+              fontSize: 13,
+              fontWeight: 600,
+              cursor: "pointer",
+              background: "transparent",
+              border: "1px solid rgba(255,255,255,0.15)",
+              color: "#f1f5f9",
+            }}
+          >
+            Close
+          </button>
         </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================================
+// AdminMembers — parent page
+// ============================================================
+const AdminMembers = () => {
+  const { activeBranchId, activeBranch } = useBranch();
+  const { user } = useAuth();
+
+  const [members, setMembers] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedMember, setSelectedMember] = useState(null);
+
+  // ============================================================
+  // Resolve branch id — context → user → localStorage
+  // ============================================================
+  const resolvedBranchId = useMemo(() => {
+    const candidates = [activeBranchId, user?.branch_id, user?.branchId];
+    for (const c of candidates) {
+      if (c !== undefined && c !== null && String(c).trim() !== "") return c;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      if (stored?.branch_id !== undefined && stored?.branch_id !== null)
+        return stored.branch_id;
+      if (stored?.branchId !== undefined && stored?.branchId !== null)
+        return stored.branchId;
+    } catch {}
+    return null;
+  }, [activeBranchId, user?.branch_id, user?.branchId]);
+
+  // ============================================================
+  // Fetch members — always with ?branch_id=
+  // ============================================================
+  const fetchMembers = useCallback(async () => {
+    if (!resolvedBranchId) {
+      // No branch — refuse to fetch, show empty list
+      console.warn(
+        "[AdminMembers] No branch id resolved — skipping fetch. Login must return branch_id.",
+      );
+      setMembers([]);
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const res = await apiFetch(
+        `/api/members.php?branch_id=${encodeURIComponent(resolvedBranchId)}`,
+      );
+      const data = await res.json();
+
+      if (!res.ok) {
+        console.error(
+          "[AdminMembers] members fetch failed. Sent branch_id =",
+          resolvedBranchId,
+          "Response:",
+          data,
+        );
+        setMembers([]);
+        return;
+      }
+
+      const arr = Array.isArray(data?.members)
+        ? data.members
+        : Array.isArray(data?.data)
+          ? data.data
+          : [];
+      setMembers(arr);
+    } catch (err) {
+      console.error("[AdminMembers] fetch failed:", err);
+      toast.error("Failed to load members");
+      setMembers([]);
+    } finally {
+      setLoading(false);
+    }
+  }, [resolvedBranchId]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  const filtered = useMemo(() => {
+    if (!searchTerm.trim()) return members;
+    const term = searchTerm.toLowerCase().trim();
+    return members.filter(
+      (m) =>
+        (m.name || "").toLowerCase().includes(term) ||
+        (m.email || "").toLowerCase().includes(term) ||
+        (m.phone || "").includes(term) ||
+        String(m.accountNumber || m.account_number || "").includes(term),
+    );
+  }, [members, searchTerm]);
+
+  return (
+    <div
+      style={{
+        padding: 24,
+        background: "#0f172a",
+        color: "#f1f5f9",
+        minHeight: "100vh",
+        fontFamily: "system-ui, -apple-system, sans-serif",
+      }}
+    >
+      <div style={{ marginBottom: 20 }}>
+        <h1 style={{ margin: 0, fontSize: 24 }}>👥 Manage Members</h1>
+        <p style={{ color: "#94a3b8", margin: "6px 0 0 0", fontSize: 14 }}>
+          {activeBranch?.name
+            ? `Showing members of ${activeBranch.name}${
+                activeBranch.code ? ` (${activeBranch.code})` : ""
+              }`
+            : resolvedBranchId
+              ? `Showing members of branch #${resolvedBranchId}`
+              : "No branch selected"}
+        </p>
+      </div>
+
+      <input
+        type="text"
+        value={searchTerm}
+        onChange={(e) => setSearchTerm(e.target.value)}
+        placeholder="Search by name, email, phone, account number…"
+        style={{
+          width: "100%",
+          maxWidth: 400,
+          padding: "10px 14px",
+          borderRadius: 8,
+          border: "1px solid rgba(255,255,255,0.15)",
+          background: "#0f172a",
+          color: "#f1f5f9",
+          fontSize: 14,
+          outline: "none",
+          marginBottom: 16,
+        }}
+      />
+
+      <div style={{ overflowX: "auto" }}>
+        <table
+          style={{
+            width: "100%",
+            borderCollapse: "collapse",
+            fontSize: 14,
+          }}
+        >
+          <thead>
+            <tr>
+              {["Name", "Account", "Email", "Phone", "Status", "Actions"].map(
+                (h) => (
+                  <th
+                    key={h}
+                    style={{
+                      textAlign: "left",
+                      padding: "10px 12px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      letterSpacing: 0.5,
+                      textTransform: "uppercase",
+                      color: "#94a3b8",
+                      borderBottom: "1px solid rgba(255,255,255,0.10)",
+                    }}
+                  >
+                    {h}
+                  </th>
+                ),
+              )}
+            </tr>
+          </thead>
+          <tbody>
+            {loading ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  style={{
+                    padding: 30,
+                    textAlign: "center",
+                    color: "#94a3b8",
+                  }}
+                >
+                  Loading members…
+                </td>
+              </tr>
+            ) : filtered.length === 0 ? (
+              <tr>
+                <td
+                  colSpan={6}
+                  style={{
+                    padding: 30,
+                    textAlign: "center",
+                    color: "#94a3b8",
+                  }}
+                >
+                  {resolvedBranchId
+                    ? searchTerm
+                      ? "No members match your search"
+                      : "No members in this branch yet"
+                    : "No branch selected — login must return branch_id"}
+                </td>
+              </tr>
+            ) : (
+              filtered.map((m) => (
+                <tr
+                  key={m.id}
+                  style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
+                >
+                  <td style={{ padding: "12px", fontWeight: 600 }}>
+                    {m.name || m.full_name || "—"}
+                  </td>
+                  <td
+                    style={{
+                      padding: "12px",
+                      color: "#94a3b8",
+                      fontFamily: "monospace",
+                    }}
+                  >
+                    {m.accountNumber || m.account_number || "—"}
+                  </td>
+                  <td style={{ padding: "12px", color: "#94a3b8" }}>
+                    {m.email || "—"}
+                  </td>
+                  <td style={{ padding: "12px", color: "#94a3b8" }}>
+                    {m.phone || "—"}
+                  </td>
+                  <td style={{ padding: "12px" }}>
+                    <span
+                      style={{
+                        padding: "2px 10px",
+                        borderRadius: 9999,
+                        fontSize: 11,
+                        fontWeight: 700,
+                        textTransform: "uppercase",
+                        background: "rgba(16,185,129,0.15)",
+                        color: "#34d399",
+                        border: "1px solid rgba(16,185,129,0.35)",
+                      }}
+                    >
+                      {m.status || "Active"}
+                    </span>
+                  </td>
+                  <td style={{ padding: "12px" }}>
+                    <button
+                      onClick={() => setSelectedMember(m)}
+                      style={{
+                        padding: "6px 14px",
+                        borderRadius: 6,
+                        border: "1px solid rgba(59,130,246,0.35)",
+                        background: "rgba(59,130,246,0.10)",
+                        color: "#93c5fd",
+                        cursor: "pointer",
+                        fontSize: 12,
+                        fontWeight: 600,
+                      }}
+                    >
+                      View
+                    </button>
+                  </td>
+                </tr>
+              ))
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {selectedMember && (
+        <MemberDetailsModal
+          member={selectedMember}
+          branchId={resolvedBranchId}
+          onClose={() => setSelectedMember(null)}
+        />
       )}
     </div>
   );

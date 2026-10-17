@@ -1,13 +1,14 @@
 // src/components/member/MemberProfile.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
+import { useBranch } from "../../context/BranchContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
 
 // ================================================================
-// Single-select dropdown
+// Single-select dropdown (case-insensitive matching)
 // ================================================================
 const Dropdown = ({
   name,
@@ -31,7 +32,11 @@ const Dropdown = ({
     return () => document.removeEventListener("mousedown", onDocClick);
   }, []);
 
-  const selected = options.find((o) => o.value === value);
+  const norm = (v) =>
+    String(v ?? "")
+      .trim()
+      .toLowerCase();
+  const selected = options.find((o) => norm(o.value) === norm(value));
 
   const handleSelect = (opt) => {
     if (disabled) return;
@@ -87,8 +92,8 @@ const Dropdown = ({
             <li
               key={opt.value}
               role="option"
-              aria-selected={value === opt.value}
-              className={`pf-dropdown-option ${value === opt.value ? "selected" : ""} ${i === highlighted ? "highlighted" : ""}`}
+              aria-selected={norm(value) === norm(opt.value)}
+              className={`pf-dropdown-option ${norm(value) === norm(opt.value) ? "selected" : ""} ${i === highlighted ? "highlighted" : ""}`}
               onMouseEnter={() => setHighlighted(i)}
               onClick={() => handleSelect(opt)}
             >
@@ -229,10 +234,17 @@ const MultiItemSelect = ({
   );
 };
 
-const InfoRow = ({ label, value }) => (
+const InfoRow = ({ label, value, highlight }) => (
   <div className="pf-info-row">
     <div className="pf-info-label">{label}</div>
-    <div className="pf-info-value">{value || "—"}</div>
+    <div
+      className="pf-info-value"
+      style={
+        highlight ? { color: "var(--pf-accent)", fontWeight: 700 } : undefined
+      }
+    >
+      {value || "—"}
+    </div>
   </div>
 );
 
@@ -320,8 +332,18 @@ const DRAFT_FIELDS = [
   "bank_account_number",
 ];
 
+const normalizeMethod = (v) => {
+  const s = String(v ?? "")
+    .trim()
+    .toLowerCase();
+  if (s === "cash") return "Cash";
+  if (s === "item") return "Item";
+  return "";
+};
+
 const MemberProfile = () => {
   const { user, login } = useAuth();
+  const { activeBranch, activeBranchId } = useBranch();
   const navigate = useNavigate();
 
   const [loading, setLoading] = useState(false);
@@ -390,6 +412,9 @@ const MemberProfile = () => {
     profile_completed: 0,
     password: "",
     confirmPassword: "",
+    branch_id: null,
+    branch_name: "",
+    branch_code: "",
   });
 
   const getUserBranchId = () => {
@@ -404,6 +429,8 @@ const MemberProfile = () => {
       if (stored?.branchId !== undefined && stored?.branchId !== null)
         return stored.branchId;
     } catch {}
+    if (activeBranchId !== undefined && activeBranchId !== null)
+      return activeBranchId;
     return null;
   };
 
@@ -598,8 +625,23 @@ const MemberProfile = () => {
       const data = await res.json();
       const branch = data.branch || data.data?.branch || data.data || null;
       if (branch && (branch.name || branch.code)) {
-        setBranchInfo(branch);
-        return branch;
+        const normalized = {
+          id: branch.id ?? branchId,
+          name: branch.name ?? branch.branch_name ?? "",
+          code: branch.code ?? branch.branch_code ?? "",
+          address: branch.address ?? "",
+          phone: branch.phone ?? "",
+          email: branch.email ?? "",
+          status: branch.status ?? "active",
+        };
+        setBranchInfo(normalized);
+        setFormData((prev) => ({
+          ...prev,
+          branch_id: normalized.id,
+          branch_name: normalized.name,
+          branch_code: normalized.code,
+        }));
+        return normalized;
       }
       return null;
     } catch (err) {
@@ -729,6 +771,10 @@ const MemberProfile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  // ============================================================
+  // Sanitize effect — only clears plan/duration when invalid;
+  // forces savings_method ONLY when the branch locks it.
+  // ============================================================
   useEffect(() => {
     if (!settingsLoaded) return;
     setFormData((prev) => {
@@ -747,13 +793,21 @@ const MemberProfile = () => {
         changed = true;
       }
 
-      if (branchForcedMethod && next.savings_method !== branchForcedMethod) {
-        next.savings_method = branchForcedMethod;
-        if (branchForcedMethod === "Cash") {
-          next.item_name = "";
-          next.selected_item_ids = [];
+      if (branchForcedMethod) {
+        if (next.savings_method !== branchForcedMethod) {
+          next.savings_method = branchForcedMethod;
+          if (branchForcedMethod === "Cash") {
+            next.item_name = "";
+            next.selected_item_ids = [];
+          }
+          changed = true;
         }
-        changed = true;
+      } else if (next.savings_method) {
+        const norm = normalizeMethod(next.savings_method);
+        if (norm && norm !== next.savings_method) {
+          next.savings_method = norm;
+          changed = true;
+        }
       }
 
       return changed ? next : prev;
@@ -765,6 +819,26 @@ const MemberProfile = () => {
     itemsSettings.durations,
     branchForcedMethod,
   ]);
+
+  // ============================================================
+  // 🔑 ENFORCING EFFECT
+  // Runs AFTER fetchFreshProfile. Kills the race where
+  // fetchFreshProfile resets savings_method to "" after settings
+  // loaded. Whenever formData.savings_method drifts from the
+  // forced value, correct it immediately.
+  // ============================================================
+  useEffect(() => {
+    if (!settingsLoaded || !branchForcedMethod) return;
+    if (formData.savings_method === branchForcedMethod) return;
+    setFormData((prev) => ({
+      ...prev,
+      savings_method: branchForcedMethod,
+      ...(branchForcedMethod === "Cash"
+        ? { item_name: "", selected_item_ids: [] }
+        : {}),
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settingsLoaded, branchForcedMethod, formData.savings_method]);
 
   const fetchFreshProfile = async (silent = false) => {
     if (!user?.id) {
@@ -793,8 +867,22 @@ const MemberProfile = () => {
           });
         }
 
-        let initialMethod = m.savings_method || "";
-        if (branchForcedMethod) initialMethod = branchForcedMethod;
+        // 🔑 Branch forced method ALWAYS wins.
+        const initialMethod =
+          branchForcedMethod || normalizeMethod(m.savings_method);
+
+        const memberBranchId =
+          m.branch_id ?? m.branchId ?? userBranchId ?? null;
+
+        let branchName = "";
+        let branchCode = "";
+        if (memberBranchId) {
+          const info = await fetchBranchInfoInternal(memberBranchId);
+          if (info) {
+            branchName = info.name;
+            branchCode = info.code;
+          }
+        }
 
         const serverData = {
           name: m.name || "",
@@ -802,7 +890,7 @@ const MemberProfile = () => {
           phone: m.phone || "",
           accountNumber: m.accountNumber || m.account_number || "N/A",
           membershipType: m.membershipType || "Standard",
-          joinDate: m.joinDate || "",
+          joinDate: m.joinDate || m.join_date || "",
           status: m.status || "Active",
           balance: m.balance || 0,
           date_of_birth: m.date_of_birth || "",
@@ -823,6 +911,9 @@ const MemberProfile = () => {
           profile_completed: m.profile_completed || 0,
           password: "",
           confirmPassword: "",
+          branch_id: memberBranchId,
+          branch_name: branchName || m.branch_name || "",
+          branch_code: branchCode || m.branch_code || "",
         };
 
         const isComplete =
@@ -851,11 +942,22 @@ const MemberProfile = () => {
                 merged.item_name = "";
                 merged.selected_item_ids = [];
               }
+            } else {
+              merged.savings_method = normalizeMethod(merged.savings_method);
             }
             draftRestored = true;
           }
         } else {
           clearDraft();
+        }
+
+        // 🔑 Final safety — if branch forces a method, override merged result
+        if (branchForcedMethod) {
+          merged.savings_method = branchForcedMethod;
+          if (branchForcedMethod === "Cash") {
+            merged.item_name = "";
+            merged.selected_item_ids = [];
+          }
         }
 
         setFormData(merged);
@@ -959,14 +1061,19 @@ const MemberProfile = () => {
     const { name, value } = e.target;
 
     if (name === "savings_method" && branchForcedMethod) {
-      if (value !== branchForcedMethod) return;
+      if (value !== branchForcedMethod) {
+        toast.error(
+          `This branch only allows ${branchForcedMethod === "Cash" ? "💵 Cash" : "📦 Item"} savings.`,
+        );
+        return;
+      }
     }
 
     if (name === "savings_method" && value !== "Item") {
       setFormData((prev) => {
         const next = {
           ...prev,
-          savings_method: value,
+          savings_method: normalizeMethod(value),
           item_name: "",
           selected_item_ids: [],
         };
@@ -1238,6 +1345,7 @@ const MemberProfile = () => {
         bank_account_number: formData.bank_account_number || "",
         passport_photo: filename,
         profile_completed: 1,
+        branch_id: formData.branch_id ?? getUserBranchId() ?? null,
       };
 
       if (showSavingsSection) {
@@ -1543,8 +1651,24 @@ const MemberProfile = () => {
     </span>
   ) : null;
 
+  const branchLabel = (() => {
+    const name =
+      branchInfo?.name || formData.branch_name || activeBranch?.name || "";
+    const code =
+      branchInfo?.code || formData.branch_code || activeBranch?.code || "";
+    const id = branchInfo?.id || formData.branch_id || activeBranchId || null;
+
+    if (!name && !code && !id) return "—";
+    if (name && code) return `${name} · ${code}`;
+    if (name) return name;
+    if (code) return code;
+    return `Branch #${id}`;
+  })();
+
   const BranchBanner = () => {
-    if (!branchInfo) return null;
+    if (!branchInfo && !formData.branch_name && !formData.branch_id) {
+      return null;
+    }
     return (
       <div
         style={{
@@ -1570,7 +1694,7 @@ const MemberProfile = () => {
                 fontWeight: "700",
               }}
             >
-              {branchInfo.name || "Branch"}
+              {branchInfo?.name || formData.branch_name || "Your Branch"}
             </div>
             <div
               style={{
@@ -1579,7 +1703,10 @@ const MemberProfile = () => {
                 marginTop: "2px",
               }}
             >
-              {branchInfo.code || "—"} · Your registered branch
+              {branchInfo?.code ||
+                formData.branch_code ||
+                (formData.branch_id ? `ID #${formData.branch_id}` : "—")}{" "}
+              · Your registered branch
             </div>
           </div>
         </div>
@@ -1699,6 +1826,7 @@ const MemberProfile = () => {
               : "—"
           }
         />
+        <InfoRow label="Branch" value={branchLabel} highlight />
         <InfoRow label="Address" value={formData.address} />
       </div>
 
@@ -1721,7 +1849,7 @@ const MemberProfile = () => {
               label="Savings Method"
               value={
                 branchForcedMethod
-                  ? `${formData.savings_method} (locked by branch)`
+                  ? `${formData.savings_method || branchForcedMethod} (locked by branch)`
                   : formData.savings_method
               }
             />
@@ -1818,6 +1946,15 @@ const MemberProfile = () => {
               <p>
                 Account: <strong>{formData.accountNumber}</strong> — fill in the
                 details below to activate your account.
+              </p>
+              <p
+                style={{
+                  margin: "6px 0 0 0",
+                  fontSize: 13,
+                  color: "var(--pf-text-muted)",
+                }}
+              >
+                🏢 Registering into: <strong>{branchLabel}</strong>
               </p>
             </div>
             <div className="pf-actions">
@@ -1923,7 +2060,9 @@ const MemberProfile = () => {
                     </label>
                     <Dropdown
                       name="savings_method"
-                      value={formData.savings_method}
+                      value={
+                        formData.savings_method || branchForcedMethod || ""
+                      }
                       onChange={handleChange}
                       options={availableSavingsMethods}
                       placeholder="Cash or Item?"
@@ -2217,7 +2356,9 @@ const MemberProfile = () => {
                     </label>
                     <Dropdown
                       name="savings_method"
-                      value={formData.savings_method}
+                      value={
+                        formData.savings_method || branchForcedMethod || ""
+                      }
                       onChange={handleChange}
                       options={availableSavingsMethods}
                       placeholder="Cash or Item?"

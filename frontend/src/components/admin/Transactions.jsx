@@ -1,14 +1,84 @@
 // src/components/admin/AdminTransactions.jsx
-import React, { useState, useEffect } from "react";
+import React, {
+  useState,
+  useEffect,
+  useMemo,
+  useCallback,
+  useRef,
+} from "react";
 import toast from "react-hot-toast";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "http://localhost:8000";
+// ------------------------------------------------------------
+// Unwrap a branch out of several possible API response shapes.
+//   { branch: {...} }  { data: { branch: {...} } }  { data: {...} }
+//   { branches: [...] }  [...]  or the branch object itself
+// ------------------------------------------------------------
+const pickBranchFromResponse = (data, id) => {
+  if (!data || typeof data !== "object") return null;
+
+  // List responses → find by id
+  const lists = [data?.branches, data?.data?.branches, data?.data, data];
+  for (const l of lists) {
+    if (Array.isArray(l) && id != null) {
+      const found = l.find((b) => String(b?.id) === String(id));
+      if (found) return found;
+    }
+  }
+
+  // Single-record responses
+  const candidates = [data?.branch, data?.data?.branch, data?.data, data];
+  for (const c of candidates) {
+    if (
+      c &&
+      typeof c === "object" &&
+      !Array.isArray(c) &&
+      (c.name || c.branch_name)
+    )
+      return c;
+  }
+  return null;
+};
+
+const firstText = (...vals) => {
+  for (const v of vals) {
+    if (v !== undefined && v !== null && String(v).trim() !== "")
+      return String(v).trim();
+  }
+  return "";
+};
 
 // ------------------------------------------------------------
-// Build a valid data URL from whatever the API returned
+// Resolve branch id — context → saved selection → user → URL
 // ------------------------------------------------------------
+const resolveBranchId = (ctxBranchId) => {
+  if (ctxBranchId !== undefined && ctxBranchId !== null) {
+    const s = String(ctxBranchId).trim();
+    if (s !== "") return ctxBranchId;
+  }
+  try {
+    const saved = localStorage.getItem("selectedBranchId");
+    if (saved && String(saved).trim() !== "") return saved;
+  } catch {}
+  try {
+    const stored = JSON.parse(localStorage.getItem("user") || "{}");
+    if (stored?.branch_id !== undefined && stored?.branch_id !== null)
+      return stored.branch_id;
+    if (stored?.branchId !== undefined && stored?.branchId !== null)
+      return stored.branchId;
+  } catch {}
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const raw = params.get("branch");
+    if (raw) {
+      const num = Number(raw);
+      return Number.isFinite(num) && num > 0 ? num : raw;
+    }
+  } catch {}
+  return null;
+};
+
 const buildSlipSrc = (t) => {
   if (!t?.payment_slip) return "";
   let s = String(t.payment_slip).trim().replace(/\s/g, "");
@@ -29,9 +99,6 @@ const buildSlipSrc = (t) => {
   return `data:${mime};base64,${s}`;
 };
 
-// ------------------------------------------------------------
-// Decide if the slip should be rendered as an <img> or a link
-// ------------------------------------------------------------
 const isSlipImage = (t) => {
   const type = t?.payment_slip_type || "";
   if (type.startsWith("image/")) return true;
@@ -40,19 +107,62 @@ const isSlipImage = (t) => {
   const s = (t?.payment_slip || "").replace(/\s/g, "");
   if (s.startsWith("data:image/")) return true;
   if (s.startsWith("data:application/pdf")) return false;
-  if (s.startsWith("/9j/")) return true; // JPEG
-  if (s.startsWith("iVBOR")) return true; // PNG
-  if (s.startsWith("R0lGO")) return true; // GIF
-  if (s.startsWith("UklGR")) return true; // WEBP
-  if (s.startsWith("JVBER")) return false; // PDF
+  if (s.startsWith("/9j/")) return true;
+  if (s.startsWith("iVBOR")) return true;
+  if (s.startsWith("R0lGO")) return true;
+  if (s.startsWith("UklGR")) return true;
+  if (s.startsWith("JVBER")) return false;
   return true;
 };
 
+const resolveCustomerName = (t) =>
+  t.memberName ||
+  t.member_name ||
+  t.customer_name ||
+  (t.member && (t.member.name || t.member.full_name)) ||
+  (t.member_id ? `Member #${t.member_id}` : "") ||
+  "Walk-in Customer";
+
+const resolveCustomerPhone = (t) =>
+  t.memberPhone ||
+  t.member_phone ||
+  t.phone ||
+  (t.member && t.member.phone) ||
+  "";
+
 const AdminTransactions = () => {
-  const { activeBranch, activeBranchId } = useBranch();
+  // ------------------------------------------------------------
+  // Read the branch from WHATEVER the context exposes.
+  // Some BranchContext versions expose activeBranch / activeBranchId /
+  // setActiveBranchId, others expose selectedBranch / setSelectedBranch.
+  // ------------------------------------------------------------
+  const branchCtx = useBranch() || {};
+  const ctxBranch = branchCtx.activeBranch || branchCtx.selectedBranch || null;
+  const branches = Array.isArray(branchCtx.branches) ? branchCtx.branches : [];
+  const ctxBranchId = branchCtx.activeBranchId ?? ctxBranch?.id ?? null;
+
+  const chooseBranch = useCallback(
+    (id) => {
+      const branchObj =
+        branches.find((b) => String(b.id) === String(id)) || null;
+      if (typeof branchCtx.setActiveBranchId === "function") {
+        branchCtx.setActiveBranchId(id);
+      } else if (typeof branchCtx.setSelectedBranch === "function") {
+        branchCtx.setSelectedBranch(branchObj || { id });
+      } else if (typeof branchCtx.switchBranch === "function") {
+        branchCtx.switchBranch(branchObj || { id });
+      } else if (typeof branchCtx.selectBranch === "function") {
+        branchCtx.selectBranch(branchObj || { id });
+      } else {
+        console.warn("[AdminTransactions] BranchContext has no branch setter");
+      }
+    },
+    [branchCtx, branches],
+  );
 
   const [transactions, setTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [itemsPerPage] = useState(10);
@@ -70,29 +180,103 @@ const AdminTransactions = () => {
     completed: 0,
   });
 
-  useEffect(() => {
-    fetchTransactions();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]); // 🆕 refetch when branch changes
+  // Branch record fetched directly (independent of the context)
+  const [branchMeta, setBranchMeta] = useState(null);
+  const refreshLockRef = useRef(false);
 
-  const fetchTransactions = async () => {
+  const resolvedBranchId = useMemo(
+    () => resolveBranchId(ctxBranchId),
+    [ctxBranchId],
+  );
+
+  // ------------------------------------------------------------
+  // Fetch the branch record.
+  //   1) /api/get-branch.php?id=…
+  //   2) /api/branches.php  → find by id
+  // ------------------------------------------------------------
+  const fetchBranchMeta = useCallback(async (branchId) => {
+    if (branchId === null || branchId === undefined || branchId === "") {
+      setBranchMeta(null);
+      return null;
+    }
+
+    try {
+      const res = await apiFetch(
+        `/api/get-branch.php?id=${encodeURIComponent(branchId)}`,
+      );
+      const data = await res.json().catch(() => null);
+      const b = pickBranchFromResponse(data, branchId);
+      console.log("[AdminTransactions] get-branch.php →", data, "picked:", b);
+      if (b) {
+        setBranchMeta(b);
+        return b;
+      }
+    } catch (err) {
+      console.warn("[AdminTransactions] get-branch.php failed:", err);
+    }
+
+    try {
+      const res = await apiFetch(`/api/branches.php`);
+      const data = await res.json().catch(() => null);
+      const b = pickBranchFromResponse(data, branchId);
+      console.log("[AdminTransactions] branches.php picked:", b);
+      if (b) {
+        setBranchMeta(b);
+        return b;
+      }
+    } catch (err) {
+      console.warn("[AdminTransactions] branches.php failed:", err);
+    }
+
+    setBranchMeta(null);
+    return null;
+  }, []);
+
+  useEffect(() => {
+    fetchBranchMeta(resolvedBranchId);
+  }, [resolvedBranchId, fetchBranchMeta]);
+
+  // ------------------------------------------------------------
+  // Transactions
+  // ------------------------------------------------------------
+  const fetchTransactions = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await apiFetch("/api/transactions.php");
+      const branchId = resolvedBranchId;
+      if (branchId === null || branchId === undefined) {
+        setTransactions([]);
+        setStats({
+          total: 0,
+          total_amount: 0,
+          deposits: 0,
+          withdrawals: 0,
+          pending: 0,
+          completed: 0,
+        });
+        setLoading(false);
+        return;
+      }
+
+      const response = await apiFetch(
+        `/api/transactions.php?branch_id=${encodeURIComponent(branchId)}`,
+      );
       if (!response.ok) throw new Error("Failed to fetch transactions");
 
       const result = await response.json();
 
       let data = [];
-      if (Array.isArray(result)) {
-        data = result;
-      } else if (result.transactions && Array.isArray(result.transactions)) {
-        data = result.transactions;
-      } else if (result.data && Array.isArray(result.data)) {
-        data = result.data;
-      }
+      if (Array.isArray(result)) data = result;
+      else if (Array.isArray(result.transactions)) data = result.transactions;
+      else if (Array.isArray(result.data)) data = result.data;
 
-      const formattedData = data.map((t) => ({
+      const branchStr = String(branchId);
+      const branchFiltered = data.filter((t) => {
+        const rowBranch = t.branch_id ?? t.branchId;
+        if (rowBranch === undefined || rowBranch === null) return true;
+        return String(rowBranch) === branchStr;
+      });
+
+      const formattedData = branchFiltered.map((t) => ({
         id: t.id,
         type: t.type || "deposit",
         amount: parseFloat(t.amount) || 0,
@@ -100,8 +284,8 @@ const AdminTransactions = () => {
         rate: parseFloat(t.rate || 0),
         net_amount: parseFloat(t.net_amount || t.amount || 0),
         status: t.status || "pending",
-        customer_name: t.memberName || t.customer_name || "Unknown",
-        customer_phone: t.accountNumber || t.customer_phone || "",
+        customer_name: resolveCustomerName(t),
+        customer_phone: resolveCustomerPhone(t),
         description: t.description || "",
         reference: t.reference || `TRX-${String(t.id).padStart(6, "0")}`,
         transaction_id: t.id,
@@ -109,9 +293,9 @@ const AdminTransactions = () => {
         payment_method: t.payment_method || "cash",
         invoice_number: t.invoice_number || "",
         receipt_path: t.receipt_path || null,
-        memberId: t.memberId,
-        accountNumber: t.accountNumber,
-        memberName: t.memberName,
+        memberId: t.memberId ?? t.member_id ?? null,
+        accountNumber: t.accountNumber || t.account_number || "",
+        memberName: t.memberName || t.member_name || null,
 
         payment_slip: t.payment_slip || null,
         payment_slip_name: t.payment_slip_name || null,
@@ -121,13 +305,13 @@ const AdminTransactions = () => {
         rejected_by: t.rejected_by || null,
         rejected_at: t.rejected_at || null,
         approved_at: t.approved_at || null,
-        branch_id: t.branch_id || null, // 🆕
+        branch_id: t.branch_id ?? t.branchId ?? branchId,
       }));
 
       setTransactions(formattedData);
 
       const totalAmount = formattedData.reduce(
-        (sum, t) => sum + (parseFloat(t.amount) || 0),
+        (s, t) => s + (parseFloat(t.amount) || 0),
         0,
       );
       const deposits = formattedData.filter(
@@ -158,13 +342,48 @@ const AdminTransactions = () => {
     } finally {
       setLoading(false);
     }
+  }, [resolvedBranchId]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+    fetchTransactions();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedBranchId]);
+
+  // ------------------------------------------------------------
+  // Manual refresh
+  // ------------------------------------------------------------
+  const handleRefresh = async () => {
+    if (refreshLockRef.current) return;
+    refreshLockRef.current = true;
+    setRefreshing(true);
+    try {
+      await Promise.all([
+        fetchBranchMeta(resolvedBranchId),
+        fetchTransactions(),
+      ]);
+      toast.success("✅ Refreshed");
+    } catch (err) {
+      console.error("[AdminTransactions] refresh failed:", err);
+      toast.error("Failed to refresh");
+    } finally {
+      setRefreshing(false);
+      refreshLockRef.current = false;
+    }
   };
 
-  // Approve
+  const withBranch = (path) => {
+    if (resolvedBranchId === null || resolvedBranchId === undefined) {
+      return path;
+    }
+    const sep = path.includes("?") ? "&" : "?";
+    return `${path}${sep}branch_id=${encodeURIComponent(resolvedBranchId)}`;
+  };
+
   const handleApproveTransaction = async (transactionId) => {
     try {
       const response = await apiFetch(
-        `/api/transactions.php/${transactionId}/approve`,
+        withBranch(`/api/transactions.php/${transactionId}/approve`),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
@@ -187,14 +406,12 @@ const AdminTransactions = () => {
     }
   };
 
-  // Open the reject modal
   const openRejectModal = (transactionId) => {
     setRejectingId(transactionId);
     setRejectReason("");
     setShowRejectModal(true);
   };
 
-  // Confirm reject
   const confirmReject = async () => {
     if (!rejectingId) return;
     if (!rejectReason.trim()) {
@@ -207,13 +424,14 @@ const AdminTransactions = () => {
         JSON.parse(localStorage.getItem("user") || "{}")?.name || "Admin";
 
       const response = await apiFetch(
-        `/api/transactions.php/${rejectingId}/reject`,
+        withBranch(`/api/transactions.php/${rejectingId}/reject`),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             reason: rejectReason.trim(),
             rejected_by: adminName,
+            branch_id: resolvedBranchId,
           }),
         },
       );
@@ -280,21 +498,6 @@ const AdminTransactions = () => {
     return icons[type] || "💳";
   };
 
-  const filteredTransactions = () => {
-    if (!searchTerm.trim()) return currentTransactions;
-    const term = searchTerm.toLowerCase().trim();
-    return currentTransactions.filter((t) => {
-      return (
-        (t.customer_name && t.customer_name.toLowerCase().includes(term)) ||
-        (t.customer_phone && t.customer_phone.includes(term)) ||
-        (t.reference && t.reference.toLowerCase().includes(term)) ||
-        (t.invoice_number && t.invoice_number.toLowerCase().includes(term)) ||
-        (t.transaction_id && t.transaction_id.toString().includes(term)) ||
-        (t.description && t.description.toLowerCase().includes(term))
-      );
-    });
-  };
-
   const totalPages = Math.ceil(transactions.length / itemsPerPage);
   const indexOfLastItem = currentPage * itemsPerPage;
   const indexOfFirstItem = indexOfLastItem - itemsPerPage;
@@ -302,6 +505,21 @@ const AdminTransactions = () => {
     indexOfFirstItem,
     indexOfLastItem,
   );
+
+  const filteredTransactions = () => {
+    if (!searchTerm.trim()) return currentTransactions;
+    const term = searchTerm.toLowerCase().trim();
+    return currentTransactions.filter((t) => {
+      return (
+        (t.customer_name && t.customer_name.toLowerCase().includes(term)) ||
+        (t.customer_phone && String(t.customer_phone).includes(term)) ||
+        (t.reference && t.reference.toLowerCase().includes(term)) ||
+        (t.invoice_number && t.invoice_number.toLowerCase().includes(term)) ||
+        (t.transaction_id && t.transaction_id.toString().includes(term)) ||
+        (t.description && t.description.toLowerCase().includes(term))
+      );
+    });
+  };
 
   const paginate = (pageNumber) => setCurrentPage(pageNumber);
   const nextPage = () => {
@@ -316,7 +534,6 @@ const AdminTransactions = () => {
     setShowDetailsModal(true);
   };
 
-  // Render payment slip preview inside modal (robust)
   const renderPaymentSlip = (t) => {
     if (!t?.payment_slip) return null;
 
@@ -361,7 +578,6 @@ const AdminTransactions = () => {
                 alt="Payment slip"
                 onError={(e) => {
                   console.error("[slip] failed to render. Length:", src.length);
-                  console.error("[slip] first 60 chars:", src.slice(0, 60));
                   e.target.style.display = "none";
                 }}
                 style={{
@@ -428,6 +644,148 @@ const AdminTransactions = () => {
     );
   };
 
+  // ------------------------------------------------------------
+  // Branch name / code — priority chain:
+  //   fetched record → context branch → branches list → placeholder
+  // ------------------------------------------------------------
+  const branchFromList = useMemo(
+    () =>
+      branches.find((b) => String(b.id) === String(resolvedBranchId)) || null,
+    [branches, resolvedBranchId],
+  );
+
+  const branchNameResolved = firstText(
+    branchMeta?.name,
+    branchMeta?.branch_name,
+    ctxBranch?.name,
+    ctxBranch?.branch_name,
+    branchFromList?.name,
+    branchFromList?.branch_name,
+  );
+
+  const branchName =
+    branchNameResolved ||
+    (resolvedBranchId !== null && resolvedBranchId !== undefined
+      ? `Branch #${resolvedBranchId}`
+      : "—");
+
+  const branchCode =
+    firstText(
+      branchMeta?.code,
+      branchMeta?.branch_code,
+      ctxBranch?.code,
+      branchFromList?.code,
+    ) || "—";
+
+  if (resolvedBranchId === null || resolvedBranchId === undefined) {
+    return (
+      <div style={{ padding: "24px", minHeight: "100vh" }}>
+        <div
+          style={{
+            maxWidth: 520,
+            margin: "60px auto",
+            padding: 24,
+            borderRadius: 12,
+            border: "1px solid var(--border)",
+            background: "var(--bg-surface-2)",
+            textAlign: "center",
+          }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 12 }}>🏢</div>
+          <h2
+            style={{
+              fontSize: 20,
+              fontWeight: 700,
+              marginBottom: 8,
+              color: "var(--text)",
+            }}
+          >
+            Select a branch
+          </h2>
+          <p
+            style={{
+              fontSize: 13,
+              color: "var(--text-muted)",
+              marginBottom: 20,
+              lineHeight: 1.6,
+            }}
+          >
+            Choose the branch whose transactions you want to view.
+          </p>
+
+          {branches.length === 0 ? (
+            <div
+              style={{
+                padding: 16,
+                borderRadius: 8,
+                background: "rgba(239,68,68,0.08)",
+                border: "1px solid rgba(239,68,68,0.3)",
+                color: "#fca5a5",
+                fontSize: 13,
+              }}
+            >
+              No branches found. Make sure at least one branch exists.
+            </div>
+          ) : (
+            <div style={{ display: "grid", gap: 8 }}>
+              {branches.map((b) => (
+                <button
+                  key={b.id}
+                  onClick={() => chooseBranch(b.id)}
+                  style={{
+                    padding: "12px 16px",
+                    borderRadius: 8,
+                    border: "1px solid var(--border)",
+                    background: "var(--bg-surface)",
+                    color: "var(--text)",
+                    cursor: "pointer",
+                    fontSize: 14,
+                    fontWeight: 500,
+                    display: "flex",
+                    justifyContent: "space-between",
+                    alignItems: "center",
+                  }}
+                >
+                  <span>
+                    <strong>{b.name}</strong>
+                    {b.code && (
+                      <span
+                        style={{
+                          color: "var(--text-muted)",
+                          marginLeft: 8,
+                          fontSize: 12,
+                        }}
+                      >
+                        {b.code}
+                      </span>
+                    )}
+                  </span>
+                  <span
+                    style={{
+                      fontSize: 11,
+                      padding: "2px 8px",
+                      borderRadius: 10,
+                      background:
+                        b.status === "active"
+                          ? "rgba(16,185,129,0.2)"
+                          : "rgba(107,114,128,0.2)",
+                      color:
+                        b.status === "active"
+                          ? "var(--credit)"
+                          : "var(--text-muted)",
+                    }}
+                  >
+                    {b.status || "active"}
+                  </span>
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
   if (loading) {
     return (
       <div
@@ -451,11 +809,7 @@ const AdminTransactions = () => {
             animation: "spin 1s linear infinite",
           }}
         />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -470,298 +824,73 @@ const AdminTransactions = () => {
       }}
     >
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        .transaction-table {
-          width: 100%;
-          border-collapse: collapse;
-          border: none;
-          background: transparent;
-        }
-        .transaction-table thead {
-          background: transparent;
-        }
-        .transaction-table th {
-          text-align: left;
-          padding: 12px 16px;
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border: none;
-        }
-        .transaction-table td {
-          padding: 12px 16px;
-          border: none;
-          color: var(--text);
-        }
-        .transaction-table tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
-        .transaction-table tbody tr:hover {
-          background-color: var(--bg-surface-2);
-        }
-        .badge {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 9999px;
-          font-size: 11px;
-          font-weight: 500;
-        }
-        .badge-completed,
-        .badge-approved {
-          background-color: rgba(16, 185, 129, 0.2);
-          color: var(--credit);
-          border: 1px solid rgba(16, 185, 129, 0.3);
-        }
-        .badge-pending {
-          background-color: rgba(234, 179, 8, 0.2);
-          color: var(--warning);
-          border: 1px solid rgba(234, 179, 8, 0.3);
-        }
-        .badge-failed,
-        .badge-rejected {
-          background-color: rgba(239, 68, 68, 0.2);
-          color: var(--debit);
-          border: 1px solid rgba(239, 68, 68, 0.3);
-        }
-        .badge-cancelled {
-          background-color: rgba(107, 114, 128, 0.2);
-          color: var(--text-muted);
-          border: 1px solid rgba(107, 114, 128, 0.3);
-        }
-        .badge-processing {
-          background-color: rgba(59, 130, 246, 0.2);
-          color: var(--info);
-          border: 1px solid rgba(59, 130, 246, 0.3);
-        }
-        .type-badge {
-          display: inline-block;
-          padding: 2px 8px;
-          border-radius: 4px;
-          font-size: 10px;
-          font-weight: 500;
-          text-transform: uppercase;
-        }
-        .type-deposit,
-        .type-credit {
-          background-color: rgba(16, 185, 129, 0.15);
-          color: var(--credit);
-        }
-        .type-withdrawal,
-        .type-debit {
-          background-color: rgba(239, 68, 68, 0.15);
-          color: var(--debit);
-        }
-        .type-payment {
-          background-color: rgba(59, 130, 246, 0.15);
-          color: var(--info);
-        }
-        .type-refund {
-          background-color: rgba(234, 179, 8, 0.15);
-          color: var(--warning);
-        }
-        .type-fee {
-          background-color: rgba(168, 85, 247, 0.15);
-          color: var(--purple);
-        }
-        .type-transfer {
-          background-color: rgba(99, 102, 241, 0.15);
-          color: #818cf8;
-        }
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-        .stat-card {
-          background-color: transparent;
-          border: none;
-          border-bottom: 1px solid var(--border);
-          border-radius: 0;
-          padding: 8px 0 12px 0;
-        }
-        .stat-label {
-          font-size: 12px;
-          color: var(--text-muted);
-        }
-        .stat-value {
-          font-size: 20px;
-          font-weight: 700;
-          margin-top: 4px;
-        }
-        .search-input {
-          width: 100%;
-          padding: 10px 0;
-          border-radius: 0;
-          border: none;
-          border-bottom: 1px solid var(--border);
-          background-color: transparent;
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          margin-bottom: 20px;
-          box-sizing: border-box;
-        }
-        .search-input:focus {
-          border-bottom-color: var(--accent);
-        }
-        .search-input::placeholder {
-          color: var(--text-dim);
-        }
-        .pagination {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0;
-          border-top: 1px solid var(--border);
-          margin-top: 4px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .pagination-info {
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-        .pagination-buttons {
-          display: flex;
-          gap: 4px;
-          flex-wrap: wrap;
-        }
-        .page-btn {
-          padding: 6px 12px;
-          border-radius: 6px;
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .transaction-table { width: 100%; border-collapse: collapse; border: none; background: transparent; }
+        .transaction-table thead { background: transparent; }
+        .transaction-table th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border: none; }
+        .transaction-table td { padding: 12px 16px; border: none; color: var(--text); }
+        .transaction-table tbody tr { border: none; background: transparent; transition: background-color 0.15s ease; }
+        .transaction-table tbody tr:hover { background-color: var(--bg-surface-2); }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
+        .badge-completed, .badge-approved { background-color: rgba(16,185,129,0.2); color: var(--credit); border: 1px solid rgba(16,185,129,0.3); }
+        .badge-pending { background-color: rgba(234,179,8,0.2); color: var(--warning); border: 1px solid rgba(234,179,8,0.3); }
+        .badge-failed, .badge-rejected { background-color: rgba(239,68,68,0.2); color: var(--debit); border: 1px solid rgba(239,68,68,0.3); }
+        .badge-cancelled { background-color: rgba(107,114,128,0.2); color: var(--text-muted); border: 1px solid rgba(107,114,128,0.3); }
+        .badge-processing { background-color: rgba(59,130,246,0.2); color: var(--info); border: 1px solid rgba(59,130,246,0.3); }
+        .type-badge { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 500; text-transform: uppercase; }
+        .type-deposit, .type-credit { background-color: rgba(16,185,129,0.15); color: var(--credit); }
+        .type-withdrawal, .type-debit { background-color: rgba(239,68,68,0.15); color: var(--debit); }
+        .type-payment { background-color: rgba(59,130,246,0.15); color: var(--info); }
+        .type-refund { background-color: rgba(234,179,8,0.15); color: var(--warning); }
+        .type-fee { background-color: rgba(168,85,247,0.15); color: var(--purple); }
+        .type-transfer { background-color: rgba(99,102,241,0.15); color: #818cf8; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card { background-color: transparent; border: none; border-bottom: 1px solid var(--border); border-radius: 0; padding: 8px 0 12px 0; }
+        .stat-label { font-size: 12px; color: var(--text-muted); }
+        .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+        .search-input { width: 100%; padding: 10px 0; border-radius: 0; border: none; border-bottom: 1px solid var(--border); background-color: transparent; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; margin-bottom: 20px; box-sizing: border-box; }
+        .search-input:focus { border-bottom-color: var(--accent); }
+        .search-input::placeholder { color: var(--text-dim); }
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; border-top: 1px solid var(--border); margin-top: 4px; flex-wrap: wrap; gap: 8px; }
+        .pagination-info { font-size: 13px; color: var(--text-muted); }
+        .pagination-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+        .page-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .page-btn:hover:not(:disabled) { background-color: var(--bg-surface-2); color: var(--text); }
+        .page-btn.active { background-color: var(--accent); border-color: var(--accent); color: white; }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .empty-state { text-align: center; padding: 48px 20px; color: var(--text-muted); }
+        .empty-icon { font-size: 48px; margin-bottom: 8px; }
+        .modal-overlay { position: fixed; inset: 0; background-color: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+        .modal-content { background-color: var(--bg-surface); border-radius: 16px; padding: 24px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-size: 18px; font-weight: bold; }
+        .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 24px; }
+        .modal-close:hover { color: var(--text); }
+        .detail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+        .detail-label { font-size: 11px; color: var(--text-muted); }
+        .detail-value { font-weight: 500; }
+        .btn-close { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
+        .btn-close:hover { background: var(--bg-surface-2); }
+        .slip-indicator { display: inline-flex; align-items: center; justify-content: center; margin-left: 6px; padding: 1px 5px; border-radius: 4px; background: rgba(96,165,250,0.15); color: var(--info); font-size: 10px; }
+        .refresh-btn {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 6px 12px; border-radius: 8px;
           border: 1px solid var(--border);
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          font-size: 13px;
-          transition: all 0.2s;
+          background: transparent; color: var(--text-muted);
+          font-size: 12px; font-weight: 600; cursor: pointer;
+          transition: all 0.15s;
         }
-        .page-btn:hover:not(:disabled) {
-          background-color: var(--bg-surface-2);
-          color: var(--text);
-        }
-        .page-btn.active {
-          background-color: var(--accent);
-          border-color: var(--accent);
-          color: white;
-        }
-        .page-btn:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-        .empty-state {
-          text-align: center;
-          padding: 48px 20px;
-          color: var(--text-muted);
-        }
-        .empty-icon {
-          font-size: 48px;
-          margin-bottom: 8px;
-        }
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background-color: rgba(0,0,0,0.7);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 999;
-          padding: 16px;
-        }
-        .modal-content {
-          background-color: var(--bg-surface);
-          border-radius: 16px;
-          padding: 24px;
-          max-width: 500px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: 1px solid var(--border);
-        }
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-        .modal-title {
-          font-size: 18px;
-          font-weight: bold;
-        }
-        .modal-close {
-          background: none;
-          border: none;
-          color: var(--text-muted);
-          cursor: pointer;
-          padding: 4px;
-          font-size: 24px;
-        }
-        .modal-close:hover {
-          color: var(--text);
-        }
-        .detail-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          font-size: 14px;
-        }
-        .detail-label {
-          font-size: 11px;
-          color: var(--text-muted);
-        }
-        .detail-value {
-          font-weight: 500;
-        }
-        .btn-close {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: transparent;
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .btn-close:hover {
-          background: var(--bg-surface-2);
-        }
-        .slip-indicator {
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          margin-left: 6px;
-          padding: 1px 5px;
-          border-radius: 4px;
-          background: rgba(96,165,250,0.15);
-          color: var(--info);
-          font-size: 10px;
-        }
+        .refresh-btn:hover:not(:disabled) { color: var(--credit); border-color: var(--credit); }
+        .refresh-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .refresh-btn .spin { display: inline-block; animation: spin 1s linear infinite; }
         @media (max-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          .detail-row {
-            grid-template-columns: 1fr;
-          }
-          .pagination {
-            flex-direction: column;
-            align-items: center;
-          }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .detail-row { grid-template-columns: 1fr; }
+          .pagination { flex-direction: column; align-items: center; }
         }
       `}</style>
 
-      {/* ===== 🆕 BRANCH BANNER ===== */}
+      {/* ===== Branch banner ===== */}
       <div
         style={{
           display: "flex",
@@ -786,7 +915,7 @@ const AdminTransactions = () => {
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {branchName}
             </div>
             <div
               style={{
@@ -795,7 +924,7 @@ const AdminTransactions = () => {
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} · Transactions for this branch ·{" "}
+              {branchCode} · Transactions for this branch ·{" "}
               <strong style={{ color: "var(--credit)" }}>
                 {transactions.length}
               </strong>{" "}
@@ -803,21 +932,67 @@ const AdminTransactions = () => {
             </div>
           </div>
         </div>
-        <span
+
+        <div
           style={{
-            padding: "4px 12px",
-            borderRadius: "20px",
-            fontSize: "11px",
-            fontWeight: "700",
-            textTransform: "uppercase",
-            letterSpacing: "0.5px",
-            background: "rgba(16, 185, 129, 0.2)",
-            color: "var(--credit)",
-            border: "1px solid rgba(16, 185, 129, 0.4)",
+            display: "flex",
+            gap: 8,
+            alignItems: "center",
+            flexWrap: "wrap",
           }}
         >
-          ● active branch
-        </span>
+          <button
+            type="button"
+            className="refresh-btn"
+            onClick={handleRefresh}
+            disabled={refreshing}
+            title="Refresh transactions and branch info"
+          >
+            <span className={refreshing ? "spin" : ""}>⟳</span>
+            {refreshing ? "Refreshing…" : "Refresh"}
+          </button>
+
+          {branches.length > 1 && (
+            <select
+              value={String(resolvedBranchId)}
+              onChange={(e) => {
+                const id = e.target.value;
+                if (id) chooseBranch(id);
+              }}
+              style={{
+                padding: "6px 10px",
+                borderRadius: 8,
+                border: "1px solid var(--border)",
+                background: "var(--bg-surface-2)",
+                color: "var(--text)",
+                fontSize: 12,
+                cursor: "pointer",
+              }}
+            >
+              {branches.map((b) => (
+                <option key={b.id} value={b.id}>
+                  {b.name} {b.code ? `· ${b.code}` : ""}
+                </option>
+              ))}
+            </select>
+          )}
+
+          <span
+            style={{
+              padding: "4px 12px",
+              borderRadius: "20px",
+              fontSize: "11px",
+              fontWeight: "700",
+              textTransform: "uppercase",
+              letterSpacing: "0.5px",
+              background: "rgba(16, 185, 129, 0.2)",
+              color: "var(--credit)",
+              border: "1px solid rgba(16, 185, 129, 0.4)",
+            }}
+          >
+            ● active branch
+          </span>
+        </div>
       </div>
 
       <h2
@@ -826,7 +1001,6 @@ const AdminTransactions = () => {
         💰 All Transactions
       </h2>
 
-      {/* Stats Cards */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total</div>
@@ -866,7 +1040,6 @@ const AdminTransactions = () => {
         </div>
       </div>
 
-      {/* Search */}
       <input
         type="text"
         className="search-input"
@@ -891,7 +1064,6 @@ const AdminTransactions = () => {
         </div>
       )}
 
-      {/* Transactions Table */}
       <div style={{ background: "transparent" }}>
         <div style={{ overflowX: "auto" }}>
           <table className="transaction-table">
@@ -946,6 +1118,17 @@ const AdminTransactions = () => {
                             }}
                           >
                             {t.customer_phone}
+                          </div>
+                        )}
+                        {t.memberId && (
+                          <div
+                            style={{
+                              fontSize: "11px",
+                              color: "var(--text-dim)",
+                            }}
+                          >
+                            ID #{t.memberId}
+                            {t.accountNumber ? ` · ${t.accountNumber}` : ""}
                           </div>
                         )}
                       </div>
@@ -1010,7 +1193,7 @@ const AdminTransactions = () => {
                       <p style={{ fontSize: "16px", fontWeight: "500" }}>
                         {searchTerm
                           ? "No transactions found"
-                          : `No transactions in ${activeBranch?.name || "this branch"} yet`}
+                          : `No transactions in ${branchName} yet`}
                       </p>
                       <p
                         style={{
@@ -1031,7 +1214,6 @@ const AdminTransactions = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {transactions.length > 0 && (
           <div className="pagination">
             <div className="pagination-info">
@@ -1083,7 +1265,6 @@ const AdminTransactions = () => {
         )}
       </div>
 
-      {/* Details Modal */}
       {showDetailsModal && selectedTransaction && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -1159,6 +1340,14 @@ const AdminTransactions = () => {
                   {selectedTransaction.customer_phone || "N/A"}
                 </div>
               </div>
+              {selectedTransaction.memberId && (
+                <div>
+                  <div className="detail-label">Member ID</div>
+                  <div className="detail-value">
+                    #{selectedTransaction.memberId}
+                  </div>
+                </div>
+              )}
               <div>
                 <div className="detail-label">Payment Method</div>
                 <div
@@ -1205,7 +1394,6 @@ const AdminTransactions = () => {
                 </div>
               )}
 
-              {/* Deposit charge breakdown */}
               {selectedTransaction.type === "deposit" &&
                 selectedTransaction.charge > 0 && (
                   <>
@@ -1230,7 +1418,6 @@ const AdminTransactions = () => {
                   </>
                 )}
 
-              {/* Rejection reason */}
               {selectedTransaction.status === "rejected" &&
                 selectedTransaction.rejection_reason && (
                   <div style={{ gridColumn: "1 / -1" }}>
@@ -1272,11 +1459,9 @@ const AdminTransactions = () => {
                   </div>
                 )}
 
-              {/* Payment slip */}
               {renderPaymentSlip(selectedTransaction)}
             </div>
 
-            {/* Action Buttons for Pending Transactions */}
             {selectedTransaction.status === "pending" && (
               <div
                 style={{
@@ -1368,7 +1553,6 @@ const AdminTransactions = () => {
         </div>
       )}
 
-      {/* Reject Reason Modal */}
       {showRejectModal && (
         <div className="modal-overlay" style={{ zIndex: 1000 }}>
           <div className="modal-content" style={{ maxWidth: "440px" }}>

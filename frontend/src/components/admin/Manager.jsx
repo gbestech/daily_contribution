@@ -1,136 +1,191 @@
 // src/components/admin/Manager.jsx
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
+import { useAuth } from "../../context/AuthContext";
+import { apiFetch } from "../../utils/api";
 
 const API_BASE_URL = "http://localhost:8000";
 
 const Manager = () => {
   const { activeBranch, activeBranchId } = useBranch();
+  const { user } = useAuth();
 
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
-  const [filterBranch, setFilterBranch] = useState("current"); // "current" | "all"
+  const [filterBranch, setFilterBranch] = useState("current");
   const [updatingId, setUpdatingId] = useState(null);
-  const [currentUser, setCurrentUser] = useState(null);
-
-  // 🆕 Branch id -> name map, so we can label rows from other branches
   const [branchMap, setBranchMap] = useState({});
+  const [branchMeta, setBranchMeta] = useState(null);
+  const [error, setError] = useState(null);
+  const lastFetchRef = useRef(0);
 
-  useEffect(() => {
-    const stored = localStorage.getItem("user");
-    if (stored) {
-      try {
-        setCurrentUser(JSON.parse(stored));
-      } catch (e) {
-        console.warn("[Manager] failed to parse stored user:", e);
+  // ---------- resolve branch id ----------
+  const resolvedBranchId = useMemo(() => {
+    const candidates = [
+      activeBranchId,
+      user?.branch_id,
+      user?.branchId,
+      activeBranch?.id,
+    ];
+    for (const c of candidates) {
+      const n = Number(c);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      for (const v of [stored?.branch_id, stored?.branchId]) {
+        const n = Number(v);
+        if (Number.isFinite(n) && n > 0) return n;
       }
+    } catch {}
+    return null;
+  }, [activeBranchId, activeBranch?.id, user?.branch_id, user?.branchId]);
+
+  const currentUser = useMemo(() => {
+    try {
+      return JSON.parse(localStorage.getItem("user") || "{}");
+    } catch {
+      return null;
     }
   }, []);
 
-  // ============================================================
-  // 🆕 Load branches once so we can display branch names
-  // ============================================================
+  // ---------- branch metadata (for banner) ----------
+  useEffect(() => {
+    if (!resolvedBranchId) {
+      setBranchMeta(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await apiFetch(
+          `/api/get-branch.php?id=${encodeURIComponent(resolvedBranchId)}`,
+          { headers: { Accept: "application/json" } },
+        );
+        if (!res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        const b = data?.branch || data?.data?.branch || data?.data || null;
+        if (b) setBranchMeta(b);
+      } catch (err) {
+        console.warn("[Manager] branch metadata fetch failed:", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [resolvedBranchId]);
+
+  // ---------- all branch names (for "All" mode) ----------
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/branches.php`, {
+        const res = await apiFetch("/api/branches.php", {
           headers: { Accept: "application/json" },
         });
+        if (!res.ok) return;
         const data = await res.json();
         if (cancelled) return;
-
         const list = Array.isArray(data?.branches) ? data.branches : [];
         const map = {};
         list.forEach((b) => {
-          if (b && b.id != null) {
+          if (b?.id != null)
             map[String(b.id)] = {
               name: b.name || `Branch ${b.id}`,
               code: b.code || "",
             };
-          }
         });
         setBranchMap(map);
       } catch (err) {
         console.warn("[Manager] failed to load branches:", err);
       }
     })();
-
     return () => {
       cancelled = true;
     };
   }, []);
 
-  // Resolve a branch display from a member row
-  const resolveBranch = (m) => {
-    const id = m.branch_id ?? m.branchId ?? null;
-    const fromMap = id != null ? branchMap[String(id)] : null;
-    const name =
-      m.branch_name ||
-      m.branchName ||
-      fromMap?.name ||
-      (id != null ? `Branch #${id}` : "—");
-    const code = m.branch_code || m.branchCode || fromMap?.code || "";
-    return { id, name, code };
-  };
+  const resolveBranch = useCallback(
+    (m) => {
+      const id = m.branch_id ?? m.branchId ?? null;
+      const fromMap = id != null ? branchMap[String(id)] : null;
+      return {
+        id,
+        name:
+          m.branch_name ||
+          m.branchName ||
+          fromMap?.name ||
+          (id != null ? `Branch #${id}` : "—"),
+        code: m.branch_code || m.branchCode || fromMap?.code || "",
+      };
+    },
+    [branchMap],
+  );
 
-  // ============================================================
-  // Determine which branch(es) to fetch
-  // ============================================================
+  // ---------- banner ----------
+  const bannerBranchName =
+    branchMeta?.name ||
+    activeBranch?.name ||
+    branchMap[String(resolvedBranchId || "")]?.name ||
+    currentUser?.branch_name ||
+    user?.branch_name ||
+    (resolvedBranchId ? `Branch #${resolvedBranchId}` : "Branch");
+
+  const bannerBranchCode =
+    branchMeta?.code ||
+    activeBranch?.code ||
+    branchMap[String(resolvedBranchId || "")]?.code ||
+    currentUser?.branch_code ||
+    user?.branch_code ||
+    (resolvedBranchId ? `ID #${resolvedBranchId}` : "—");
+
+  // ---------- fetch ----------
   const fetchManagers = useCallback(
     async ({ silent = false } = {}) => {
+      if (filterBranch === "current" && resolvedBranchId === null) {
+        setLoading(false);
+        return false;
+      }
+      const now = Date.now();
+      if (now - lastFetchRef.current < 500) return true;
+      lastFetchRef.current = now;
+
       if (silent) setRefreshing(true);
       else setLoading(true);
+      setError(null);
 
       try {
-        let url;
-        if (filterBranch === "all") {
-          url = `${API_BASE_URL}/api/members.php?all=1`;
-        } else if (activeBranchId) {
-          url = `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`;
-        } else {
-          url = `${API_BASE_URL}/api/members.php`;
-        }
+        const path =
+          filterBranch === "all"
+            ? "/api/members.php?all=1&role=manager"
+            : `/api/members.php?branch_id=${encodeURIComponent(resolvedBranchId)}&role=manager`;
 
-        const res = await fetch(url, {
-          headers: {
-            Accept: "application/json",
-            "X-User-Role": currentUser?.role || "",
-            "X-User-Branch-Id": String(activeBranchId || ""),
-          },
+        const res = await apiFetch(path, {
+          headers: { Accept: "application/json" },
         });
-
-        const text = await res.text();
-        let data = null;
-        try {
-          data = text ? JSON.parse(text) : null;
-        } catch {
-          throw new Error(`Server returned non-JSON (HTTP ${res.status})`);
-        }
-
         if (!res.ok) {
-          throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+          const data = await res.json().catch(() => ({}));
+          const msg = data.error || data.message || `HTTP ${res.status}`;
+          setError(msg);
+          if (!silent) toast.error(msg);
+          return false;
         }
 
+        const data = await res.json();
         const list = Array.isArray(data?.members) ? data.members : [];
 
-        // Keep only managers
-        const mgrs = list.filter((m) => {
-          const r = String(m.role || "")
-            .trim()
-            .toLowerCase();
-          return (
-            r === "manager" ||
-            r === "branch_manager" ||
-            r === "branch-manager" ||
-            r === "branchmanager"
-          );
-        });
-
-        const mapped = mgrs.map((m) => ({
+        // Backend already filters role=manager, so trust it.
+        const mapped = list.map((m) => ({
           id: m.id,
           name: m.name || m.full_name || "Unknown",
           email: m.email || "",
@@ -146,47 +201,44 @@ const Manager = () => {
         }));
 
         setManagers(mapped);
+        return true;
       } catch (e) {
-        console.error("[Manager] fetch error:", e);
-        toast.error(e.message || "Failed to load managers");
+        setError(e.message || "Failed to load managers");
+        if (!silent) toast.error(e.message || "Failed to load managers");
         setManagers([]);
+        return false;
       } finally {
         if (silent) setRefreshing(false);
         else setLoading(false);
       }
     },
-    [activeBranchId, filterBranch, currentUser?.role],
+    [filterBranch, resolvedBranchId],
   );
 
   useEffect(() => {
+    if (filterBranch === "current" && resolvedBranchId === null) {
+      setLoading(false);
+      return;
+    }
     fetchManagers();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId, filterBranch]);
+  }, [resolvedBranchId, filterBranch]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleRefresh = async () => {
-    await fetchManagers({ silent: true });
-    toast.success("🔄 Managers refreshed");
+    lastFetchRef.current = 0;
+    const ok = await fetchManagers({ silent: true });
+    if (ok) toast.success("🔄 Managers refreshed");
   };
 
-  // ============================================================
-  // Actions
-  // ============================================================
+  // ---------- actions ----------
   const handleDemote = async (manager) => {
     const isSelf = currentUser && Number(manager.id) === Number(currentUser.id);
-
     const msg = isSelf
       ? "⚠️ You are about to remove your own manager access. Continue?"
       : `Demote ${manager.name} from Manager to Member?`;
     if (!window.confirm(msg)) return;
-
     setUpdatingId(manager.id);
     try {
-      const targetBranchId = manager.branch_id ?? activeBranchId;
-      const putUrl = targetBranchId
-        ? `${API_BASE_URL}/api/members.php/${manager.id}?branch_id=${targetBranchId}`
-        : `${API_BASE_URL}/api/members.php/${manager.id}`;
-
-      const res = await fetch(putUrl, {
+      const res = await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -196,25 +248,19 @@ const Manager = () => {
           status: manager.status,
           balance: manager.balance || 0,
           role: "member",
-          branch_id: targetBranchId,
         }),
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setManagers((prev) => prev.filter((m) => m.id !== manager.id));
         toast.success(`✅ ${manager.name} is now a Member`);
-
-        if (isSelf) {
-          const updated = { ...currentUser, role: "member" };
-          localStorage.setItem("user", JSON.stringify(updated));
-          setCurrentUser(updated);
-        }
-      } else {
-        toast.error(data.message || data.error || "Failed to demote");
-      }
-    } catch (err) {
-      console.error(err);
+        if (isSelf)
+          localStorage.setItem(
+            "user",
+            JSON.stringify({ ...currentUser, role: "member" }),
+          );
+      } else toast.error(data.message || data.error || "Failed to demote");
+    } catch {
       toast.error("Failed to demote");
     } finally {
       setUpdatingId(null);
@@ -223,15 +269,9 @@ const Manager = () => {
 
   const handleSuspend = async (manager) => {
     if (!window.confirm(`Suspend ${manager.name}'s account?`)) return;
-
     setUpdatingId(manager.id);
     try {
-      const targetBranchId = manager.branch_id ?? activeBranchId;
-      const putUrl = targetBranchId
-        ? `${API_BASE_URL}/api/members.php/${manager.id}?branch_id=${targetBranchId}`
-        : `${API_BASE_URL}/api/members.php/${manager.id}`;
-
-      const res = await fetch(putUrl, {
+      const res = await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -241,11 +281,9 @@ const Manager = () => {
           status: "Suspended",
           balance: manager.balance || 0,
           role: "manager",
-          branch_id: targetBranchId,
         }),
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setManagers((prev) =>
           prev.map((m) =>
@@ -253,11 +291,8 @@ const Manager = () => {
           ),
         );
         toast.success(`🚫 ${manager.name} suspended`);
-      } else {
-        toast.error(data.message || data.error || "Failed to suspend");
-      }
-    } catch (err) {
-      console.error(err);
+      } else toast.error(data.message || data.error || "Failed to suspend");
+    } catch {
       toast.error("Failed to suspend");
     } finally {
       setUpdatingId(null);
@@ -267,12 +302,7 @@ const Manager = () => {
   const handleReactivate = async (manager) => {
     setUpdatingId(manager.id);
     try {
-      const targetBranchId = manager.branch_id ?? activeBranchId;
-      const putUrl = targetBranchId
-        ? `${API_BASE_URL}/api/members.php/${manager.id}?branch_id=${targetBranchId}`
-        : `${API_BASE_URL}/api/members.php/${manager.id}`;
-
-      const res = await fetch(putUrl, {
+      const res = await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -282,11 +312,9 @@ const Manager = () => {
           status: "Active",
           balance: manager.balance || 0,
           role: "manager",
-          branch_id: targetBranchId,
         }),
       });
-
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setManagers((prev) =>
           prev.map((m) =>
@@ -294,11 +322,8 @@ const Manager = () => {
           ),
         );
         toast.success(`✅ ${manager.name} reactivated`);
-      } else {
-        toast.error(data.message || data.error || "Failed to reactivate");
-      }
-    } catch (err) {
-      console.error(err);
+      } else toast.error(data.message || data.error || "Failed to reactivate");
+    } catch {
       toast.error("Failed to reactivate");
     } finally {
       setUpdatingId(null);
@@ -312,67 +337,52 @@ const Manager = () => {
       )
     )
       return;
-
     setUpdatingId(manager.id);
     try {
-      const targetBranchId = manager.branch_id ?? activeBranchId;
-      const delUrl = targetBranchId
-        ? `${API_BASE_URL}/api/members.php/${manager.id}?branch_id=${targetBranchId}`
-        : `${API_BASE_URL}/api/members.php/${manager.id}`;
-
-      const res = await fetch(delUrl, { method: "DELETE" });
-      const data = await res.json();
-
+      const res = await apiFetch(`/api/members.php/${manager.id}`, {
+        method: "DELETE",
+      });
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
         setManagers((prev) => prev.filter((m) => m.id !== manager.id));
         toast.success(`🗑️ ${manager.name} deleted`);
-      } else {
-        toast.error(data.message || data.error || "Failed to delete");
-      }
-    } catch (err) {
-      console.error(err);
+      } else toast.error(data.message || data.error || "Failed to delete");
+    } catch {
       toast.error("Failed to delete");
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // ============================================================
-  // Derived
-  // ============================================================
+  // ---------- derived ----------
   const filtered = useMemo(() => {
-    let list = [...managers];
-    if (searchTerm.trim()) {
-      const term = searchTerm.toLowerCase().trim();
-      list = list.filter((m) => {
-        const branch = resolveBranch(m);
-        return (
-          m.name?.toLowerCase().includes(term) ||
-          m.email?.toLowerCase().includes(term) ||
-          m.accountNumber?.includes(term) ||
-          m.phone?.includes(term) ||
-          branch.name?.toLowerCase().includes(term) ||
-          branch.code?.toLowerCase().includes(term)
-        );
-      });
-    }
-    return list;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [managers, searchTerm, branchMap]);
+    if (!searchTerm.trim()) return managers;
+    const term = searchTerm.toLowerCase().trim();
+    return managers.filter((m) => {
+      const branch = resolveBranch(m);
+      return (
+        m.name?.toLowerCase().includes(term) ||
+        m.email?.toLowerCase().includes(term) ||
+        m.accountNumber?.includes(term) ||
+        m.phone?.includes(term) ||
+        branch.name?.toLowerCase().includes(term) ||
+        branch.code?.toLowerCase().includes(term)
+      );
+    });
+  }, [managers, searchTerm, resolveBranch]);
 
-  const counts = useMemo(() => {
-    return {
+  const counts = useMemo(
+    () => ({
       total: managers.length,
       active: managers.filter((m) => m.status === "active").length,
       suspended: managers.filter((m) => m.status === "suspended").length,
       totalBalance: managers.reduce((s, m) => s + (m.balance || 0), 0),
-    };
-  }, [managers]);
+    }),
+    [managers],
+  );
 
-  // ============================================================
-  // Loading
-  // ============================================================
-  if (loading) {
+  // ---------- loading ----------
+  if (loading && managers.length === 0) {
     return (
       <div
         style={{
@@ -391,9 +401,7 @@ const Manager = () => {
     );
   }
 
-  // ============================================================
-  // Render
-  // ============================================================
+  // ---------- render ----------
   return (
     <div
       style={{
@@ -406,202 +414,56 @@ const Manager = () => {
     >
       <style>{`
         @keyframes mgrSpin { to { transform: rotate(360deg); } }
-        .mgr-header {
-          display: flex; justify-content: space-between;
-          align-items: flex-start; flex-wrap: wrap;
-          gap: 16px; margin-bottom: 24px;
-        }
-        .mgr-header h2 {
-          font-size: 24px; font-weight: 700; margin: 0;
-          color: var(--text);
-        }
-        .mgr-header p {
-          color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
-        }
-        .mgr-btn-outline {
-          padding: 10px 18px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: background 0.15s, opacity 0.15s;
-        }
+        .mgr-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+        .mgr-header h2 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text); }
+        .mgr-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
+        .mgr-btn-outline { padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; }
         .mgr-btn-outline:hover:not(:disabled) { background: var(--bg-surface-3); }
         .mgr-btn-outline:disabled { opacity: 0.6; cursor: not-allowed; }
-        .mgr-btn-outline .mgr-spin {
-          display: inline-block; animation: mgrSpin 1s linear infinite;
-        }
-
-        .mgr-stats {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px; margin-bottom: 20px;
-        }
-        .mgr-stat {
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .mgr-stat-label {
-          font-size: 12px; color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px; font-weight: 600;
-        }
+        .mgr-btn-outline .mgr-spin { display: inline-block; animation: mgrSpin 1s linear infinite; }
+        .mgr-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .mgr-stat { display: flex; flex-direction: column; gap: 6px; }
+        .mgr-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
         .mgr-stat-value { font-size: 22px; font-weight: 700; }
-
-        .mgr-filter-bar {
-          display: flex; gap: 10px; flex-wrap: wrap;
-          margin-bottom: 20px;
-        }
-        .mgr-filter-input, .mgr-filter-select {
-          background: var(--bg-surface-2);
-          color: var(--text);
-          padding: 10px 14px;
-          border-radius: 8px;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          transition: box-shadow 0.2s;
-        }
+        .mgr-filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .mgr-filter-input, .mgr-filter-select { background: var(--bg-surface-2); color: var(--text); padding: 10px 14px; border-radius: 8px; border: none; outline: none; font-size: 14px; }
         .mgr-filter-input { flex: 1; min-width: 220px; }
         .mgr-filter-input::placeholder { color: var(--text-dim); }
-        .mgr-filter-input:focus, .mgr-filter-select:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-        .mgr-filter-select option {
-          background: var(--bg-surface); color: var(--text);
-        }
-
+        .mgr-filter-input:focus, .mgr-filter-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .mgr-filter-select option { background: var(--bg-surface); color: var(--text); }
         .mgr-table-wrap { overflow: auto; }
-        .mgr-table-wrap table {
-          width: 100%; border-collapse: collapse; background: transparent;
-        }
-        .mgr-table-wrap th {
-          color: var(--text-muted);
-          font-size: 11px; font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 12px 16px;
-          text-align: left;
-          white-space: nowrap;
-          border: none;
-        }
-        .mgr-table-wrap td {
-          padding: 12px 16px;
-          color: var(--text); font-size: 13px;
-          vertical-align: middle;
-          border: none;
-        }
-        .mgr-table-wrap tbody tr {
-          transition: background-color 0.15s ease;
-        }
-        .mgr-table-wrap tbody tr:hover td {
-          background: var(--bg-surface-2);
-        }
-
-        .mgr-avatar {
-          width: 36px; height: 36px;
-          border-radius: 50%;
-          background: var(--accent-bg);
-          color: var(--badge-text);
-          display: flex; align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          flex-shrink: 0;
-          overflow: hidden;
-        }
-        .mgr-avatar img {
-          width: 100%; height: 100%; object-fit: cover;
-        }
-        .mgr-member-cell {
-          display: flex; align-items: center; gap: 10px;
-        }
-
-        .mgr-branch {
-          display: inline-flex;
-          align-items: center;
-          gap: 6px;
-          padding: 4px 10px;
-          border-radius: 20px;
-          font-size: 12px;
-          font-weight: 500;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          border: 1px solid var(--border);
-        }
-        .mgr-branch-code {
-          color: var(--text-muted);
-          font-size: 11px;
-          font-family: monospace;
-        }
-        .mgr-branch-muted {
-          color: var(--text-muted);
-          font-size: 12px;
-          font-style: italic;
-        }
-
-        .mgr-badge {
-          display: inline-flex;
-          align-items: center; gap: 5px;
-          padding: 4px 12px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--badge-text);
-          text-transform: capitalize;
-        }
-
-        .mgr-action-btn {
-          padding: 6px 10px;
-          border-radius: 6px;
-          border: 1px solid var(--border);
-          background: transparent;
-          color: var(--text);
-          cursor: pointer;
-          font-size: 12px;
-          font-weight: 500;
-          transition: all 0.15s;
-        }
-        .mgr-action-btn:hover:not(:disabled) {
-          background: var(--bg-surface-2);
-        }
-        .mgr-action-btn:disabled {
-          opacity: 0.5; cursor: not-allowed;
-        }
-        .mgr-action-btn.warning {
-          color: var(--warning); border-color: var(--warning);
-        }
-        .mgr-action-btn.warning:hover:not(:disabled) {
-          background: var(--pending-bg);
-        }
-        .mgr-action-btn.success {
-          color: var(--credit); border-color: var(--credit);
-        }
-        .mgr-action-btn.success:hover:not(:disabled) {
-          background: var(--approved-bg);
-        }
-        .mgr-action-btn.danger {
-          color: var(--debit); border-color: var(--debit);
-        }
-        .mgr-action-btn.danger:hover:not(:disabled) {
-          background: var(--rejected-bg);
-        }
-
-        .mgr-empty {
-          text-align: center;
-          padding: 60px 20px;
-          color: var(--text-muted);
-          border: 1px dashed var(--border);
-          border-radius: 12px;
-        }
+        .mgr-table-wrap table { width: 100%; border-collapse: collapse; background: transparent; }
+        .mgr-table-wrap th { color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border: none; }
+        .mgr-table-wrap td { padding: 12px 16px; color: var(--text); font-size: 13px; vertical-align: middle; border: none; }
+        .mgr-table-wrap tbody tr:hover td { background: var(--bg-surface-2); }
+        .mgr-avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--accent-bg); color: var(--badge-text); display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; overflow: hidden; }
+        .mgr-avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .mgr-member-cell { display: flex; align-items: center; gap: 10px; }
+        .mgr-branch { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 20px; font-size: 12px; font-weight: 500; background: var(--bg-surface-2); color: var(--text); border: 1px solid var(--border); }
+        .mgr-branch-code { color: var(--text-muted); font-size: 11px; font-family: monospace; }
+        .mgr-branch-muted { color: var(--text-muted); font-size: 12px; font-style: italic; }
+        .mgr-badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 20px; font-size: 11px; font-weight: 600; color: var(--badge-text); text-transform: capitalize; }
+        .mgr-action-btn { padding: 6px 10px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font-size: 12px; font-weight: 500; }
+        .mgr-action-btn:hover:not(:disabled) { background: var(--bg-surface-2); }
+        .mgr-action-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mgr-action-btn.warning { color: var(--warning); border-color: var(--warning); }
+        .mgr-action-btn.warning:hover:not(:disabled) { background: var(--pending-bg); }
+        .mgr-action-btn.success { color: var(--credit); border-color: var(--credit); }
+        .mgr-action-btn.success:hover:not(:disabled) { background: var(--approved-bg); }
+        .mgr-action-btn.danger { color: var(--debit); border-color: var(--debit); }
+        .mgr-action-btn.danger:hover:not(:disabled) { background: var(--rejected-bg); }
+        .mgr-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
         .mgr-empty-icon { font-size: 48px; margin-bottom: 8px; }
+        .mgr-alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.4); color: var(--debit); }
       `}</style>
 
-      {/* Branch banner */}
+      {error && (
+        <div className="mgr-alert">
+          <strong>⚠️ Could not load managers.</strong> {error}
+        </div>
+      )}
+
+      {/* Banner */}
       <div
         style={{
           display: "flex",
@@ -626,7 +488,7 @@ const Manager = () => {
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {bannerBranchName}
             </div>
             <div
               style={{
@@ -635,7 +497,7 @@ const Manager = () => {
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} ·{" "}
+              {bannerBranchCode} ·{" "}
               {filterBranch === "all"
                 ? "Showing managers from all branches"
                 : "Managers in this branch only"}{" "}
@@ -662,7 +524,6 @@ const Manager = () => {
         </span>
       </div>
 
-      {/* Header */}
       <div className="mgr-header">
         <div>
           <h2>👔 Branch Managers</h2>
@@ -671,7 +532,7 @@ const Manager = () => {
             <strong>
               {filterBranch === "all"
                 ? "every branch"
-                : activeBranch?.name || "this branch"}
+                : bannerBranchName || "this branch"}
             </strong>{" "}
             — manage their access here.
           </p>
@@ -687,7 +548,6 @@ const Manager = () => {
         </button>
       </div>
 
-      {/* Stats */}
       <div className="mgr-stats">
         <div className="mgr-stat">
           <span className="mgr-stat-label">👔 Total Managers</span>
@@ -722,7 +582,6 @@ const Manager = () => {
         </div>
       </div>
 
-      {/* Filter bar */}
       <div className="mgr-filter-bar">
         <input
           type="text"
@@ -741,17 +600,12 @@ const Manager = () => {
         </select>
       </div>
 
-      {/* Table */}
       {filtered.length === 0 ? (
         <div className="mgr-empty">
           <div className="mgr-empty-icon">👔</div>
           <p>
             {managers.length === 0
-              ? `No managers found in ${
-                  filterBranch === "all"
-                    ? "any branch"
-                    : activeBranch?.name || "this branch"
-                }. Promote a member to Manager to see them here.`
+              ? `No managers found in ${filterBranch === "all" ? "any branch" : bannerBranchName || "this branch"}. Promote a member to Manager to see them here.`
               : "No managers match your search."}
           </p>
         </div>
@@ -776,9 +630,8 @@ const Manager = () => {
                 const branch = resolveBranch(m);
                 const isActiveBranch =
                   branch.id != null &&
-                  activeBranchId != null &&
-                  String(branch.id) === String(activeBranchId);
-
+                  resolvedBranchId != null &&
+                  String(branch.id) === String(resolvedBranchId);
                 return (
                   <tr key={m.id}>
                     <td>
@@ -793,35 +646,31 @@ const Manager = () => {
                             (m.name || "U").charAt(0)
                           )}
                         </div>
-                        <div>
-                          <div
-                            style={{
-                              color: "var(--text)",
-                              fontWeight: 500,
-                              fontSize: "14px",
-                            }}
-                          >
-                            {m.name}
-                            {isSelf && (
-                              <span
-                                style={{
-                                  marginLeft: "8px",
-                                  fontSize: "10px",
-                                  color: "var(--badge-text)",
-                                  background: "var(--accent-bg)",
-                                  padding: "2px 6px",
-                                  borderRadius: "10px",
-                                }}
-                              >
-                                YOU
-                              </span>
-                            )}
-                          </div>
+                        <div
+                          style={{
+                            color: "var(--text)",
+                            fontWeight: 500,
+                            fontSize: "14px",
+                          }}
+                        >
+                          {m.name}
+                          {isSelf && (
+                            <span
+                              style={{
+                                marginLeft: "8px",
+                                fontSize: "10px",
+                                color: "var(--badge-text)",
+                                background: "var(--accent-bg)",
+                                padding: "2px 6px",
+                                borderRadius: "10px",
+                              }}
+                            >
+                              YOU
+                            </span>
+                          )}
                         </div>
                       </div>
                     </td>
-
-                    {/* 🆕 Branch column */}
                     <td>
                       {branch.id != null ? (
                         <span
@@ -855,7 +704,6 @@ const Manager = () => {
                         <span className="mgr-branch-muted">—</span>
                       )}
                     </td>
-
                     <td>
                       <div style={{ color: "var(--text)", fontSize: "13px" }}>
                         {m.email}
@@ -917,17 +765,14 @@ const Manager = () => {
                           className="mgr-action-btn warning"
                           onClick={() => handleDemote(m)}
                           disabled={updatingId === m.id}
-                          title="Demote to Member"
                         >
                           ⬇ Demote
                         </button>
-
                         {m.status === "active" ? (
                           <button
                             className="mgr-action-btn danger"
                             onClick={() => handleSuspend(m)}
                             disabled={updatingId === m.id}
-                            title="Suspend account"
                           >
                             🚫 Suspend
                           </button>
@@ -936,17 +781,14 @@ const Manager = () => {
                             className="mgr-action-btn success"
                             onClick={() => handleReactivate(m)}
                             disabled={updatingId === m.id}
-                            title="Reactivate account"
                           >
                             ✅ Reactivate
                           </button>
                         )}
-
                         <button
                           className="mgr-action-btn danger"
                           onClick={() => handleDelete(m)}
                           disabled={updatingId === m.id}
-                          title="Delete permanently"
                         >
                           🗑
                         </button>

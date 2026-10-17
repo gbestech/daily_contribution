@@ -12,21 +12,43 @@ const Layout = ({ children }) => {
   const { user, logout } = useAuth();
   const { can } = usePermission();
 
+  // ============================================================
+  // Branch context — trusted when mounted
+  // ============================================================
   let activeBranchId = null;
+  let branchContextAvailable = false;
   try {
-    activeBranchId = useBranch()?.activeBranchId ?? null;
+    const branchCtx = useBranch();
+    activeBranchId = branchCtx?.activeBranchId ?? null;
+    branchContextAvailable = true;
   } catch {
     /* BranchProvider not mounted on this route */
   }
-  const branchId = activeBranchId || user?.branch_id || null;
+
+  // If BranchContext is available, trust activeBranchId (including null).
+  // If not, fall back to user.branch_id.
+  let branchId = null;
+  if (branchContextAvailable) {
+    branchId = activeBranchId;
+  } else {
+    const raw = user?.branch_id ?? user?.branchId ?? null;
+    if (raw !== null && raw !== undefined && String(raw).trim() !== "") {
+      const n = Number(raw);
+      branchId = Number.isFinite(n) && n > 0 ? n : null;
+    }
+  }
 
   const location = useLocation();
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
-  const [shopName, setShopName] = useState("Osittech");
-  const [loading, setLoading] = useState(true);
   const [hoveredItem, setHoveredItem] = useState(null);
+
+  // ============================================================
+  // Shop name — always from the DB, never cached
+  // ============================================================
+  const [shopName, setShopName] = useState("");
+  const [shopNameLoading, setShopNameLoading] = useState(true);
 
   const role = String(user?.role || "")
     .trim()
@@ -44,36 +66,72 @@ const Layout = ({ children }) => {
     );
   const hideChrome = isProfileRoute && profileIncomplete;
 
+  // ============================================================
+  // Fetch shop name from /api/settings.php?branch_id=N
+  // Guarantees:
+  //   - No cached value ever displayed
+  //   - Resets on branch change
+  //   - Resets on error
+  //   - Only displays a non-empty string from the DB
+  // ============================================================
   useEffect(() => {
     let cancelled = false;
 
     const fetchShopName = async () => {
-      setLoading(true);
+      setShopNameLoading(true);
+
+      // 🔑 Reset BEFORE fetch — no stale name during the in-flight request
+      setShopName("");
+
+      // No branch id → no shop name. Keep blank.
+      if (branchId === null || branchId === undefined) {
+        setShopNameLoading(false);
+        return;
+      }
+
       try {
-        const qs = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : "";
-        const response = await fetch(`${API_BASE_URL}/api/settings.php${qs}`);
+        const url = `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(
+          branchId,
+        )}`;
+
+        const response = await fetch(url, {
+          cache: "no-store", // 🔑 never serve a cached response
+          headers: { Accept: "application/json" },
+        });
+
+        if (!response.ok) {
+          // 400 = no branch, 404 = branch doesn't exist, 500 = server error.
+          // Leave shopName empty.
+          if (!cancelled) setShopName("");
+          return;
+        }
+
         const data = await response.json();
         if (cancelled) return;
 
-        const name = data?.status && data?.data?.general?.shop_name;
-        setShopName(name || "Osittech");
-      } catch (error) {
+        const rawName = data?.data?.general?.shop_name;
+        const name = typeof rawName === "string" ? rawName.trim() : "";
+
+        // 🔑 Only accept a non-empty string. Empty → stay blank.
+        setShopName(name);
+      } catch (err) {
         if (!cancelled) {
-          console.error("[Layout] Error fetching shop name:", error);
-          setShopName("Osittech");
+          console.warn("[Layout] shop name fetch failed:", err);
+          setShopName("");
         }
       } finally {
-        if (!cancelled) setLoading(false);
+        if (!cancelled) setShopNameLoading(false);
       }
     };
 
     fetchShopName();
 
-    window.addEventListener("settings:updated", fetchShopName);
+    const onSettingsUpdated = () => fetchShopName();
+    window.addEventListener("settings:updated", onSettingsUpdated);
 
     return () => {
       cancelled = true;
-      window.removeEventListener("settings:updated", fetchShopName);
+      window.removeEventListener("settings:updated", onSettingsUpdated);
     };
   }, [branchId]);
 
@@ -94,9 +152,6 @@ const Layout = ({ children }) => {
     window.location.href = "/login";
   };
 
-  // ----------------------------------------------------------
-  // Navigation items
-  // ----------------------------------------------------------
   const adminNavItems = [
     {
       path: "/admin",
@@ -110,21 +165,18 @@ const Layout = ({ children }) => {
       icon: "👥",
       permission: "view_broadsheet",
     },
-    // 🆕 Managers
     {
       path: "/admin/managers",
       label: "Managers",
       icon: "👔",
       permission: "manage_staff",
     },
-    // 🆕 Reshuffle — right after Managers
     {
       path: "/admin/reshuffle",
       label: "Reshuffle",
       icon: "🔀",
       permission: "manage_staff",
     },
-    // 🆕 Daily Marks — right after Reshuffle
     {
       path: "/admin/daily-marks",
       label: "Daily Marks",
@@ -151,7 +203,7 @@ const Layout = ({ children }) => {
     },
     {
       path: "/admin/users",
-      label: "Users",
+      label: "Members",
       icon: "👤",
       permission: "create_member",
     },
@@ -241,19 +293,12 @@ const Layout = ({ children }) => {
   const rawItems = isAdmin || isManager ? adminNavItems : memberNavItems;
   const navItems = rawItems.filter((item) => can(item.permission));
 
-  useEffect(() => {
-    // eslint-disable-next-line no-console
-    console.log(
-      "[Layout] role:",
-      role,
-      "| branch:",
-      branchId,
-      "| navItems:",
-      navItems.map((i) => i.label),
-    );
-  }, [role, branchId, navItems]);
-
   const sidebarWidth = isCollapsed ? "70px" : "250px";
+  const panelLabel = isAdmin
+    ? "Admin Panel"
+    : isManager
+      ? "Manager Panel"
+      : "Member Panel";
 
   if (hideChrome) {
     return (
@@ -293,7 +338,6 @@ const Layout = ({ children }) => {
           transition: "background-color 0.25s ease, color 0.25s ease",
         }}
       >
-        {/* Sidebar */}
         <div
           style={{
             width: isMobile ? (isMobileOpen ? "280px" : "0px") : sidebarWidth,
@@ -311,24 +355,35 @@ const Layout = ({ children }) => {
             flexDirection: "column",
           }}
         >
-          {/* Header Section */}
+          {/* Header — shop name from the DB, panel label as subtitle */}
           <div
             style={{
               display: "flex",
               alignItems: "center",
-              justifyContent: isCollapsed ? "center" : "space-between",
+              justifyContent: isCollapsed ? "center" : "flex-start",
+              gap: "10px",
               marginBottom: "32px",
               padding: isCollapsed ? "0" : "0 4px",
               flexShrink: 0,
             }}
           >
+            <span
+              style={{
+                fontSize: isCollapsed ? "24px" : "28px",
+                lineHeight: 1,
+                flexShrink: 0,
+              }}
+            >
+              🏦
+            </span>
             {!isCollapsed && (
-              <div style={{ textAlign: "left", width: "100%" }}>
-                {loading ? (
+              <div style={{ minWidth: 0, flex: 1 }}>
+                {shopNameLoading ? (
+                  // Skeleton while loading — no text shown until real data arrives
                   <div
                     style={{
-                      height: "20px",
-                      width: "130px",
+                      height: "14px",
+                      width: "120px",
                       borderRadius: "4px",
                       background:
                         "linear-gradient(90deg, var(--bg-surface-2), var(--bg-surface-3), var(--bg-surface-2))",
@@ -336,52 +391,55 @@ const Layout = ({ children }) => {
                       animation: "shimmer 1.4s infinite",
                     }}
                   />
+                ) : shopName ? (
+                  <>
+                    <p
+                      style={{
+                        color: "var(--text)",
+                        fontSize: "14px",
+                        fontWeight: "700",
+                        margin: 0,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
+                        letterSpacing: "0.2px",
+                      }}
+                      title={shopName}
+                    >
+                      {shopName}
+                    </p>
+                    <p
+                      style={{
+                        color: "var(--text-muted)",
+                        fontSize: "10px",
+                        margin: "2px 0 0 0",
+                        letterSpacing: "0.3px",
+                        textTransform: "uppercase",
+                      }}
+                    >
+                      {panelLabel}
+                    </p>
+                  </>
                 ) : (
-                  <h2
+                  // No name in DB → show ONLY the panel label, no placeholder
+                  <p
                     style={{
-                      color: "var(--text)",
-                      fontSize: "18px",
-                      fontWeight: "bold",
+                      color: "var(--text-muted)",
+                      fontSize: "12px",
+                      fontWeight: "700",
                       margin: 0,
-                      overflow: "hidden",
-                      textOverflow: "ellipsis",
+                      letterSpacing: "0.3px",
                       whiteSpace: "nowrap",
                     }}
-                    title={shopName}
                   >
-                    🏦 {shopName}
-                  </h2>
+                    {panelLabel}
+                  </p>
                 )}
-                <p
-                  style={{
-                    color: "var(--text-muted)",
-                    fontSize: "10px",
-                    margin: "2px 0 0 0",
-                  }}
-                >
-                  {isAdmin
-                    ? "Admin Panel"
-                    : isManager
-                      ? "Manager Panel"
-                      : "Member Panel"}
-                </p>
-              </div>
-            )}
-            {isCollapsed && (
-              <div style={{ textAlign: "center", width: "100%" }}>
-                <span style={{ fontSize: "24px" }}>🏦</span>
               </div>
             )}
           </div>
 
-          {/* Navigation */}
-          <nav
-            style={{
-              flex: 1,
-              overflowY: "auto",
-              marginBottom: "16px",
-            }}
-          >
+          <nav style={{ flex: 1, overflowY: "auto", marginBottom: "16px" }}>
             {navItems.length === 0 ? (
               <div
                 style={{
@@ -415,10 +473,7 @@ const Layout = ({ children }) => {
                 return (
                   <div
                     key={item.path}
-                    style={{
-                      position: "relative",
-                      marginBottom: "4px",
-                    }}
+                    style={{ position: "relative", marginBottom: "4px" }}
                     onMouseEnter={() => setHoveredItem(item.path)}
                     onMouseLeave={() => setHoveredItem(null)}
                   >
@@ -500,7 +555,6 @@ const Layout = ({ children }) => {
             )}
           </nav>
 
-          {/* User Info Section */}
           <div
             style={{
               padding: isCollapsed ? "12px 8px" : "16px 4px",
@@ -646,7 +700,6 @@ const Layout = ({ children }) => {
           </div>
         </div>
 
-        {/* Main Content */}
         <div
           style={{
             marginLeft: isMobile ? "0" : sidebarWidth,
