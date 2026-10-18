@@ -6,18 +6,15 @@ import { useBranch } from "../../context/BranchContext";
 import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL = "http://localhost:8000";
-
-// Members per page
 const MEMBERS_PER_PAGE = 10;
 
 const AdminDashboard = () => {
   const { activeBranch, activeBranchId } = useBranch();
   const { user } = useAuth();
 
-  // ============================================================
-  // Branch shown on the banner card.
-  // ============================================================
+  // Branch ID used for every API call in this dashboard
   const branchId = activeBranchId || user?.branch_id || null;
+
   const [fallbackBranch, setFallbackBranch] = useState(null);
 
   useEffect(() => {
@@ -51,7 +48,7 @@ const AdminDashboard = () => {
         : null);
 
   // ============================================================
-  // 🆕 Branch savings method ("both" | "cash" | "item")
+  // Branch savings method
   // ============================================================
   const [branchSavingsMethod, setBranchSavingsMethod] = useState("both");
   const [branchSettingsLoaded, setBranchSettingsLoaded] = useState(false);
@@ -64,7 +61,7 @@ const AdminDashboard = () => {
     }
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/settings.php?branch_id=${branchId}`,
+        `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
       );
       const data = await res.json();
       const method = data?.data?.items?.savings_methods;
@@ -85,7 +82,6 @@ const AdminDashboard = () => {
     fetchBranchSettings();
   }, [fetchBranchSettings]);
 
-  // Convenience flags
   const allowCash =
     branchSavingsMethod === "both" || branchSavingsMethod === "cash";
   const allowItem =
@@ -121,10 +117,8 @@ const AdminDashboard = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [activeTab, setActiveTab] = useState("members");
 
-  // ===== PAGINATION =====
   const [membersPage, setMembersPage] = useState(1);
 
-  // ===== VOICE STATE =====
   const [isListening, setIsListening] = useState(false);
   const [voiceTranscript, setVoiceTranscript] = useState("");
   const [voiceFeedback, setVoiceFeedback] = useState("");
@@ -132,7 +126,6 @@ const AdminDashboard = () => {
   const recognitionRef = useRef(null);
   const voiceFeedbackTimerRef = useRef(null);
 
-  // ===== TRANSFER LOOKUP STATE =====
   const [fromAccountInput, setFromAccountInput] = useState("");
   const [toAccountInput, setToAccountInput] = useState("");
   const [fromMemberError, setFromMemberError] = useState("");
@@ -270,7 +263,6 @@ const AdminDashboard = () => {
     return sum;
   }, 0);
 
-  // Fast lookup: accountNumber -> member
   const memberByAccount = React.useMemo(() => {
     const map = {};
     members.forEach((m) => {
@@ -279,7 +271,6 @@ const AdminDashboard = () => {
     return map;
   }, [members]);
 
-  // Resolved members for the current transfer form
   const fromMemberLookup = transferData.fromMemberId
     ? members.find((m) => m.id === parseInt(transferData.fromMemberId))
     : null;
@@ -290,8 +281,7 @@ const AdminDashboard = () => {
   const testApiConnection = async () => {
     try {
       const response = await apiFetch("/api/admin.php");
-      if (response.ok) return true;
-      return false;
+      return response.ok;
     } catch (error) {
       return false;
     }
@@ -312,7 +302,17 @@ const AdminDashboard = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ============================================================
+  // ✅ THIS IS THE KEY FIX: append ?branch_id= to every call
+  // ============================================================
   const fetchAllData = async () => {
+    if (!branchId) {
+      // No branch yet — do NOT fire requests (backend would 400)
+      return;
+    }
+
+    const q = `?branch_id=${encodeURIComponent(branchId)}`;
+
     try {
       const isConnected = await testApiConnection();
       if (!isConnected) {
@@ -322,7 +322,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await apiFetch("/api/admin.php");
+        const response = await apiFetch(`/api/admin.php${q}`);
         const adminData = await response.json();
         if (adminData.username) setAdminUsername(adminData.username);
       } catch (profileError) {
@@ -330,7 +330,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await apiFetch("/api/members.php");
+        const response = await apiFetch(`/api/members.php${q}`);
         const membersData = await response.json();
         if (membersData.members) setMembers(membersData.members);
       } catch (membersError) {
@@ -338,7 +338,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await apiFetch("/api/transactions.php");
+        const response = await apiFetch(`/api/transactions.php${q}`);
         const transactionsData = await response.json();
         if (transactionsData.transactions)
           setTransactions(transactionsData.transactions);
@@ -347,7 +347,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await apiFetch("/api/loans.php");
+        const response = await apiFetch(`/api/loans.php${q}`);
         const loansData = await response.json();
         if (loansData.loans) {
           setLoans(loansData.loans);
@@ -362,7 +362,7 @@ const AdminDashboard = () => {
       }
 
       try {
-        const response = await apiFetch("/api/expenses.php");
+        const response = await apiFetch(`/api/expenses.php${q}`);
         const expensesData = await response.json();
         if (expensesData.expenses) {
           setExpenses(expensesData.expenses);
@@ -386,7 +386,11 @@ const AdminDashboard = () => {
       const response = await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: loanId, status: "approved" }),
+        body: JSON.stringify({
+          id: loanId,
+          status: "approved",
+          branch_id: branchId,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
@@ -406,7 +410,11 @@ const AdminDashboard = () => {
       const response = await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id: loanId, status: "rejected" }),
+        body: JSON.stringify({
+          id: loanId,
+          status: "rejected",
+          branch_id: branchId,
+        }),
       });
       const data = await response.json();
       if (response.ok) {
@@ -424,7 +432,7 @@ const AdminDashboard = () => {
     if (!window.confirm("Approve this transaction?")) return;
     try {
       const response = await apiFetch(
-        `/api/transactions.php/${transactionId}/approve`,
+        `/api/transactions.php/${transactionId}/approve?branch_id=${encodeURIComponent(branchId)}`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
       const data = await response.json();
@@ -445,8 +453,15 @@ const AdminDashboard = () => {
     if (!window.confirm("Reject this transaction?")) return;
     try {
       const response = await apiFetch(
-        `/api/transactions.php/${transactionId}/reject`,
-        { method: "PUT", headers: { "Content-Type": "application/json" } },
+        `/api/transactions.php/${transactionId}/reject?branch_id=${encodeURIComponent(branchId)}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            branch_id: branchId,
+            reason: "Rejected by admin",
+          }),
+        },
       );
       const data = await response.json();
       if (response.ok && data.success) {
@@ -464,7 +479,7 @@ const AdminDashboard = () => {
     if (!window.confirm("Approve this expense?")) return;
     try {
       const response = await apiFetch(
-        `/api/expenses.php/${expenseId}/approve`,
+        `/api/expenses.php/${expenseId}/approve?branch_id=${encodeURIComponent(branchId)}`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
       const data = await response.json();
@@ -482,10 +497,10 @@ const AdminDashboard = () => {
   const handleRejectExpense = async (expenseId) => {
     if (!window.confirm("Reject this expense?")) return;
     try {
-      const response = await apiFetch(`/api/expenses.php/${expenseId}/reject`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await apiFetch(
+        `/api/expenses.php/${expenseId}/reject?branch_id=${encodeURIComponent(branchId)}`,
+        { method: "PUT", headers: { "Content-Type": "application/json" } },
+      );
       const data = await response.json();
       if (response.ok && data.success) {
         toast.success("❌ Expense rejected!");
@@ -501,10 +516,13 @@ const AdminDashboard = () => {
   const handleDeleteExpense = async (expenseId) => {
     if (!window.confirm("⚠️ Delete this expense record permanently?")) return;
     try {
-      const response = await apiFetch(`/api/expenses.php/${expenseId}`, {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-      });
+      const response = await apiFetch(
+        `/api/expenses.php/${expenseId}?branch_id=${encodeURIComponent(branchId)}`,
+        {
+          method: "DELETE",
+          headers: { "Content-Type": "application/json" },
+        },
+      );
       if (response.ok) {
         toast.success("✅ Expense deleted!");
         await fetchAllData();
@@ -530,6 +548,7 @@ const AdminDashboard = () => {
     }
 
     const expense = {
+      branch_id: branchId,
       title: expenseData.title,
       category: expenseData.category,
       amount: amount,
@@ -566,7 +585,14 @@ const AdminDashboard = () => {
     }
   };
 
+  // ============================================================
+  // Initial load — wait for branchId before firing
+  // ============================================================
   useEffect(() => {
+    if (!branchId) {
+      setLoading(false);
+      return;
+    }
     const loadData = async () => {
       setLoading(true);
       try {
@@ -581,7 +607,7 @@ const AdminDashboard = () => {
     };
     loadData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]);
+  }, [branchId]);
 
   const handleSelectAll = () => {
     if (selectAll) {
@@ -622,6 +648,7 @@ const AdminDashboard = () => {
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               ...member,
+              branch_id: branchId,
               status: "Suspended",
               suspension_reason: "Bulk suspension by admin",
               suspended_date: new Date().toISOString().split("T")[0],
@@ -726,7 +753,6 @@ const AdminDashboard = () => {
       member.phone?.includes(searchTerm),
   );
 
-  // ===== PAGINATION COMPUTATION =====
   const totalMemberPages = Math.max(
     1,
     Math.ceil(filteredMembers.length / MEMBERS_PER_PAGE),
@@ -784,6 +810,7 @@ const AdminDashboard = () => {
     }
 
     const memberData = {
+      branch_id: branchId,
       accountNumber: accountNumber,
       name: newMember.name,
       email: newMember.email,
@@ -861,6 +888,7 @@ const AdminDashboard = () => {
     }
 
     const transaction = {
+      branch_id: branchId,
       memberId: member.id,
       memberName: member.name,
       accountNumber: member.accountNumber,
@@ -945,6 +973,7 @@ const AdminDashboard = () => {
     }
 
     const transfer = {
+      branch_id: branchId,
       fromMemberId: fromMember.id,
       toMemberId: toMember.id,
       fromMemberName: fromMember.name,
@@ -1026,7 +1055,7 @@ const AdminDashboard = () => {
       const response = await apiFetch(`/api/members.php/${selectedMember.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(selectedMember),
+        body: JSON.stringify({ ...selectedMember, branch_id: branchId }),
       });
       const data = await response.json();
       if (response.ok) {
@@ -1075,9 +1104,8 @@ const AdminDashboard = () => {
   };
 
   // ============================================================
-  // ===== VOICE RECOGNITION =====
+  // Voice recognition (unchanged)
   // ============================================================
-
   const showVoiceFeedback = useCallback((msg) => {
     setVoiceFeedback(msg);
     if (voiceFeedbackTimerRef.current) {
@@ -1232,7 +1260,6 @@ const AdminDashboard = () => {
         return;
       }
 
-      // 🆕 Branch plan query
       if (
         text.includes("branch plan") ||
         text.includes("savings method") ||
@@ -1992,7 +2019,6 @@ const AdminDashboard = () => {
           transition: width 0.6s ease;
         }
 
-        /* 🆕 Branch plan pill */
         .branch-plan-pill {
           display: inline-flex;
           align-items: center;
@@ -2037,7 +2063,7 @@ const AdminDashboard = () => {
         }
       `}</style>
 
-      {/* BRANCH BANNER — shows which group is active + savings method */}
+      {/* BRANCH BANNER */}
       <div
         style={{
           display: "flex",
@@ -2086,7 +2112,6 @@ const AdminDashboard = () => {
             flexWrap: "wrap",
           }}
         >
-          {/* 🆕 Branch plan badge */}
           <span
             className={`branch-plan-pill ${branchSavingsMethod}`}
             title="Savings method configured for this branch"
@@ -2260,7 +2285,7 @@ const AdminDashboard = () => {
         </div>
       </div>
 
-      {/* 🆕 Branch plan info note when not "both" */}
+      {/* Branch plan warning */}
       {branchSettingsLoaded && branchSavingsMethod !== "both" && (
         <div className="branch-plan-warning">
           <span style={{ fontSize: 20 }}>
@@ -2278,7 +2303,7 @@ const AdminDashboard = () => {
         </div>
       )}
 
-      {/* Stats Grid */}
+      {/* Stats */}
       <div
         style={{
           display: "grid",
@@ -2338,155 +2363,71 @@ const AdminDashboard = () => {
           flexWrap: "wrap",
         }}
       >
-        <button
-          onClick={() => setActiveTab("members")}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            padding: "10px",
-            backgroundColor: "transparent",
-            color:
-              activeTab === "members" ? "var(--credit)" : "var(--text-muted)",
-            border: "none",
-            borderBottom:
-              activeTab === "members"
-                ? "2px solid var(--credit)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-        >
-          👥 Members
-        </button>
-        <button
-          onClick={() => setActiveTab("pending_loans")}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            padding: "10px",
-            backgroundColor: "transparent",
-            color:
-              activeTab === "pending_loans"
-                ? "var(--warning)"
-                : "var(--text-muted)",
-            border: "none",
-            borderBottom:
-              activeTab === "pending_loans"
-                ? "2px solid var(--warning)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-            position: "relative",
-          }}
-        >
-          ⏳ Pending Loans
-          {pendingLoans.length > 0 && (
-            <span
+        {[
+          { key: "members", label: "👥 Members", color: "var(--credit)" },
+          {
+            key: "pending_loans",
+            label: "⏳ Pending Loans",
+            color: "var(--warning)",
+          },
+          { key: "all_loans", label: "📊 All Loans", color: "var(--purple)" },
+          {
+            key: "transactions",
+            label: "💳 Transactions",
+            color: "var(--info)",
+          },
+          { key: "expenses", label: "🧾 Expenses", color: "var(--debit)" },
+        ].map((tab) => {
+          const count =
+            tab.key === "pending_loans"
+              ? pendingLoans.length
+              : tab.key === "expenses"
+                ? pendingExpenses.length
+                : 0;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setActiveTab(tab.key)}
               style={{
-                position: "absolute",
-                top: "-8px",
-                right: "-8px",
-                backgroundColor: "var(--debit)",
-                color: "var(--text)",
-                fontSize: "10px",
-                fontWeight: "bold",
-                padding: "2px 6px",
-                borderRadius: "50%",
-                minWidth: "18px",
-                textAlign: "center",
+                flex: 1,
+                minWidth: "120px",
+                padding: "10px",
+                backgroundColor: "transparent",
+                color: activeTab === tab.key ? tab.color : "var(--text-muted)",
+                border: "none",
+                borderBottom:
+                  activeTab === tab.key
+                    ? `2px solid ${tab.color}`
+                    : "2px solid transparent",
+                cursor: "pointer",
+                fontSize: "14px",
+                fontWeight: "600",
+                position: "relative",
               }}
             >
-              {pendingLoans.length}
-            </span>
-          )}
-        </button>
-        <button
-          onClick={() => setActiveTab("all_loans")}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            padding: "10px",
-            backgroundColor: "transparent",
-            color:
-              activeTab === "all_loans" ? "var(--purple)" : "var(--text-muted)",
-            border: "none",
-            borderBottom:
-              activeTab === "all_loans"
-                ? "2px solid var(--purple)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-        >
-          📊 All Loans
-        </button>
-        <button
-          onClick={() => setActiveTab("transactions")}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            padding: "10px",
-            backgroundColor: "transparent",
-            color:
-              activeTab === "transactions"
-                ? "var(--info)"
-                : "var(--text-muted)",
-            border: "none",
-            borderBottom:
-              activeTab === "transactions"
-                ? "2px solid var(--info)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-          }}
-        >
-          💳 Transactions
-        </button>
-        <button
-          onClick={() => setActiveTab("expenses")}
-          style={{
-            flex: 1,
-            minWidth: "120px",
-            padding: "10px",
-            backgroundColor: "transparent",
-            color:
-              activeTab === "expenses" ? "var(--debit)" : "var(--text-muted)",
-            border: "none",
-            borderBottom:
-              activeTab === "expenses"
-                ? "2px solid var(--debit)"
-                : "2px solid transparent",
-            cursor: "pointer",
-            fontSize: "14px",
-            fontWeight: "600",
-            position: "relative",
-          }}
-        >
-          🧾 Expenses
-          {pendingExpenses.length > 0 && (
-            <span
-              style={{
-                position: "absolute",
-                top: "-8px",
-                right: "-8px",
-                backgroundColor: "var(--debit)",
-                color: "var(--text)",
-                fontSize: "10px",
-                fontWeight: "bold",
-                padding: "2px 6px",
-                borderRadius: "50%",
-                minWidth: "18px",
-                textAlign: "center",
-              }}
-            >
-              {pendingExpenses.length}
-            </span>
-          )}
-        </button>
+              {tab.label}
+              {count > 0 && (
+                <span
+                  style={{
+                    position: "absolute",
+                    top: "-8px",
+                    right: "-8px",
+                    backgroundColor: "var(--debit)",
+                    color: "var(--text)",
+                    fontSize: "10px",
+                    fontWeight: "bold",
+                    padding: "2px 6px",
+                    borderRadius: "50%",
+                    minWidth: "18px",
+                    textAlign: "center",
+                  }}
+                >
+                  {count}
+                </span>
+              )}
+            </button>
+          );
+        })}
       </div>
 
       {/* Members Tab */}
@@ -3600,7 +3541,6 @@ const AdminDashboard = () => {
             selectedMember.savings_plan ||
             "Daily";
 
-          // 🆕 Fallback: if member has no savings method, use branch default
           const memberMethodRaw =
             selectedMember.savingsMethod || selectedMember.savings_method;
           const savingsMethod = memberMethodRaw

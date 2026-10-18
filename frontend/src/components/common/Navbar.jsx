@@ -5,6 +5,7 @@ import { useAuth } from "../../context/AuthContext";
 import { useTheme } from "../../context/ThemeContext";
 import { useBranch } from "../../context/BranchContext";
 import BranchSwitcher from "./BranchSwitcher";
+import NotificationBell from "./NotificationBell";
 
 const API_BASE_URL = "http://localhost:8000";
 
@@ -112,9 +113,6 @@ const Navbar = ({
   const { themeKey, setTheme, availableThemes } = useTheme();
   const { activeBranch, activeBranchId } = useBranch();
 
-  // Admin: the branch they switched to. Manager / member: their own branch.
-  // (Without this, managers sent no branch_id and the backend answered with
-  // the FIRST active branch's name.)
   const branchId = activeBranchId || user?.branch_id || null;
 
   const location = useLocation();
@@ -142,16 +140,12 @@ const Navbar = ({
   const currentTheme = availableThemes.find((t) => t.key === themeKey) ||
     availableThemes[0] || { name: "Theme", icon: "🎨" };
 
-  // ============================================================
-  // Role detection — supports admin / administrator / manager / member
-  // ============================================================
   const rawRole = String(user?.role || "")
     .trim()
     .toLowerCase();
   const isAdmin = rawRole === "admin" || rawRole === "administrator";
   const isManager = rawRole === "manager" || rawRole === "branch_manager";
 
-  // Use a single source of truth for the label/icon
   const roleLabel = isAdmin ? "Admin" : isManager ? "Manager" : "Member";
   const roleIcon = isAdmin ? "👑" : isManager ? "📊" : "👤";
 
@@ -174,28 +168,21 @@ const Navbar = ({
       .charAt(0)
       .toUpperCase();
 
-  // ============================================================
-  // Shop name — for THIS user's branch.
-  // Refetches when the branch changes and right after Settings is saved.
-  // ============================================================
+  // Shop name
   useEffect(() => {
     let cancelled = false;
 
     const fetchShopName = async () => {
-      // No branch known → don't ask (the server would guess the first branch)
       if (!branchId) {
         setShopName(activeBranch?.name || "Savings Hub");
         return;
       }
-
       try {
         const response = await fetch(
           `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
         );
         const data = await response.json();
-
         if (cancelled) return;
-
         if (data.status && data.data && data.data.general) {
           const general = data.data.general;
           if (general.shop_name && general.shop_name.trim() !== "") {
@@ -203,21 +190,15 @@ const Navbar = ({
             return;
           }
         }
-
         setShopName(activeBranch?.name || "Savings Hub");
       } catch (error) {
         console.error("Error fetching shop name:", error);
-        if (!cancelled) {
-          setShopName(activeBranch?.name || "Savings Hub");
-        }
+        if (!cancelled) setShopName(activeBranch?.name || "Savings Hub");
       }
     };
 
     fetchShopName();
-
-    // Re-read after the admin saves General settings
     window.addEventListener("settings:updated", fetchShopName);
-
     return () => {
       cancelled = true;
       window.removeEventListener("settings:updated", fetchShopName);
@@ -257,9 +238,7 @@ const Navbar = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // ============================================================
-  // VOICE ASSISTANT
-  // ============================================================
+  // Voice assistant
   const speak = useCallback((text) => {
     if (!("speechSynthesis" in window)) return;
     try {
@@ -274,9 +253,8 @@ const Navbar = ({
 
   const showVoiceFeedback = useCallback((msg, ms = 3500) => {
     setVoiceFeedback(msg);
-    if (voiceFeedbackTimerRef.current) {
+    if (voiceFeedbackTimerRef.current)
       clearTimeout(voiceFeedbackTimerRef.current);
-    }
     voiceFeedbackTimerRef.current = setTimeout(() => setVoiceFeedback(""), ms);
   }, []);
 
@@ -311,11 +289,9 @@ const Navbar = ({
     for (const r of routes) {
       let score = 0;
       for (const kw of r.keywords) {
-        if (cleaned === kw) {
-          score += 100;
-        } else if (cleaned.includes(kw)) {
-          score += 50 + kw.length;
-        } else {
+        if (cleaned === kw) score += 100;
+        else if (cleaned.includes(kw)) score += 50 + kw.length;
+        else {
           const words = cleaned.split(/\s+/).filter(Boolean);
           for (const w of words) {
             if (w.length < 3) continue;
@@ -368,14 +344,12 @@ const Navbar = ({
       }
 
       const match = matchRoute(raw);
-      if (match) {
-        fireRoute(match.route);
-      } else {
+      if (match) fireRoute(match.route);
+      else
         showVoiceFeedback(
           `🤔 Didn't catch "${raw}". Try "open reports".`,
           3000,
         );
-      }
     },
     [matchRoute, fireRoute, showVoiceFeedback, speak],
   );
@@ -470,9 +444,8 @@ const Navbar = ({
           voiceRecognitionRef.current.abort();
         } catch (e) {}
       }
-      if (voiceFeedbackTimerRef.current) {
+      if (voiceFeedbackTimerRef.current)
         clearTimeout(voiceFeedbackTimerRef.current);
-      }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAdmin, isManager]);
@@ -521,11 +494,8 @@ const Navbar = ({
   };
 
   const toggleSidebar = () => {
-    if (window.innerWidth < 768) {
-      setIsMobileOpen(!isMobileOpen);
-    } else {
-      setIsCollapsed(!isCollapsed);
-    }
+    if (window.innerWidth < 768) setIsMobileOpen(!isMobileOpen);
+    else setIsCollapsed(!isCollapsed);
   };
 
   const getPageTitle = () => {
@@ -795,6 +765,9 @@ const Navbar = ({
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {isAdmin && <BranchSwitcher />}
 
+          {/* 🔔 Notification Bell */}
+          <NotificationBell />
+
           {!isMobile && voiceSupported && (
             <button
               onClick={toggleVoice}
@@ -888,7 +861,6 @@ const Navbar = ({
             </div>
           )}
 
-          {/* Role badge — uses roleLabel so Manager shows correctly */}
           <span
             style={{
               padding: "4px 12px",

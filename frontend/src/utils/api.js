@@ -1,5 +1,10 @@
 // src/utils/api.js
-const API_BASE_URL = "http://localhost:8000";
+// ============================================================
+// ⚠️ CHANGE THIS to the URL that actually serves your PHP backend.
+// Confirm by opening in a browser (must return JSON, not 404):
+//   http://localhost/baleeg/api/transactions.php?branch_id=1
+// ============================================================
+const API_BASE_URL = "http://localhost/baleeg";
 
 const BRANCH_REQUIRED_PATHS = [
     "/api/members.php",
@@ -79,20 +84,18 @@ export const apiFetch = async (path, options = {}) => {
     const needsBranch = requiresBranch(path);
     const isAllQuery = /[?&]all=1(&|$)/.test(path);
 
-    if (!isPublic && needsBranch && !isAllQuery && !path.includes("branch_id=")) {
-        if (branchId === null) {
-            console.warn(
-                `[apiFetch] Skipped "${path}" — no branch_id available yet.`,
-            );
-            return new Response(
-                JSON.stringify({
-                    error: "branch_id is required",
-                    synthetic: true,
-                    path,
-                }),
-                { status: 400, headers: { "Content-Type": "application/json" } },
-            );
-        }
+    // ------------------------------------------------------------
+    // Only append ?branch_id= when path needs it AND it isn't there yet.
+    // Do NOT short-circuit on missing branchId — let the backend answer
+    // so you see a real 400 with a real message (not a synthetic one).
+    // ------------------------------------------------------------
+    if (
+        !isPublic &&
+        needsBranch &&
+        !isAllQuery &&
+        !path.includes("branch_id=") &&
+        branchId !== null
+    ) {
         const sep = url.includes("?") ? "&" : "?";
         url = `${url}${sep}branch_id=${encodeURIComponent(branchId)}`;
     }
@@ -124,5 +127,5 @@ export const apiFetch = async (path, options = {}) => {
     return fetch(url, { ...options, headers });
 };
 
-export { resolveBranchId };
+export { resolveBranchId, API_BASE_URL };
 export default apiFetch;

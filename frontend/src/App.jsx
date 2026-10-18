@@ -10,6 +10,7 @@ import Login from "./pages/auth/Login";
 import Register from "./pages/auth/Register";
 import ForgotPassword from "./pages/auth/ForgotPassword";
 import ProtectedRoute from "./components/common/ProtectedRoute";
+import NotificationsPage from "./components/common/NotificationsPage";
 
 // Admin
 import AdminDashboard from "./components/admin/Dashboard";
@@ -29,7 +30,7 @@ import PasswordResets from "./components/admin/PasswordResets";
 import ItemManager from "./components/admin/ItemManager";
 import Manager from "./components/admin/Manager";
 import Reshuffle from "./components/admin/Reshuffle";
-import AdminDailyMarks from "./components/admin/DailyMarks"; // 🆕
+import AdminDailyMarks from "./components/admin/DailyMarks";
 
 // Member
 import MemberDashboard from "./components/member/Dashboard";
@@ -53,7 +54,7 @@ function AppRoutes() {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/register-member" element={<PublicRegister />} />
 
-      {/* ============ ADMIN / MANAGER ROUTES ============ */}
+      {/* ADMIN */}
       <Route
         path="/admin"
         element={
@@ -134,7 +135,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* 🆕 Reshuffle — right after Broadsheet */}
       <Route
         path="/admin/reshuffle"
         element={
@@ -145,7 +145,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* 🆕 Daily Marks (manager-only marking) */}
       <Route
         path="/admin/daily-marks"
         element={
@@ -196,7 +195,6 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
-      {/* 🆕 Managers */}
       <Route
         path="/admin/managers"
         element={
@@ -237,6 +235,19 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* 🔔 Admin/Manager Notifications — BEFORE catch-all */}
+      <Route
+        path="/admin/notifications"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NotificationsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/admin/*"
         element={
@@ -248,7 +259,7 @@ function AppRoutes() {
         }
       />
 
-      {/* ============ MEMBER ROUTES ============ */}
+      {/* MEMBER */}
       <Route
         path="/member"
         element={
@@ -341,6 +352,19 @@ function AppRoutes() {
           </ProtectedRoute>
         }
       />
+
+      {/* 🔔 Member Notifications — BEFORE catch-all */}
+      <Route
+        path="/member/notifications"
+        element={
+          <ProtectedRoute>
+            <Layout>
+              <NotificationsPage />
+            </Layout>
+          </ProtectedRoute>
+        }
+      />
+
       <Route
         path="/member/*"
         element={
