@@ -9,10 +9,18 @@ const API_BASE_URL = "http://localhost:8000";
 const MEMBERS_PER_PAGE = 10;
 
 const AdminDashboard = () => {
-  const { activeBranch, activeBranchId } = useBranch();
+  // Support activeBranch OR selectedBranch (whichever context exposes)
+  const branchCtx = useBranch() || {};
   const { user } = useAuth();
 
-  // Branch ID used for every API call in this dashboard
+  const activeBranch =
+    branchCtx.activeBranch || branchCtx.selectedBranch || null;
+  const activeBranchId =
+    branchCtx.activeBranchId ??
+    branchCtx.selectedBranchId ??
+    activeBranch?.id ??
+    null;
+
   const branchId = activeBranchId || user?.branch_id || null;
 
   const [fallbackBranch, setFallbackBranch] = useState(null);
@@ -25,9 +33,8 @@ const AdminDashboard = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE_URL}/api/branches.php`);
-        const data = await res.json();
-        const found = (data.branches || []).find(
+        const data = await apiFetch(`/api/branches.php`);
+        const found = (data?.branches || []).find(
           (b) => String(b.id) === String(branchId),
         );
         if (!cancelled) setFallbackBranch(found || null);
@@ -47,9 +54,7 @@ const AdminDashboard = () => {
         ? { name: user.branch_name, code: user.branch_code }
         : null);
 
-  // ============================================================
   // Branch savings method
-  // ============================================================
   const [branchSavingsMethod, setBranchSavingsMethod] = useState("both");
   const [branchSettingsLoaded, setBranchSettingsLoaded] = useState(false);
 
@@ -60,10 +65,9 @@ const AdminDashboard = () => {
       return;
     }
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
+      const data = await apiFetch(
+        `/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
       );
-      const data = await res.json();
       const method = data?.data?.items?.savings_methods;
       setBranchSavingsMethod(
         method === "cash" || method === "item" || method === "both"
@@ -103,7 +107,6 @@ const AdminDashboard = () => {
   const [expenses, setExpenses] = useState([]);
   const [pendingExpenses, setPendingExpenses] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [error, setError] = useState(null);
   const [selectedMembers, setSelectedMembers] = useState([]);
   const [selectAll, setSelectAll] = useState(false);
 
@@ -172,7 +175,7 @@ const AdminDashboard = () => {
     }).format(amount);
   };
 
-  // ===== Reusable Member Avatar =====
+  // Reusable Member Avatar
   const MemberAvatar = ({ member, size = 48 }) => {
     const raw =
       member?.passport_photo ||
@@ -271,119 +274,82 @@ const AdminDashboard = () => {
     return map;
   }, [members]);
 
-  const fromMemberLookup = transferData.fromMemberId
-    ? members.find((m) => m.id === parseInt(transferData.fromMemberId))
-    : null;
-  const toMemberLookup = transferData.toMemberId
-    ? members.find((m) => m.id === parseInt(transferData.toMemberId))
-    : null;
-
-  const testApiConnection = async () => {
-    try {
-      const response = await apiFetch("/api/admin.php");
-      return response.ok;
-    } catch (error) {
-      return false;
-    }
-  };
-
-  const refreshData = useCallback(async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      await fetchAllData();
-      await fetchBranchSettings();
-      toast.success("Data refreshed successfully!");
-    } catch (error) {
-      toast.error("Failed to refresh data");
-    } finally {
-      setLoading(false);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  // ============================================================
-  // ✅ THIS IS THE KEY FIX: append ?branch_id= to every call
-  // ============================================================
-  const fetchAllData = async () => {
-    if (!branchId) {
-      // No branch yet — do NOT fire requests (backend would 400)
-      return;
-    }
+  // fetchAllData — each endpoint independently protected
+  const fetchAllData = useCallback(async () => {
+    if (!branchId) return;
 
     const q = `?branch_id=${encodeURIComponent(branchId)}`;
 
     try {
-      const isConnected = await testApiConnection();
-      if (!isConnected) {
-        throw new Error(
-          "Cannot connect to API server. Please check if the server is running on port 8000.",
+      const adminData = await apiFetch(`/api/admin.php${q}`);
+      if (adminData?.username) setAdminUsername(adminData.username);
+    } catch (err) {
+      console.warn("[AdminDashboard] admin.php failed:", err);
+      setAdminUsername("Admin");
+    }
+
+    try {
+      const membersData = await apiFetch(`/api/members.php${q}`);
+      if (Array.isArray(membersData?.members)) setMembers(membersData.members);
+    } catch (err) {
+      console.warn("[AdminDashboard] members.php failed:", err);
+      setMembers([]);
+    }
+
+    try {
+      const transactionsData = await apiFetch(`/api/transactions.php${q}`);
+      if (Array.isArray(transactionsData?.transactions))
+        setTransactions(transactionsData.transactions);
+    } catch (err) {
+      console.warn("[AdminDashboard] transactions.php failed:", err);
+      setTransactions([]);
+    }
+
+    try {
+      const loansData = await apiFetch(`/api/loans.php${q}`);
+      if (Array.isArray(loansData?.loans)) {
+        setLoans(loansData.loans);
+        setPendingLoans(loansData.loans.filter((l) => l.status === "pending"));
+      }
+    } catch (err) {
+      console.warn("[AdminDashboard] loans.php failed:", err);
+      setLoans([]);
+      setPendingLoans([]);
+    }
+
+    try {
+      const expensesData = await apiFetch(`/api/expenses.php${q}`);
+      if (Array.isArray(expensesData?.expenses)) {
+        setExpenses(expensesData.expenses);
+        setPendingExpenses(
+          expensesData.expenses.filter((e) => e.status === "pending"),
         );
       }
-
-      try {
-        const response = await apiFetch(`/api/admin.php${q}`);
-        const adminData = await response.json();
-        if (adminData.username) setAdminUsername(adminData.username);
-      } catch (profileError) {
-        setAdminUsername("Admin");
-      }
-
-      try {
-        const response = await apiFetch(`/api/members.php${q}`);
-        const membersData = await response.json();
-        if (membersData.members) setMembers(membersData.members);
-      } catch (membersError) {
-        setMembers([]);
-      }
-
-      try {
-        const response = await apiFetch(`/api/transactions.php${q}`);
-        const transactionsData = await response.json();
-        if (transactionsData.transactions)
-          setTransactions(transactionsData.transactions);
-      } catch (transactionsError) {
-        setTransactions([]);
-      }
-
-      try {
-        const response = await apiFetch(`/api/loans.php${q}`);
-        const loansData = await response.json();
-        if (loansData.loans) {
-          setLoans(loansData.loans);
-          const pending = loansData.loans.filter(
-            (loan) => loan.status === "pending",
-          );
-          setPendingLoans(pending);
-        }
-      } catch (loansError) {
-        setLoans([]);
-        setPendingLoans([]);
-      }
-
-      try {
-        const response = await apiFetch(`/api/expenses.php${q}`);
-        const expensesData = await response.json();
-        if (expensesData.expenses) {
-          setExpenses(expensesData.expenses);
-          const pending = expensesData.expenses.filter(
-            (expense) => expense.status === "pending",
-          );
-          setPendingExpenses(pending);
-        }
-      } catch (expensesError) {
-        setExpenses([]);
-        setPendingExpenses([]);
-      }
-    } catch (error) {
-      throw error;
+    } catch (err) {
+      console.warn("[AdminDashboard] expenses.php failed:", err);
+      setExpenses([]);
+      setPendingExpenses([]);
     }
-  };
+  }, [branchId]);
 
+  const refreshData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await fetchAllData();
+      await fetchBranchSettings();
+      toast.success("Data refreshed successfully!");
+    } catch (err) {
+      toast.error(err.message || "Failed to refresh data");
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchAllData, fetchBranchSettings]);
+
+  // Action handlers
   const handleApproveLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to approve this loan?")) return;
     try {
-      const response = await apiFetch("/api/loans.php", {
+      await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -392,22 +358,17 @@ const AdminDashboard = () => {
           branch_id: branchId,
         }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("✅ Loan approved successfully!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to approve loan");
-      }
-    } catch (error) {
-      toast.error("Failed to approve loan. Please try again.");
+      toast.success("✅ Loan approved successfully!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to approve loan");
     }
   };
 
   const handleRejectLoan = async (loanId) => {
     if (!window.confirm("Are you sure you want to reject this loan?")) return;
     try {
-      const response = await apiFetch("/api/loans.php", {
+      await apiFetch("/api/loans.php", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -416,43 +377,33 @@ const AdminDashboard = () => {
           branch_id: branchId,
         }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        toast.success("❌ Loan rejected!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to reject loan");
-      }
-    } catch (error) {
-      toast.error("Failed to reject loan. Please try again.");
+      toast.success("❌ Loan rejected!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to reject loan");
     }
   };
 
   const handleApproveTransaction = async (transactionId) => {
     if (!window.confirm("Approve this transaction?")) return;
     try {
-      const response = await apiFetch(
+      const data = await apiFetch(
         `/api/transactions.php/${transactionId}/approve?branch_id=${encodeURIComponent(branchId)}`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success(
-          `✅ Approved! Charge: ${formatCurrency(data.charge || 0)}, Net: ${formatCurrency(data.net_amount || 0)}`,
-        );
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to approve transaction");
-      }
-    } catch (error) {
-      toast.error("Failed to approve transaction. Please try again.");
+      toast.success(
+        `✅ Approved! Charge: ${formatCurrency(data.charge || 0)}, Net: ${formatCurrency(data.net_amount || 0)}`,
+      );
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to approve transaction");
     }
   };
 
   const handleRejectTransaction = async (transactionId) => {
     if (!window.confirm("Reject this transaction?")) return;
     try {
-      const response = await apiFetch(
+      await apiFetch(
         `/api/transactions.php/${transactionId}/reject?branch_id=${encodeURIComponent(branchId)}`,
         {
           method: "PUT",
@@ -463,75 +414,55 @@ const AdminDashboard = () => {
           }),
         },
       );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success("❌ Transaction rejected!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to reject transaction");
-      }
-    } catch (error) {
-      toast.error("Failed to reject transaction. Please try again.");
+      toast.success("❌ Transaction rejected!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to reject transaction");
     }
   };
 
   const handleApproveExpense = async (expenseId) => {
     if (!window.confirm("Approve this expense?")) return;
     try {
-      const response = await apiFetch(
+      await apiFetch(
         `/api/expenses.php/${expenseId}/approve?branch_id=${encodeURIComponent(branchId)}`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success("✅ Expense approved successfully!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to approve expense");
-      }
-    } catch (error) {
-      toast.error("Failed to approve expense. Please try again.");
+      toast.success("✅ Expense approved successfully!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to approve expense");
     }
   };
 
   const handleRejectExpense = async (expenseId) => {
     if (!window.confirm("Reject this expense?")) return;
     try {
-      const response = await apiFetch(
+      await apiFetch(
         `/api/expenses.php/${expenseId}/reject?branch_id=${encodeURIComponent(branchId)}`,
         { method: "PUT", headers: { "Content-Type": "application/json" } },
       );
-      const data = await response.json();
-      if (response.ok && data.success) {
-        toast.success("❌ Expense rejected!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to reject expense");
-      }
-    } catch (error) {
-      toast.error("Failed to reject expense. Please try again.");
+      toast.success("❌ Expense rejected!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to reject expense");
     }
   };
 
   const handleDeleteExpense = async (expenseId) => {
     if (!window.confirm("⚠️ Delete this expense record permanently?")) return;
     try {
-      const response = await apiFetch(
+      await apiFetch(
         `/api/expenses.php/${expenseId}?branch_id=${encodeURIComponent(branchId)}`,
         {
           method: "DELETE",
           headers: { "Content-Type": "application/json" },
         },
       );
-      if (response.ok) {
-        toast.success("✅ Expense deleted!");
-        await fetchAllData();
-      } else {
-        const data = await response.json();
-        toast.error(data.error || "Failed to delete expense");
-      }
-    } catch (error) {
-      toast.error("Failed to delete expense. Please try again.");
+      toast.success("✅ Expense deleted!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete expense");
     }
   };
 
@@ -559,35 +490,28 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await apiFetch("/api/expenses.php", {
+      await apiFetch("/api/expenses.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(expense),
       });
-      const data = await response.json();
-      if (response.ok) {
-        setShowExpenseModal(false);
-        setExpenseData({
-          title: "",
-          category: "General",
-          amount: "",
-          description: "",
-          requestedBy: "Admin",
-          date: new Date().toISOString().split("T")[0],
-        });
-        toast.success("✅ Expense request submitted!");
-        await fetchAllData();
-      } else {
-        toast.error(data.error || "Failed to create expense");
-      }
-    } catch (error) {
-      toast.error("Failed to create expense. Please try again.");
+      setShowExpenseModal(false);
+      setExpenseData({
+        title: "",
+        category: "General",
+        amount: "",
+        description: "",
+        requestedBy: "Admin",
+        date: new Date().toISOString().split("T")[0],
+      });
+      toast.success("✅ Expense request submitted!");
+      await fetchAllData();
+    } catch (err) {
+      toast.error(err.message || "Failed to create expense");
     }
   };
 
-  // ============================================================
-  // Initial load — wait for branchId before firing
-  // ============================================================
+  // Initial load
   useEffect(() => {
     if (!branchId) {
       setLoading(false);
@@ -597,17 +521,15 @@ const AdminDashboard = () => {
       setLoading(true);
       try {
         await fetchAllData();
-      } catch (error) {
-        setError(
-          error.message || "Failed to load data. Please refresh the page.",
-        );
+        await fetchBranchSettings();
+      } catch (err) {
+        console.error("[AdminDashboard] load failed:", err);
       } finally {
         setLoading(false);
       }
     };
     loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchId]);
+  }, [branchId, fetchAllData, fetchBranchSettings]);
 
   const handleSelectAll = () => {
     if (selectAll) {
@@ -660,9 +582,9 @@ const AdminDashboard = () => {
       alert(`✅ ${selectedMembers.length} member(s) suspended successfully!`);
       setSelectedMembers([]);
       setSelectAll(false);
-      refreshData();
-    } catch (error) {
-      alert("Failed to suspend members. Please try again.");
+      await refreshData();
+    } catch (err) {
+      alert("Failed to suspend members. " + (err.message || ""));
     }
   };
 
@@ -688,9 +610,9 @@ const AdminDashboard = () => {
       alert(`✅ ${selectedMembers.length} member(s) deleted successfully!`);
       setSelectedMembers([]);
       setSelectAll(false);
-      refreshData();
-    } catch (error) {
-      alert("Failed to delete members. Please try again.");
+      await refreshData();
+    } catch (err) {
+      alert("Failed to delete members. " + (err.message || ""));
     }
   };
 
@@ -822,31 +744,25 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await apiFetch("/api/members.php", {
+      const data = await apiFetch("/api/members.php", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(memberData),
       });
-
-      const data = await response.json();
-      if (response.ok) {
-        setMembers([...members, data.member]);
-        setShowCreateModal(false);
-        setNewMember({
-          name: "",
-          email: "",
-          phone: "",
-          membershipType: "Standard",
-          balance: "",
-        });
-        alert(
-          `✅ Member created successfully!\nAccount Number: ${accountNumber}\nBranch: ${branch?.name || "N/A"}`,
-        );
-      } else {
-        alert(data.message || "Failed to create member");
-      }
-    } catch (error) {
-      alert("Failed to create member. Please try again.");
+      setMembers([...members, data.member]);
+      setShowCreateModal(false);
+      setNewMember({
+        name: "",
+        email: "",
+        phone: "",
+        membershipType: "Standard",
+        balance: "",
+      });
+      alert(
+        `✅ Member created successfully!\nAccount Number: ${accountNumber}\nBranch: ${branch?.name || "N/A"}`,
+      );
+    } catch (err) {
+      alert(err.message || "Failed to create member");
     }
   };
 
@@ -901,7 +817,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await apiFetch("/api/transactions.php", {
+      const data = await apiFetch("/api/transactions.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -909,30 +825,23 @@ const AdminDashboard = () => {
         },
         body: JSON.stringify(transaction),
       });
-      const data = await response.json();
-      if (response.ok) {
-        setTransactions([
-          data.transaction || { ...transaction, id: Date.now() },
-          ...transactions,
-        ]);
-        setShowTransactionModal(false);
-        setTransactionData({
-          memberId: "",
-          type: "deposit",
-          amount: "",
-          description: "",
-        });
-        toast.success(
-          `✅ ${transactionData.type} request submitted! Go to Transactions tab to approve.`,
-        );
-        refreshData();
-      } else {
-        toast.error(
-          data.error || data.message || "Failed to submit transaction",
-        );
-      }
-    } catch (error) {
-      toast.error("Failed to submit transaction. Please try again.");
+      setTransactions([
+        data.transaction || { ...transaction, id: Date.now() },
+        ...transactions,
+      ]);
+      setShowTransactionModal(false);
+      setTransactionData({
+        memberId: "",
+        type: "deposit",
+        amount: "",
+        description: "",
+      });
+      toast.success(
+        `✅ ${transactionData.type} request submitted! Go to Transactions tab to approve.`,
+      );
+      await refreshData();
+    } catch (err) {
+      toast.error(err.message || "Failed to submit transaction");
     }
   };
 
@@ -986,7 +895,7 @@ const AdminDashboard = () => {
     };
 
     try {
-      const response = await apiFetch("/api/transfers.php", {
+      const data = await apiFetch("/api/transfers.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -994,39 +903,34 @@ const AdminDashboard = () => {
         },
         body: JSON.stringify(transfer),
       });
-      const data = await response.json();
-      if (response.ok) {
-        const newTransaction = {
-          id: data.transaction?.id || Date.now(),
-          memberName: fromMember.name,
-          accountNumber: fromMember.accountNumber,
-          type: "transfer",
-          amount: amount,
-          status: "pending",
-          date: new Date().toISOString().split("T")[0],
-          description: `Transfer to ${toMember.name}`,
-          fromMemberId: fromMember.id,
-          toMemberId: toMember.id,
-        };
-        setTransactions([newTransaction, ...transactions]);
-        setShowTransferModal(false);
-        setFromAccountInput("");
-        setToAccountInput("");
-        setFromMemberError("");
-        setToMemberError("");
-        setTransferData({
-          fromMemberId: "",
-          toMemberId: "",
-          amount: "",
-          description: "",
-        });
-        toast.success(`✅ Transfer request submitted!`);
-        refreshData();
-      } else {
-        toast.error(data.error || data.message || "Failed to submit transfer");
-      }
-    } catch (error) {
-      toast.error("Failed to submit transfer. Please try again.");
+      const newTransaction = {
+        id: data.transaction?.id || Date.now(),
+        memberName: fromMember.name,
+        accountNumber: fromMember.accountNumber,
+        type: "transfer",
+        amount: amount,
+        status: "pending",
+        date: new Date().toISOString().split("T")[0],
+        description: `Transfer to ${toMember.name}`,
+        fromMemberId: fromMember.id,
+        toMemberId: toMember.id,
+      };
+      setTransactions([newTransaction, ...transactions]);
+      setShowTransferModal(false);
+      setFromAccountInput("");
+      setToAccountInput("");
+      setFromMemberError("");
+      setToMemberError("");
+      setTransferData({
+        fromMemberId: "",
+        toMemberId: "",
+        amount: "",
+        description: "",
+      });
+      toast.success(`Transfer request submitted!`);
+      await refreshData();
+    } catch (err) {
+      toast.error(err.message || "Failed to submit transfer");
     }
   };
 
@@ -1052,49 +956,39 @@ const AdminDashboard = () => {
   const handleUpdateMember = async (e) => {
     e.preventDefault();
     try {
-      const response = await apiFetch(`/api/members.php/${selectedMember.id}`, {
+      const data = await apiFetch(`/api/members.php/${selectedMember.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ...selectedMember, branch_id: branchId }),
       });
-      const data = await response.json();
-      if (response.ok) {
-        const updatedMembers = members.map((member) =>
-          member.id === selectedMember.id
-            ? data.member || selectedMember
-            : member,
-        );
-        setMembers(updatedMembers);
-        setShowEditModal(false);
-        setSelectedMember(null);
-        toast.success("✅ Member updated successfully!");
-        refreshData();
-      } else {
-        toast.error(data.message || "Failed to update member");
-      }
-    } catch (error) {
-      toast.error("Failed to update member. Please try again.");
+      const updatedMembers = members.map((member) =>
+        member.id === selectedMember.id
+          ? data.member || selectedMember
+          : member,
+      );
+      setMembers(updatedMembers);
+      setShowEditModal(false);
+      setSelectedMember(null);
+      toast.success("✅ Member updated successfully!");
+      await refreshData();
+    } catch (err) {
+      toast.error(err.message || "Failed to update member");
     }
   };
 
   const handleDeleteMember = async (id) => {
-    if (window.confirm("⚠️ Are you sure you want to delete this member?")) {
-      try {
-        const response = await apiFetch(`/api/members.php/${id}`, {
-          method: "DELETE",
-          headers: { "Content-Type": "application/json" },
-        });
-        if (response.ok) {
-          setMembers(members.filter((member) => member.id !== id));
-          toast.success("Member deleted successfully!");
-          refreshData();
-        } else {
-          const data = await response.json();
-          toast.error(data.message || "Failed to delete member");
-        }
-      } catch (error) {
-        toast.error("Failed to delete member. Please try again.");
-      }
+    if (!window.confirm("⚠️ Are you sure you want to delete this member?"))
+      return;
+    try {
+      await apiFetch(`/api/members.php/${id}`, {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+      });
+      setMembers(members.filter((member) => member.id !== id));
+      toast.success("Member deleted successfully!");
+      await refreshData();
+    } catch (err) {
+      toast.error(err.message || "Failed to delete member");
     }
   };
 
@@ -1103,9 +997,7 @@ const AdminDashboard = () => {
     setShowViewModal(true);
   };
 
-  // ============================================================
-  // Voice recognition (unchanged)
-  // ============================================================
+  // Voice recognition
   const showVoiceFeedback = useCallback((msg) => {
     setVoiceFeedback(msg);
     if (voiceFeedbackTimerRef.current) {
@@ -1125,9 +1017,7 @@ const AdminDashboard = () => {
       utterance.pitch = 1;
       utterance.lang = "en-US";
       window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      // silent
-    }
+    } catch (e) {}
   }, []);
 
   const switchTab = useCallback(
@@ -1406,9 +1296,7 @@ const AdminDashboard = () => {
     } else {
       try {
         recognitionRef.current.start();
-      } catch (e) {
-        // already started
-      }
+      } catch (e) {}
     }
   }, [isListening, voiceSupported]);
 
@@ -1422,62 +1310,6 @@ const AdminDashboard = () => {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [toggleListening]);
-
-  if (error) {
-    return (
-      <div
-        style={{
-          padding: "24px",
-          backgroundColor: "transparent",
-          minHeight: "100vh",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-        }}
-      >
-        <div
-          style={{
-            backgroundColor: "transparent",
-            border: "1px solid rgba(239, 68, 68, 0.3)",
-            borderRadius: "12px",
-            padding: "32px",
-            maxWidth: "500px",
-            textAlign: "center",
-          }}
-        >
-          <div style={{ fontSize: "48px", marginBottom: "16px" }}>⚠️</div>
-          <h2
-            style={{
-              color: "var(--debit)",
-              fontSize: "20px",
-              marginBottom: "12px",
-            }}
-          >
-            Connection Error
-          </h2>
-          <p style={{ color: "var(--text-muted)", marginBottom: "16px" }}>
-            {error}
-          </p>
-          <button
-            onClick={() => window.location.reload()}
-            style={{
-              backgroundColor: "transparent",
-              color: "var(--info)",
-              padding: "10px 24px",
-              border: "1px solid var(--info)",
-              borderRadius: "8px",
-              cursor: "pointer",
-              fontSize: "14px",
-              fontWeight: "600",
-            }}
-          >
-            🔄 Retry Connection
-          </button>
-        </div>
-      </div>
-    );
-  }
 
   if (loading) {
     return (

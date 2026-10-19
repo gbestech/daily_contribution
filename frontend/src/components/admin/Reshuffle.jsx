@@ -19,27 +19,105 @@ import {
 const API_BASE_URL = "http://localhost:8000";
 const MEMBERS_PER_PAGE = 10;
 
-// ----------------------------------------------------------------
-// Rotation Pool Card — one for 6-month, one for 1-year
-// ----------------------------------------------------------------
+// ────────────────────────────────────────────────────────────
+// Persist rotation to localStorage so members see their payout month
+// ────────────────────────────────────────────────────────────
+const ROTATION_STORAGE_KEY = "payout_rotation_v1";
+
+const readAllRotations = () => {
+  try {
+    return JSON.parse(localStorage.getItem(ROTATION_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const persistRotation = (durationKey, amount, slots) => {
+  const all = readAllRotations();
+  const key = `${durationKey}::${Math.round(amount)}`;
+  all[key] = {
+    durationKey,
+    amount: Math.round(amount),
+    slots: slots.map((s) => ({
+      month: s.month,
+      memberId: s.member?.id ?? null,
+      memberName: s.member?.name ?? null,
+      accountNumber: s.member?.accountNumber ?? null,
+    })),
+    updatedAt: new Date().toISOString(),
+  };
+  try {
+    localStorage.setItem(ROTATION_STORAGE_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.warn("[reshuffle] localStorage write failed:", e);
+  }
+};
+
+const clearPersistedRotation = (durationKey, amount) => {
+  const all = readAllRotations();
+  const key = `${durationKey}::${Math.round(amount)}`;
+  delete all[key];
+  try {
+    localStorage.setItem(ROTATION_STORAGE_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.warn("[reshuffle] localStorage write failed:", e);
+  }
+};
+
+const fmtNaira = (n) => {
+  const val = Number(n || 0);
+  return "₦" + val.toLocaleString("en-NG", { maximumFractionDigits: 0 });
+};
+
+const getContribution = (member) => {
+  if (!member) return 0;
+  const candidates = [
+    "amount",
+    "plan_amount",
+    "savings_amount",
+    "contribution_amount",
+    "amount_per_month",
+    "monthly_amount",
+    "amount_per_period",
+    "daily_amount",
+    "amount_per_day",
+  ];
+  for (const k of candidates) {
+    if (member[k] !== undefined && member[k] !== null && member[k] !== "") {
+      const n = parseFloat(member[k]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return 0;
+};
+
+// ────────────────────────────────────────────────────────────
+// Rotation pool card
+// ────────────────────────────────────────────────────────────
 const RotationPoolCard = ({
   title,
   durationKey,
+  amountPerMonth,
   eligibleMembers,
   onShuffle,
   slots,
   isShuffled,
   onReset,
+  collectedSet,
+  onToggleCollected,
 }) => {
   const durationMonths = durationToMonths(durationKey);
   const eligibleCount = eligibleMembers.length;
+  const monthlyPot = amountPerMonth * eligibleCount;
 
-  const firstUnfilledIndex = slots.findIndex((s) => !s.member);
   const filledCount = slots.filter((s) => s.member).length;
+  const collectedCount = slots.filter(
+    (s) => s.member && collectedSet.has(String(s.member.id)),
+  ).length;
+  const firstUnfilledIndex = slots.findIndex((s) => !s.member);
 
   return (
     <div className="rs-card" style={{ padding: 20 }}>
-      {/* Header row */}
       <div
         style={{
           display: "flex",
@@ -59,6 +137,7 @@ const RotationPoolCard = ({
               display: "flex",
               alignItems: "center",
               gap: 8,
+              flexWrap: "wrap",
             }}
           >
             <span>{title}</span>
@@ -75,28 +154,20 @@ const RotationPoolCard = ({
                 border: "1px solid rgba(16,185,129,0.35)",
               }}
             >
-              {durationMonths} slots
+              {durationMonths} months
             </span>
           </div>
           <div
-            style={{
-              color: "var(--text-muted)",
-              fontSize: 12,
-              marginTop: 4,
-            }}
+            style={{ color: "var(--text-muted)", fontSize: 12, marginTop: 4 }}
           >
             <strong style={{ color: "var(--credit)" }}>{eligibleCount}</strong>{" "}
             eligible ·{" "}
             <strong style={{ color: "var(--info)" }}>{filledCount}</strong>{" "}
-            assigned
-            {eligibleCount > durationMonths && (
-              <>
-                {" · "}
-                <span style={{ color: "var(--warning)" }}>
-                  {eligibleCount - durationMonths} on waitlist
-                </span>
-              </>
-            )}
+            assigned ·{" "}
+            <strong style={{ color: "var(--warning)" }}>
+              {collectedCount}
+            </strong>{" "}
+            collected
             {eligibleCount < durationMonths && (
               <>
                 {" · "}
@@ -106,6 +177,41 @@ const RotationPoolCard = ({
               </>
             )}
           </div>
+          {amountPerMonth > 0 && eligibleCount > 0 && (
+            <div
+              style={{
+                marginTop: 8,
+                display: "flex",
+                gap: 12,
+                flexWrap: "wrap",
+                fontSize: 12,
+              }}
+            >
+              <span
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  background: "rgba(37,99,235,0.10)",
+                  color: "var(--info)",
+                  border: "1px solid rgba(37,99,235,0.30)",
+                }}
+              >
+                💵 {fmtNaira(amountPerMonth)}/month per member
+              </span>
+              <span
+                style={{
+                  padding: "4px 10px",
+                  borderRadius: 8,
+                  background: "rgba(16,185,129,0.10)",
+                  color: "var(--credit)",
+                  border: "1px solid rgba(16,185,129,0.30)",
+                  fontWeight: 700,
+                }}
+              >
+                🎁 Monthly pot: {fmtNaira(monthlyPot)}
+              </span>
+            </div>
+          )}
         </div>
 
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -130,11 +236,6 @@ const RotationPoolCard = ({
             type="button"
             onClick={onShuffle}
             disabled={eligibleCount === 0}
-            title={
-              eligibleCount === 0
-                ? "No eligible members for this pool"
-                : "Assign each month to a random eligible member"
-            }
             style={{
               display: "inline-flex",
               alignItems: "center",
@@ -148,7 +249,6 @@ const RotationPoolCard = ({
               fontWeight: 600,
               cursor: eligibleCount === 0 ? "not-allowed" : "pointer",
               opacity: eligibleCount === 0 ? 0.5 : 1,
-              transition: "all 0.2s",
               whiteSpace: "nowrap",
             }}
           >
@@ -158,7 +258,7 @@ const RotationPoolCard = ({
             <button
               type="button"
               onClick={onReset}
-              title="Clear all assignments"
+              title="Clear all assignments and collected marks"
               style={{
                 display: "inline-flex",
                 alignItems: "center",
@@ -179,7 +279,6 @@ const RotationPoolCard = ({
         </div>
       </div>
 
-      {/* Table of slots */}
       {slots.length === 0 ? (
         <div
           style={{
@@ -189,7 +288,7 @@ const RotationPoolCard = ({
             fontSize: 13,
           }}
         >
-          Click <strong>🎲 Shuffle Months</strong> to assign members to each
+          Click <strong>🎲 Shuffle Months</strong> to assign one member per
           month.
         </div>
       ) : (
@@ -203,10 +302,11 @@ const RotationPoolCard = ({
           <table className="rs-table" style={{ marginBottom: 0 }}>
             <thead>
               <tr>
-                <th style={{ width: 90 }}>Month</th>
-                <th>Member</th>
+                <th style={{ width: 80 }}>Month</th>
+                <th>Recipient</th>
                 <th>Account</th>
-                <th style={{ textAlign: "right" }}>Balance</th>
+                <th style={{ textAlign: "right" }}>Receives</th>
+                <th style={{ textAlign: "center", width: 130 }}>Status</th>
               </tr>
             </thead>
             <tbody>
@@ -214,7 +314,7 @@ const RotationPoolCard = ({
                 const m = slot.member;
                 const isEmpty = !m;
                 const isNext = slot.month === firstUnfilledIndex + 1;
-
+                const collected = m && collectedSet.has(String(m.id));
                 return (
                   <tr
                     key={slot.month}
@@ -222,7 +322,9 @@ const RotationPoolCard = ({
                       opacity: isEmpty ? 0.55 : 1,
                       background: isNext
                         ? "rgba(59,130,246,0.06)"
-                        : "transparent",
+                        : collected
+                          ? "rgba(16,185,129,0.06)"
+                          : "transparent",
                     }}
                   >
                     <td
@@ -252,7 +354,9 @@ const RotationPoolCard = ({
                               width: 28,
                               height: 28,
                               borderRadius: "50%",
-                              background: "rgba(16,185,129,0.2)",
+                              background: collected
+                                ? "rgba(16,185,129,0.25)"
+                                : "rgba(16,185,129,0.15)",
                               color: "var(--credit)",
                               display: "inline-flex",
                               alignItems: "center",
@@ -264,9 +368,19 @@ const RotationPoolCard = ({
                           >
                             {(m.name || "U").charAt(0).toUpperCase()}
                           </span>
-                          <span style={{ fontWeight: 600 }}>
-                            {m.name || "—"}
-                          </span>
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 600 }}>
+                              {m.name || "—"}
+                            </div>
+                            <div
+                              style={{
+                                fontSize: 11,
+                                color: "var(--text-muted)",
+                              }}
+                            >
+                              Contributes {fmtNaira(getContribution(m))}/mo
+                            </div>
+                          </div>
                         </div>
                       )}
                     </td>
@@ -282,18 +396,53 @@ const RotationPoolCard = ({
                       style={{
                         textAlign: "right",
                         color: isEmpty ? "var(--text-dim)" : "var(--credit)",
-                        fontWeight: 600,
+                        fontWeight: 700,
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {m
-                        ? new Intl.NumberFormat("en-NG", {
-                            style: "currency",
-                            currency: "NGN",
-                            minimumFractionDigits: 2,
-                            maximumFractionDigits: 2,
-                          }).format(m.balance || 0)
-                        : "—"}
+                      {isEmpty ? "—" : fmtNaira(monthlyPot)}
+                    </td>
+                    <td style={{ textAlign: "center" }}>
+                      {isEmpty ? (
+                        <span
+                          style={{ color: "var(--text-dim)", fontSize: 12 }}
+                        >
+                          —
+                        </span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={() => onToggleCollected(m.id)}
+                          title={
+                            collected
+                              ? "Click to mark as NOT collected"
+                              : "Click to mark as collected"
+                          }
+                          style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 6,
+                            padding: "5px 10px",
+                            borderRadius: 20,
+                            border: collected
+                              ? "1px solid rgba(16,185,129,0.5)"
+                              : "1px solid var(--border)",
+                            background: collected
+                              ? "rgba(16,185,129,0.15)"
+                              : "transparent",
+                            color: collected
+                              ? "var(--credit)"
+                              : "var(--text-muted)",
+                            fontSize: 11,
+                            fontWeight: 700,
+                            textTransform: "uppercase",
+                            letterSpacing: 0.3,
+                            cursor: "pointer",
+                          }}
+                        >
+                          {collected ? "✅ Collected" : "○ Mark Collected"}
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -302,13 +451,198 @@ const RotationPoolCard = ({
           </table>
         </div>
       )}
+
+      {slots.length > 0 && (
+        <div style={{ marginTop: 14 }}>
+          <div
+            style={{
+              display: "flex",
+              justifyContent: "space-between",
+              fontSize: 12,
+              color: "var(--text-muted)",
+              marginBottom: 6,
+            }}
+          >
+            <span>Payout progress</span>
+            <span style={{ fontWeight: 700, color: "var(--credit)" }}>
+              {collectedCount} / {filledCount} received
+            </span>
+          </div>
+          <div
+            style={{
+              height: 8,
+              borderRadius: 9999,
+              background: "rgba(15,23,42,0.08)",
+              border: "1px solid var(--border)",
+              overflow: "hidden",
+            }}
+          >
+            <div
+              style={{
+                height: "100%",
+                width: `${
+                  filledCount > 0 ? (collectedCount / filledCount) * 100 : 0
+                }%`,
+                background: "linear-gradient(90deg, #059669, #10b981)",
+                transition: "width 0.3s ease",
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };
 
-// ----------------------------------------------------------------
-// Main Reshuffle page
-// ----------------------------------------------------------------
+// ────────────────────────────────────────────────────────────
+// Accordion for one amount group
+// ────────────────────────────────────────────────────────────
+const AmountGroupAccordion = ({
+  amount,
+  membersCount,
+  sixMonthEligible,
+  oneYearEligible,
+  sixMonthSlots,
+  sixMonthAssigned,
+  sixMonthCollected,
+  oneYearSlots,
+  oneYearAssigned,
+  oneYearCollected,
+  onShuffleSixMonth,
+  onResetSixMonth,
+  onToggleCollectedSixMonth,
+  onShuffleOneYear,
+  onResetOneYear,
+  onToggleCollectedOneYear,
+  defaultOpen = false,
+}) => {
+  const [open, setOpen] = useState(defaultOpen);
+
+  const totalCollected = sixMonthCollected.size + oneYearCollected.size;
+  const totalAssigned =
+    sixMonthSlots.filter((s) => s.member).length +
+    oneYearSlots.filter((s) => s.member).length;
+
+  return (
+    <div
+      style={{
+        background: "var(--bg-surface)",
+        border: "1px solid var(--border)",
+        borderRadius: 12,
+        marginBottom: 16,
+        overflow: "hidden",
+      }}
+    >
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        style={{
+          width: "100%",
+          padding: "16px 20px",
+          background: "transparent",
+          border: "none",
+          cursor: "pointer",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          textAlign: "left",
+          color: "var(--text)",
+          borderBottom: open ? "1px solid var(--border)" : "none",
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+          <span style={{ fontSize: 24 }}>{open ? "📂" : "📁"}</span>
+          <div>
+            <div
+              style={{
+                fontSize: 15,
+                fontWeight: 700,
+                display: "flex",
+                alignItems: "center",
+                gap: 8,
+                flexWrap: "wrap",
+              }}
+            >
+              💵 {fmtNaira(amount)}/month
+              <span
+                style={{
+                  padding: "2px 10px",
+                  borderRadius: 20,
+                  fontSize: 11,
+                  fontWeight: 700,
+                  textTransform: "uppercase",
+                  letterSpacing: 0.4,
+                  background: "rgba(37,99,235,0.15)",
+                  color: "var(--info)",
+                  border: "1px solid rgba(37,99,235,0.35)",
+                }}
+              >
+                {membersCount} member{membersCount === 1 ? "" : "s"}
+              </span>
+            </div>
+            <div
+              style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}
+            >
+              {sixMonthEligible.length} in 6-month · {oneYearEligible.length} in
+              1-year · {totalAssigned} assigned · {totalCollected} collected
+            </div>
+          </div>
+        </div>
+        <span style={{ fontSize: 18, color: "var(--text-muted)" }}>
+          {open ? "▲" : "▼"}
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ padding: 20 }}>
+          <div
+            style={{
+              fontSize: 12,
+              fontWeight: 700,
+              textTransform: "uppercase",
+              letterSpacing: 0.6,
+              color: "var(--text-muted)",
+              marginBottom: 12,
+            }}
+          >
+            💰 Cash Monthly Payout Rotation
+          </div>
+
+          <RotationPoolCard
+            title="💵 Cash · 6 Months"
+            durationKey="6 months"
+            amountPerMonth={amount}
+            eligibleMembers={sixMonthEligible}
+            slots={sixMonthSlots}
+            isShuffled={sixMonthAssigned}
+            onShuffle={onShuffleSixMonth}
+            onReset={onResetSixMonth}
+            collectedSet={sixMonthCollected}
+            onToggleCollected={onToggleCollectedSixMonth}
+          />
+
+          <RotationPoolCard
+            title="💵 Cash · 1 Year"
+            durationKey="1 year"
+            amountPerMonth={amount}
+            eligibleMembers={oneYearEligible}
+            slots={oneYearSlots}
+            isShuffled={oneYearAssigned}
+            onShuffle={onShuffleOneYear}
+            onReset={onResetOneYear}
+            collectedSet={oneYearCollected}
+            onToggleCollected={onToggleCollectedOneYear}
+          />
+        </div>
+      )}
+    </div>
+  );
+};
+
+// ────────────────────────────────────────────────────────────
+// Main Reshuffle
+// ────────────────────────────────────────────────────────────
 const Reshuffle = () => {
   const { activeBranch, activeBranchId } = useBranch();
   const { user } = useAuth();
@@ -324,7 +658,6 @@ const Reshuffle = () => {
 
   const branchId = activeBranchId || user?.branch_id || null;
 
-  // 🆕 Branch info fallback — fetches real branch name when context is empty
   const [fallbackBranch, setFallbackBranch] = useState(null);
 
   useEffect(() => {
@@ -348,7 +681,6 @@ const Reshuffle = () => {
     };
   }, [activeBranch?.name, branchId]);
 
-  // 🆕 Resolved branch name + code (fallback-aware)
   const branchName =
     (activeBranch?.name && String(activeBranch.name).trim()) ||
     (fallbackBranch?.name && String(fallbackBranch.name).trim()) ||
@@ -361,7 +693,6 @@ const Reshuffle = () => {
     user?.branch_code ||
     "—";
 
-  // Members + list shuffle
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -372,13 +703,8 @@ const Reshuffle = () => {
   const [isShuffled, setIsShuffled] = useState(false);
   const originalMembersRef = useRef([]);
 
-  // Payout rotation state
-  const [sixMonthSlots, setSixMonthSlots] = useState([]);
-  const [sixMonthAssigned, setSixMonthAssigned] = useState(false);
-  const [oneYearSlots, setOneYearSlots] = useState([]);
-  const [oneYearAssigned, setOneYearAssigned] = useState(false);
+  const [groups, setGroups] = useState({});
 
-  // Fetch members
   const fetchMembers = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -407,10 +733,7 @@ const Reshuffle = () => {
     originalMembersRef.current = members;
     setDisplayMembers(members);
     setIsShuffled(false);
-    setSixMonthSlots([]);
-    setOneYearSlots([]);
-    setSixMonthAssigned(false);
-    setOneYearAssigned(false);
+    setGroups({});
   }, [members]);
 
   useEffect(() => {
@@ -418,17 +741,134 @@ const Reshuffle = () => {
     setIsShuffled(false);
   }, [searchTerm]);
 
-  // Pools
-  const sixMonthEligible = useMemo(
-    () => getEligibleForDuration(members, "6 months"),
-    [members],
-  );
-  const oneYearEligible = useMemo(
-    () => getEligibleForDuration(members, "1 year"),
-    [members],
-  );
+  const groupedByAmount = useMemo(() => {
+    const buckets = new Map();
+    members.forEach((m) => {
+      const method = String(m.savings_method || "").toLowerCase();
+      if (method !== "cash") return;
+      const amt = getContribution(m);
+      if (!amt || amt <= 0) return;
+      const key = String(Math.round(amt));
+      if (!buckets.has(key)) buckets.set(key, []);
+      buckets.get(key).push(m);
+    });
+    return Array.from(buckets.entries())
+      .map(([amount, list]) => ({ amount: Number(amount), list }))
+      .sort((a, b) => a.amount - b.amount);
+  }, [members]);
 
-  // Search + paginate
+  const eligibilityByAmount = useMemo(() => {
+    const map = new Map();
+    groupedByAmount.forEach(({ amount, list }) => {
+      map.set(String(amount), {
+        sixMonth: getEligibleForDuration(list, "6 months"),
+        oneYear: getEligibleForDuration(list, "1 year"),
+      });
+    });
+    return map;
+  }, [groupedByAmount]);
+
+  useEffect(() => {
+    setGroups((prev) => {
+      const next = { ...prev };
+      groupedByAmount.forEach(({ amount }) => {
+        const key = String(amount);
+        if (!next[key]) {
+          next[key] = {
+            sixMonthSlots: [],
+            sixMonthAssigned: false,
+            sixMonthCollected: new Set(),
+            oneYearSlots: [],
+            oneYearAssigned: false,
+            oneYearCollected: new Set(),
+          };
+        }
+      });
+      return next;
+    });
+  }, [groupedByAmount]);
+
+  const updateGroup = (amount, patch) => {
+    const key = String(amount);
+    setGroups((prev) => {
+      const cur = prev[key] || {
+        sixMonthSlots: [],
+        sixMonthAssigned: false,
+        sixMonthCollected: new Set(),
+        oneYearSlots: [],
+        oneYearAssigned: false,
+        oneYearCollected: new Set(),
+      };
+      return { ...prev, [key]: { ...cur, ...patch } };
+    });
+  };
+
+  const handleShuffleSixMonth = (amount, eligible) => {
+    const slots = buildMonthlyRotation(eligible, 6);
+    updateGroup(amount, {
+      sixMonthSlots: slots,
+      sixMonthAssigned: true,
+      sixMonthCollected: new Set(),
+    });
+    persistRotation("6 months", amount, slots); // 🆕
+  };
+  const handleResetSixMonth = (amount) => {
+    updateGroup(amount, {
+      sixMonthSlots: [],
+      sixMonthAssigned: false,
+      sixMonthCollected: new Set(),
+    });
+    clearPersistedRotation("6 months", amount); // 🆕
+  };
+  const toggleCollectedSixMonth = (amount, memberId) => {
+    const key = String(amount);
+    setGroups((prev) => {
+      const cur = prev[key];
+      if (!cur) return prev;
+      const next = new Set(cur.sixMonthCollected);
+      const idStr = String(memberId);
+      if (next.has(idStr)) next.delete(idStr);
+      else next.add(idStr);
+      return {
+        ...prev,
+        [key]: { ...cur, sixMonthCollected: next },
+      };
+    });
+  };
+
+  const handleShuffleOneYear = (amount, eligible) => {
+    const slots = buildMonthlyRotation(eligible, 12);
+    updateGroup(amount, {
+      oneYearSlots: slots,
+      oneYearAssigned: true,
+      oneYearCollected: new Set(),
+    });
+    persistRotation("1 year", amount, slots); // 🆕
+  };
+  const handleResetOneYear = (amount) => {
+    updateGroup(amount, {
+      oneYearSlots: [],
+      oneYearAssigned: false,
+      oneYearCollected: new Set(),
+    });
+    clearPersistedRotation("1 year", amount); // 🆕
+  };
+  const toggleCollectedOneYear = (amount, memberId) => {
+    const key = String(amount);
+    setGroups((prev) => {
+      const cur = prev[key];
+      if (!cur) return prev;
+      const next = new Set(cur.oneYearCollected);
+      const idStr = String(memberId);
+      if (next.has(idStr)) next.delete(idStr);
+      else next.add(idStr);
+      return {
+        ...prev,
+        [key]: { ...cur, oneYearCollected: next },
+      };
+    });
+  };
+
   const filteredMembers = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     if (!q) return displayMembers;
@@ -544,26 +984,6 @@ const Reshuffle = () => {
     );
   };
 
-  const handleShuffleSixMonth = () => {
-    const slots = buildMonthlyRotation(sixMonthEligible, 6);
-    setSixMonthSlots(slots);
-    setSixMonthAssigned(true);
-  };
-  const handleResetSixMonth = () => {
-    setSixMonthSlots([]);
-    setSixMonthAssigned(false);
-  };
-
-  const handleShuffleOneYear = () => {
-    const slots = buildMonthlyRotation(oneYearEligible, 12);
-    setOneYearSlots(slots);
-    setOneYearAssigned(true);
-  };
-  const handleResetOneYear = () => {
-    setOneYearSlots([]);
-    setOneYearAssigned(false);
-  };
-
   if (!canUseReshuffle) {
     return (
       <div style={{ padding: 40, textAlign: "center", color: "var(--text)" }}>
@@ -587,49 +1007,18 @@ const Reshuffle = () => {
     >
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .rs-card {
-          background-color: var(--bg-surface);
-          border: 1px solid var(--border);
-          border-radius: 12px;
-          padding: 20px;
-          margin-bottom: 20px;
-        }
+        .rs-card { background-color: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
         .rs-table { width: 100%; border-collapse: collapse; }
-        .rs-table th {
-          padding: 12px 14px; text-align: left;
-          font-size: 11px; font-weight: 700;
-          color: var(--text-muted); text-transform: uppercase;
-          letter-spacing: 0.5px; border-bottom: 1px solid var(--border);
-          white-space: nowrap;
-        }
-        .rs-table td {
-          padding: 12px 14px; border-bottom: 1px solid var(--border);
-          font-size: 13px; color: var(--text); vertical-align: middle;
-        }
+        .rs-table th { padding: 12px 14px; text-align: left; font-size: 11px; font-weight: 700; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 1px solid var(--border); white-space: nowrap; }
+        .rs-table td { padding: 12px 14px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); vertical-align: middle; }
         .rs-table tr:hover { background-color: var(--bg-surface-2); }
-        .rs-pagination {
-          display: flex; justify-content: space-between;
-          align-items: center; gap: 12px;
-          padding: 16px 0; flex-wrap: wrap;
-        }
-        .rs-page-btn {
-          min-width: 36px; height: 36px; padding: 0 12px;
-          border-radius: 6px; border: 1px solid var(--border);
-          background: transparent; color: var(--text);
-          font-size: 13px; font-weight: 600; cursor: pointer;
-          display: inline-flex; align-items: center; justify-content: center;
-          transition: all 0.15s;
-        }
-        .rs-page-btn:hover:not(:disabled):not(.active) {
-          background: var(--bg-surface-2);
-        }
-        .rs-page-btn.active {
-          background: var(--accent); border-color: var(--accent); color: white;
-        }
+        .rs-pagination { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 0; flex-wrap: wrap; }
+        .rs-page-btn { min-width: 36px; height: 36px; padding: 0 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; justify-content: center; transition: all 0.15s; }
+        .rs-page-btn:hover:not(:disabled):not(.active) { background: var(--bg-surface-2); }
+        .rs-page-btn.active { background: var(--accent); border-color: var(--accent); color: white; }
         .rs-page-btn:disabled { opacity: 0.4; cursor: not-allowed; }
       `}</style>
 
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -651,8 +1040,8 @@ const Reshuffle = () => {
               fontSize: 14,
             }}
           >
-            Assign each month of a Cash plan to a different member. Two pools:{" "}
-            <strong>6 months</strong> and <strong>1 year</strong>.
+            Members grouped by monthly contribution. Assign one member per month
+            per group. Tick ✅ when a member has received their payout.
           </p>
         </div>
         <button
@@ -685,7 +1074,6 @@ const Reshuffle = () => {
         </button>
       </div>
 
-      {/* Branch bar */}
       <div
         className="rs-card"
         style={{
@@ -699,30 +1087,22 @@ const Reshuffle = () => {
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           <span style={{ fontSize: 28 }}>🏢</span>
           <div>
-            {/* 🆕 Real branch name */}
             <div style={{ fontSize: 15, fontWeight: 700 }}>{branchName}</div>
             <div
               style={{ fontSize: 12, color: "var(--text-muted)", marginTop: 2 }}
             >
-              {/* 🆕 Real branch code + stats */}
               {branchCode !== "—" ? `Code: ${branchCode}` : "—"} ·{" "}
               <strong style={{ color: "var(--credit)" }}>
                 {members.length}
               </strong>{" "}
               members ·{" "}
               <strong style={{ color: "var(--info)" }}>
-                {sixMonthEligible.length}
+                {groupedByAmount.length}
               </strong>{" "}
-              Cash·6mo ·{" "}
-              <strong style={{ color: "var(--info)" }}>
-                {oneYearEligible.length}
-              </strong>{" "}
-              Cash·1yr
+              amount group{groupedByAmount.length === 1 ? "" : "s"}
             </div>
           </div>
         </div>
-
-        {/* 🆕 Active branch pill */}
         <span
           style={{
             padding: "4px 12px",
@@ -740,7 +1120,6 @@ const Reshuffle = () => {
         </span>
       </div>
 
-      {/* PAYOUT ROTATION POOLS */}
       <div
         style={{
           fontSize: 12,
@@ -751,30 +1130,88 @@ const Reshuffle = () => {
           marginBottom: 12,
         }}
       >
-        💰 Cash Monthly Payout Rotation
+        💰 Cash Payout Rotation — grouped by monthly amount
       </div>
 
-      <RotationPoolCard
-        title="💵 Cash · 6 Months"
-        durationKey="6 months"
-        eligibleMembers={sixMonthEligible}
-        slots={sixMonthSlots}
-        isShuffled={sixMonthAssigned}
-        onShuffle={handleShuffleSixMonth}
-        onReset={handleResetSixMonth}
-      />
+      {loading ? (
+        <div
+          className="rs-card"
+          style={{ textAlign: "center", color: "var(--text-muted)" }}
+        >
+          <div
+            style={{
+              display: "inline-block",
+              width: 32,
+              height: 32,
+              border: "3px solid var(--border)",
+              borderTopColor: "var(--accent)",
+              borderRadius: "50%",
+              animation: "spin 1s linear infinite",
+              marginBottom: 12,
+            }}
+          />
+          <div>Loading groups…</div>
+        </div>
+      ) : groupedByAmount.length === 0 ? (
+        <div
+          className="rs-card"
+          style={{ textAlign: "center", color: "var(--text-muted)" }}
+        >
+          <div style={{ fontSize: 40, marginBottom: 8 }}>📭</div>
+          No Cash-plan members found in this branch.
+        </div>
+      ) : (
+        groupedByAmount.map(({ amount, list }) => {
+          const key = String(amount);
+          const groupState = groups[key] || {
+            sixMonthSlots: [],
+            sixMonthAssigned: false,
+            sixMonthCollected: new Set(),
+            oneYearSlots: [],
+            oneYearAssigned: false,
+            oneYearCollected: new Set(),
+          };
+          const elig = eligibilityByAmount.get(key) || {
+            sixMonth: [],
+            oneYear: [],
+          };
 
-      <RotationPoolCard
-        title="💵 Cash · 1 Year"
-        durationKey="1 year"
-        eligibleMembers={oneYearEligible}
-        slots={oneYearSlots}
-        isShuffled={oneYearAssigned}
-        onShuffle={handleShuffleOneYear}
-        onReset={handleResetOneYear}
-      />
+          return (
+            <AmountGroupAccordion
+              key={key}
+              amount={amount}
+              membersCount={list.length}
+              sixMonthEligible={elig.sixMonth}
+              oneYearEligible={elig.oneYear}
+              sixMonthSlots={groupState.sixMonthSlots}
+              sixMonthAssigned={groupState.sixMonthAssigned}
+              sixMonthCollected={groupState.sixMonthCollected}
+              oneYearSlots={groupState.oneYearSlots}
+              oneYearAssigned={groupState.oneYearAssigned}
+              oneYearCollected={groupState.oneYearCollected}
+              onShuffleSixMonth={() =>
+                handleShuffleSixMonth(amount, elig.sixMonth)
+              }
+              onResetSixMonth={() => handleResetSixMonth(amount)}
+              onToggleCollectedSixMonth={(id) =>
+                toggleCollectedSixMonth(amount, id)
+              }
+              onShuffleOneYear={() =>
+                handleShuffleOneYear(amount, elig.oneYear)
+              }
+              onResetOneYear={() => handleResetOneYear(amount)}
+              onToggleCollectedOneYear={(id) =>
+                toggleCollectedOneYear(amount, id)
+              }
+              defaultOpen={
+                groupedByAmount.length === 1 ||
+                amount === groupedByAmount[0].amount
+              }
+            />
+          );
+        })
+      )}
 
-      {/* FULL MEMBER LIST */}
       <div
         style={{
           fontSize: 12,
@@ -832,7 +1269,6 @@ const Reshuffle = () => {
             </>
           )}
         </div>
-
         {filteredMembers.length >= 2 && (
           <MemberShuffleButton
             members={filteredMembers}

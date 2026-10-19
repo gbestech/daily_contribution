@@ -8,7 +8,109 @@ import toast from "react-hot-toast";
 const API_BASE_URL = "http://localhost:8000";
 
 // ================================================================
-// Single-select dropdown (case-insensitive matching)
+// Duration normalization
+// ================================================================
+const CANONICAL_DURATIONS = [
+  "6 months",
+  "1 year",
+  "2 years",
+  "3 years",
+  "4 years",
+];
+
+const canonicalDuration = (raw) => {
+  if (raw == null) return "";
+  let s = String(raw).trim().toLowerCase().replace(/\s+/g, " ");
+  s = s.replace(/[^a-z0-9 ]/g, "");
+  if (!s) return "";
+  if (CANONICAL_DURATIONS.includes(s)) return s;
+
+  const aliases = {
+    "6 month": "6 months",
+    "6months": "6 months",
+    "6 mo": "6 months",
+    "6mo": "6 months",
+    "6 m": "6 months",
+    "6m": "6 months",
+    "half year": "6 months",
+    halfyear: "6 months",
+    "1 yr": "1 year",
+    "1years": "1 year",
+    "12 month": "1 year",
+    "12 months": "1 year",
+    "12month": "1 year",
+    "12months": "1 year",
+    "2 yr": "2 years",
+    "2years": "2 years",
+    "24 months": "2 years",
+    "3 yr": "3 years",
+    "3years": "3 years",
+    "36 months": "3 years",
+    "4 yr": "4 years",
+    "4years": "4 years",
+    "48 months": "4 years",
+  };
+  if (aliases[s]) return aliases[s];
+
+  const m = s.match(/^(\d+)\s*(month|months|mo|year|years|yr|yrs|y)\b/);
+  if (m) {
+    const n = parseInt(m[1], 10);
+    const unit = m[2];
+    if (unit.startsWith("y")) {
+      if (n === 1) return "1 year";
+      if (n === 2) return "2 years";
+      if (n === 3) return "3 years";
+      if (n === 4) return "4 years";
+    } else {
+      if (n === 6) return "6 months";
+      if (n === 12) return "1 year";
+      if (n === 24) return "2 years";
+      if (n === 36) return "3 years";
+      if (n === 48) return "4 years";
+    }
+  }
+  return s;
+};
+
+const normalizeDurationList = (raw) => {
+  if (raw == null) return [];
+
+  let items = [];
+  if (Array.isArray(raw)) {
+    items = raw;
+  } else if (typeof raw === "string") {
+    items = raw.split(/[,|]/);
+  } else if (typeof raw === "object") {
+    if (Array.isArray(raw.items)) {
+      items = raw.items;
+    } else {
+      items = Object.keys(raw).filter((k) => {
+        const v = raw[k];
+        return v === true || v === 1 || v === "1" || v === "on";
+      });
+    }
+  }
+
+  const out = [];
+  for (const it of items) {
+    let val = "";
+    if (typeof it === "string") val = it;
+    else if (typeof it === "number") val = String(it);
+    else if (it && typeof it === "object") {
+      val =
+        it.value ?? it.key ?? it.name ?? it.duration ?? it.label ?? it.id ?? "";
+    }
+    const canon = canonicalDuration(val);
+    if (canon && !out.includes(canon)) out.push(canon);
+  }
+
+  return out.sort(
+    (a, b) => CANONICAL_DURATIONS.indexOf(a) - CANONICAL_DURATIONS.indexOf(b),
+  );
+};
+
+// ================================================================
+// Dropdown
 // ================================================================
 const Dropdown = ({
   name,
@@ -88,6 +190,11 @@ const Dropdown = ({
 
       {open && !disabled && (
         <ul className="pf-dropdown-menu" role="listbox">
+          {options.length === 0 && (
+            <li className="pf-dropdown-option" style={{ opacity: 0.6 }}>
+              No options available
+            </li>
+          )}
           {options.map((opt, i) => (
             <li
               key={opt.value}
@@ -124,7 +231,7 @@ const Dropdown = ({
 };
 
 // ================================================================
-// Multi-select dropdown for items
+// Multi-select for items
 // ================================================================
 const MultiItemSelect = ({
   options,
@@ -207,7 +314,6 @@ const MultiItemSelect = ({
                     }}
                   >
                     ₦{parseFloat(opt.value_numeric || 0).toLocaleString()}
-                    {opt.duration ? ` · ${opt.duration}` : ""}
                   </span>
                 </li>
               );
@@ -280,6 +386,11 @@ const DURATION_LABELS = {
   "2 years": "2 Years",
   "3 years": "3 Years",
   "4 years": "4 Years (Maximum)",
+};
+
+const getDurationLabel = (v) => {
+  const c = canonicalDuration(v);
+  return DURATION_LABELS[c] || v;
 };
 
 const PLAN_LABELS = {
@@ -366,11 +477,11 @@ const MemberProfile = () => {
   const [branchInfo, setBranchInfo] = useState(null);
 
   const [itemsSettings, setItemsSettings] = useState({
-    durations: ["6 months", "1 year"],
+    durations: [],
     savings_plans: ["Daily", "Weekly", "Monthly", "Random"],
     allow_multi_item: true,
     money_check_mode: "strict",
-    require_duration_match: true,
+    require_duration_match: false,
     savings_methods: "both",
   });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
@@ -493,13 +604,14 @@ const MemberProfile = () => {
 
   const DURATION_OPTIONS = useMemo(() => {
     const list = itemsSettings.durations || [];
-    return list.map((v) => ({ value: v, label: DURATION_LABELS[v] || v }));
+    return list.map((v) => ({ value: v, label: getDurationLabel(v) }));
   }, [itemsSettings.durations]);
 
   const DURATION_MONTHS = useMemo(() => {
     const out = {};
     (itemsSettings.durations || []).forEach((d) => {
-      if (DURATION_MONTHS_MAP[d]) out[d] = DURATION_MONTHS_MAP[d];
+      const c = canonicalDuration(d);
+      if (DURATION_MONTHS_MAP[c]) out[c] = DURATION_MONTHS_MAP[c];
     });
     return out;
   }, [itemsSettings.durations]);
@@ -512,25 +624,51 @@ const MemberProfile = () => {
       .reduce((sum, o) => sum + (parseFloat(o.value_numeric) || 0), 0);
   }, [itemOptions, formData.selected_item_ids]);
 
-  const selectedItemsDuration = useMemo(() => {
-    const durations = new Set(
-      itemOptions
-        .filter((o) =>
-          (formData.selected_item_ids || []).includes(String(o.value)),
-        )
-        .map((o) => o.duration || "6 months"),
-    );
-    if (durations.size === 0) return null;
-    if (durations.size > 1) return "MIXED";
-    return [...durations][0];
-  }, [itemOptions, formData.selected_item_ids]);
+  const periodsForSelection = useMemo(() => {
+    const months = DURATION_MONTHS[canonicalDuration(formData.duration)];
+    const perMonth = PERIODS_PER_MONTH[formData.savings_plan];
+    if (!months || !perMonth) return null;
+    return months * perMonth;
+  }, [formData.duration, formData.savings_plan, DURATION_MONTHS]);
+
+  // 💰 Per-period amount — ROUND UP to 2 dp so Σ perPeriod × periods ≥ itemsTotal
+  const autoAmountPerPeriod = useMemo(() => {
+    if (formData.savings_method !== "Item") return null;
+    if (!periodsForSelection || periodsForSelection <= 0) return null;
+    if (selectedItemsTotal <= 0) return null;
+
+    const raw = selectedItemsTotal / periodsForSelection;
+    const perPeriod = Math.ceil(raw * 100) / 100;
+    return perPeriod;
+  }, [formData.savings_method, periodsForSelection, selectedItemsTotal]);
+
+  // 🧮 Last payment absorbs the rounding so Σ payments = itemsTotal EXACTLY
+  const lastPaymentAmount = useMemo(() => {
+    if (formData.savings_method !== "Item") return null;
+    if (autoAmountPerPeriod == null) return null;
+    if (!periodsForSelection || periodsForSelection <= 0) return null;
+    if (selectedItemsTotal <= 0) return null;
+
+    const last =
+      selectedItemsTotal - autoAmountPerPeriod * (periodsForSelection - 1);
+    return Math.round(last * 100) / 100;
+  }, [
+    formData.savings_method,
+    autoAmountPerPeriod,
+    periodsForSelection,
+    selectedItemsTotal,
+  ]);
 
   const calculation = useMemo(() => {
     if (!showSavingsSection) return null;
 
     const plan = formData.savings_plan;
     const duration = formData.duration;
-    const perPeriodAmount = parseFloat(formData.amount);
+
+    const perPeriodAmount =
+      formData.savings_method === "Item" && autoAmountPerPeriod != null
+        ? autoAmountPerPeriod
+        : parseFloat(formData.amount);
 
     if (
       !plan ||
@@ -542,12 +680,19 @@ const MemberProfile = () => {
       return null;
     }
 
-    const months = DURATION_MONTHS[duration];
+    const months = DURATION_MONTHS[canonicalDuration(duration)];
     const perMonth = PERIODS_PER_MONTH[plan];
     if (!months || !perMonth) return null;
 
     const totalPeriods = months * perMonth;
-    const total = perPeriodAmount * totalPeriods;
+
+    // Item mode: total is EXACTLY the items total (last payment absorbs rounding)
+    const totalIsItemExact =
+      formData.savings_method === "Item" && selectedItemsTotal > 0;
+
+    const total = totalIsItemExact
+      ? selectedItemsTotal
+      : perPeriodAmount * totalPeriods;
 
     return {
       plan,
@@ -555,6 +700,9 @@ const MemberProfile = () => {
       months,
       totalPeriods,
       perPeriod: perPeriodAmount,
+      lastPayment: totalIsItemExact
+        ? selectedItemsTotal - perPeriodAmount * (totalPeriods - 1)
+        : null,
       total,
       periodLabel:
         plan === "Daily"
@@ -567,53 +715,34 @@ const MemberProfile = () => {
     formData.savings_plan,
     formData.duration,
     formData.amount,
+    formData.savings_method,
+    autoAmountPerPeriod,
+    selectedItemsTotal,
     showSavingsSection,
     DURATION_MONTHS,
   ]);
 
+  useEffect(() => {
+    if (formData.savings_method !== "Item") return;
+    if (autoAmountPerPeriod == null) return;
+    const next = autoAmountPerPeriod.toFixed(2);
+    if (String(formData.amount) !== next) {
+      setFormData((prev) => {
+        const updated = { ...prev, amount: next };
+        if (showCompletion && !profileConfirmedComplete) saveDraft(updated);
+        return updated;
+      });
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [autoAmountPerPeriod, formData.savings_method]);
+
+  // In Item mode, totals are guaranteed exact (last payment absorbs rounding),
+  // so no mismatch is ever possible.
   const moneyMismatch = useMemo(() => {
     if (!showSavingsSection) return null;
     if (formData.savings_method !== "Item") return null;
-    if (!formData.selected_item_ids || formData.selected_item_ids.length === 0)
-      return null;
-    if (!calculation) return null;
-
-    const mode = itemsSettings.money_check_mode || "strict";
-    if (mode === "off") return null;
-
-    const diff = calculation.total - selectedItemsTotal;
-
-    if (mode === "strict") {
-      if (Math.abs(diff) < 0.01) return null;
-      return {
-        expected: selectedItemsTotal,
-        actual: calculation.total,
-        short: diff < 0,
-        diff: Math.abs(diff),
-        mode: "strict",
-      };
-    }
-
-    if (mode === "min") {
-      if (diff >= -0.01) return null;
-      return {
-        expected: selectedItemsTotal,
-        actual: calculation.total,
-        short: true,
-        diff: Math.abs(diff),
-        mode: "min",
-      };
-    }
-
     return null;
-  }, [
-    calculation,
-    selectedItemsTotal,
-    formData.savings_method,
-    formData.selected_item_ids,
-    showSavingsSection,
-    itemsSettings.money_check_mode,
-  ]);
+  }, [showSavingsSection, formData.savings_method]);
 
   const fetchBranchInfoInternal = async (branchId) => {
     if (!branchId) return null;
@@ -658,47 +787,60 @@ const MemberProfile = () => {
         { headers: { Accept: "application/json" } },
       );
       const data = await res.json();
+
+      console.log("🔍 SETTINGS RESPONSE:", data);
+
+      // Your API returns: { status, branch_id, data: { items: { durations, ... } } }
       const s =
         data?.data?.items ||
         data?.items ||
-        (data?.data && typeof data.data === "object" ? data.data : null);
+        data?.data?.settings?.items ||
+        data?.settings?.items ||
+        data?.data?.settings ||
+        data?.settings ||
+        data?.data ||
+        null;
 
-      if (s && typeof s === "object") {
-        setItemsSettings((prev) => ({
-          durations:
-            Array.isArray(s.durations) && s.durations.length > 0
-              ? s.durations
-              : prev.durations,
-          savings_plans:
-            Array.isArray(s.savings_plans) && s.savings_plans.length > 0
-              ? s.savings_plans
-              : prev.savings_plans,
-          allow_multi_item:
-            typeof s.allow_multi_item === "boolean"
-              ? s.allow_multi_item
-              : prev.allow_multi_item,
-          money_check_mode:
-            typeof s.money_check_mode === "string"
-              ? s.money_check_mode
-              : prev.money_check_mode,
-          require_duration_match:
-            typeof s.require_duration_match === "boolean"
-              ? s.require_duration_match
-              : prev.require_duration_match,
-          savings_methods:
-            s.savings_methods === "cash" ||
-            s.savings_methods === "item" ||
-            s.savings_methods === "both"
-              ? s.savings_methods
-              : s.savings_method === "cash" ||
-                  s.savings_method === "item" ||
-                  s.savings_method === "both"
-                ? s.savings_method
-                : prev.savings_methods,
-        }));
-        return s;
+      if (!s) {
+        console.warn("❌ No settings object found in response");
+        return null;
       }
-      return null;
+
+      console.log("🎯 RESOLVED SETTINGS:", s);
+
+      const rawDurations = s.durations ?? s.duration ?? null;
+      console.log("🎯 RAW DURATIONS:", rawDurations);
+
+      const normalizedDurations = normalizeDurationList(rawDurations);
+      console.log("🎯 NORMALIZED DURATIONS:", normalizedDurations);
+
+      setItemsSettings((prev) => ({
+        durations: normalizedDurations,
+        savings_plans:
+          Array.isArray(s.savings_plans) && s.savings_plans.length > 0
+            ? s.savings_plans
+            : prev.savings_plans,
+        allow_multi_item:
+          typeof s.allow_multi_item === "boolean"
+            ? s.allow_multi_item
+            : prev.allow_multi_item,
+        money_check_mode:
+          typeof s.money_check_mode === "string"
+            ? s.money_check_mode
+            : prev.money_check_mode,
+        require_duration_match:
+          typeof s.require_duration_match === "boolean"
+            ? s.require_duration_match
+            : prev.require_duration_match,
+        savings_methods:
+          s.savings_methods === "cash" ||
+          s.savings_methods === "item" ||
+          s.savings_methods === "both"
+            ? s.savings_methods
+            : prev.savings_methods,
+      }));
+
+      return s;
     } catch (err) {
       console.warn("[MemberProfile] settings fetch failed:", err);
       return null;
@@ -733,7 +875,6 @@ const MemberProfile = () => {
           value: String(it.id),
           label: it.name,
           value_numeric: parseFloat(it.value) || 0,
-          duration: it.duration || "6 months",
         }));
       setItemOptions(mapped);
       return mapped;
@@ -771,26 +912,36 @@ const MemberProfile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
-  // ============================================================
-  // Sanitize effect — only clears plan/duration when invalid;
-  // forces savings_method ONLY when the branch locks it.
-  // ============================================================
   useEffect(() => {
     if (!settingsLoaded) return;
+    if (!itemsSettings.durations || itemsSettings.durations.length === 0)
+      return;
+
     setFormData((prev) => {
       const next = { ...prev };
       let changed = false;
 
       if (
         next.savings_plan &&
+        itemsSettings.savings_plans.length > 0 &&
         !itemsSettings.savings_plans.includes(next.savings_plan)
       ) {
         next.savings_plan = "";
         changed = true;
       }
-      if (next.duration && !itemsSettings.durations.includes(next.duration)) {
-        next.duration = "";
-        changed = true;
+
+      if (next.duration) {
+        const canon = canonicalDuration(next.duration);
+        const allowed = itemsSettings.durations.map(canonicalDuration);
+        if (allowed.includes(canon)) {
+          if (next.duration !== canon) {
+            next.duration = canon;
+            changed = true;
+          }
+        } else {
+          next.duration = "";
+          changed = true;
+        }
       }
 
       if (branchForcedMethod) {
@@ -820,13 +971,6 @@ const MemberProfile = () => {
     branchForcedMethod,
   ]);
 
-  // ============================================================
-  // 🔑 ENFORCING EFFECT
-  // Runs AFTER fetchFreshProfile. Kills the race where
-  // fetchFreshProfile resets savings_method to "" after settings
-  // loaded. Whenever formData.savings_method drifts from the
-  // forced value, correct it immediately.
-  // ============================================================
   useEffect(() => {
     if (!settingsLoaded || !branchForcedMethod) return;
     if (formData.savings_method === branchForcedMethod) return;
@@ -867,7 +1011,6 @@ const MemberProfile = () => {
           });
         }
 
-        // 🔑 Branch forced method ALWAYS wins.
         const initialMethod =
           branchForcedMethod || normalizeMethod(m.savings_method);
 
@@ -903,7 +1046,7 @@ const MemberProfile = () => {
           savings_method: initialMethod,
           item_name: m.item_name || "",
           selected_item_ids: selectedIds,
-          duration: m.duration || "",
+          duration: m.duration ? canonicalDuration(m.duration) : "",
           amount: m.amount || "",
           bank_name: m.bank_name || "",
           bank_account_number: m.bank_account_number || "",
@@ -936,6 +1079,9 @@ const MemberProfile = () => {
                 merged[f] = draft[f];
               }
             });
+            if (merged.duration) {
+              merged.duration = canonicalDuration(merged.duration);
+            }
             if (branchForcedMethod) {
               merged.savings_method = branchForcedMethod;
               if (branchForcedMethod === "Cash") {
@@ -951,7 +1097,6 @@ const MemberProfile = () => {
           clearDraft();
         }
 
-        // 🔑 Final safety — if branch forces a method, override merged result
         if (branchForcedMethod) {
           merged.savings_method = branchForcedMethod;
           if (branchForcedMethod === "Cash") {
@@ -1069,6 +1214,16 @@ const MemberProfile = () => {
       }
     }
 
+    if (name === "duration") {
+      const canon = canonicalDuration(value);
+      setFormData((prev) => {
+        const next = { ...prev, duration: canon || value };
+        if (showCompletion && !profileConfirmedComplete) saveDraft(next);
+        return next;
+      });
+      return;
+    }
+
     if (name === "savings_method" && value !== "Item") {
       setFormData((prev) => {
         const next = {
@@ -1076,6 +1231,7 @@ const MemberProfile = () => {
           savings_method: normalizeMethod(value),
           item_name: "",
           selected_item_ids: [],
+          amount: "",
         };
         if (showCompletion && !profileConfirmedComplete) saveDraft(next);
         return next;
@@ -1102,42 +1258,11 @@ const MemberProfile = () => {
         if (!itemsSettings.allow_multi_item) {
           nextIds = [itemId];
         } else {
-          const newItem = itemOptions.find((o) => String(o.value) === itemId);
-          const newDur = newItem?.duration || "6 months";
-
-          const existingDurs = new Set(
-            itemOptions
-              .filter((o) => current.includes(String(o.value)))
-              .map((o) => o.duration || "6 months"),
-          );
-
-          if (
-            itemsSettings.require_duration_match &&
-            existingDurs.size > 0 &&
-            !existingDurs.has(newDur)
-          ) {
-            toast.error(
-              `Cannot mix durations. Your selection is already ${[...existingDurs][0]}.`,
-            );
-            return prev;
-          }
-
           nextIds = [...current, itemId];
         }
       }
 
-      const durs = new Set(
-        itemOptions
-          .filter((o) => nextIds.includes(String(o.value)))
-          .map((o) => o.duration || "6 months"),
-      );
-      const inferredDuration = durs.size === 1 ? [...durs][0] : "";
-
-      const next = {
-        ...prev,
-        selected_item_ids: nextIds,
-        duration: inferredDuration || prev.duration,
-      };
+      const next = { ...prev, selected_item_ids: nextIds };
       if (showCompletion && !profileConfirmedComplete) saveDraft(next);
       return next;
     });
@@ -1258,8 +1383,10 @@ const MemberProfile = () => {
         ["savings_plan", "Savings Plan"],
         ["savings_method", "Savings Method"],
         ["duration", "Duration"],
-        ["amount", "Amount"],
       );
+      if (formData.savings_method !== "Item") {
+        required.push(["amount", "Amount"]);
+      }
     }
 
     for (const [k, label] of required) {
@@ -1277,28 +1404,19 @@ const MemberProfile = () => {
         toast.error("Please select at least one item");
         return;
       }
-      if (
-        itemsSettings.require_duration_match &&
-        selectedItemsDuration === "MIXED"
-      ) {
+      if (autoAmountPerPeriod == null) {
         toast.error(
-          "Selected items have mixed durations. Please pick items of the same duration.",
-        );
-        return;
-      }
-      if (
-        selectedItemsDuration &&
-        selectedItemsDuration !== "MIXED" &&
-        selectedItemsDuration !== formData.duration
-      ) {
-        toast.error(
-          `Duration must match the items you selected (${selectedItemsDuration}).`,
+          "Could not auto-calculate amount. Please check plan and duration.",
         );
         return;
       }
     }
 
-    if (showSavingsSection && Number(formData.amount) <= 0) {
+    if (
+      showSavingsSection &&
+      formData.savings_method !== "Item" &&
+      Number(formData.amount) <= 0
+    ) {
       toast.error("Please enter a valid amount");
       return;
     }
@@ -1351,11 +1469,26 @@ const MemberProfile = () => {
       if (showSavingsSection) {
         const finalMethod = branchForcedMethod || formData.savings_method;
 
+        const finalAmount =
+          finalMethod === "Item" && autoAmountPerPeriod != null
+            ? autoAmountPerPeriod
+            : Number(formData.amount) || 0;
+
         payload.savings_plan = formData.savings_plan;
         payload.savings_method = finalMethod;
-        payload.duration = formData.duration;
-        payload.amount = Number(formData.amount) || 0;
-        payload.total_amount = calculation ? calculation.total : 0;
+        payload.duration = canonicalDuration(formData.duration);
+        payload.amount = finalAmount;
+        // ✅ Store the EXACT items total as the total amount
+        payload.total_amount =
+          finalMethod === "Item" && selectedItemsTotal > 0
+            ? selectedItemsTotal
+            : calculation
+              ? calculation.total
+              : 0;
+        // ✅ Also persist the last payment so backend can charge correctly
+        if (finalMethod === "Item" && lastPaymentAmount != null) {
+          payload.last_payment_amount = lastPaymentAmount;
+        }
 
         if (finalMethod === "Item") {
           payload.item_name = itemNamesCsv;
@@ -1403,21 +1536,8 @@ const MemberProfile = () => {
         toast.error("Please select at least one item");
         return;
       }
-      if (
-        itemsSettings.require_duration_match &&
-        selectedItemsDuration === "MIXED"
-      ) {
-        toast.error("Selected items have mixed durations.");
-        return;
-      }
-      if (
-        selectedItemsDuration &&
-        selectedItemsDuration !== "MIXED" &&
-        selectedItemsDuration !== formData.duration
-      ) {
-        toast.error(
-          `Duration must match selected items (${selectedItemsDuration}).`,
-        );
+      if (autoAmountPerPeriod == null) {
+        toast.error("Could not auto-calculate amount.");
         return;
       }
       if (moneyMismatch) {
@@ -1449,11 +1569,24 @@ const MemberProfile = () => {
       if (showSavingsSection) {
         const finalMethod = branchForcedMethod || formData.savings_method;
 
+        const finalAmount =
+          finalMethod === "Item" && autoAmountPerPeriod != null
+            ? autoAmountPerPeriod
+            : Number(formData.amount) || 0;
+
         payload.savings_plan = formData.savings_plan;
         payload.savings_method = finalMethod;
-        payload.duration = formData.duration;
-        payload.amount = Number(formData.amount) || 0;
-        payload.total_amount = calculation ? calculation.total : 0;
+        payload.duration = canonicalDuration(formData.duration);
+        payload.amount = finalAmount;
+        payload.total_amount =
+          finalMethod === "Item" && selectedItemsTotal > 0
+            ? selectedItemsTotal
+            : calculation
+              ? calculation.total
+              : 0;
+        if (finalMethod === "Item" && lastPaymentAmount != null) {
+          payload.last_payment_amount = lastPaymentAmount;
+        }
 
         if (finalMethod === "Item") {
           payload.item_name = itemNamesCsv;
@@ -1494,6 +1627,11 @@ const MemberProfile = () => {
 
   const CalculationPreview = () => {
     if (!showSavingsSection || !calculation) return null;
+    const showLastAdjustment =
+      formData.savings_method === "Item" &&
+      calculation.lastPayment != null &&
+      Math.abs(calculation.lastPayment - calculation.perPeriod) > 0.001;
+
     return (
       <div
         style={{
@@ -1535,62 +1673,55 @@ const MemberProfile = () => {
           </strong>
         </div>
 
+        {showLastAdjustment && (
+          <>
+            <div
+              className="pf-calc-row"
+              style={{
+                fontSize: "12px",
+                color: "var(--pf-text-muted)",
+                marginTop: 4,
+              }}
+            >
+              <span>× {calculation.totalPeriods - 1} payments</span>
+              <strong>{formatMoney(calculation.perPeriod)}</strong>
+            </div>
+            <div
+              className="pf-calc-row"
+              style={{
+                fontSize: "12px",
+                color: "var(--pf-text-muted)",
+              }}
+            >
+              <span>Final ({calculation.totalPeriods}th) payment</span>
+              <strong style={{ color: "var(--pf-accent)" }}>
+                {formatMoney(calculation.lastPayment)}
+              </strong>
+            </div>
+          </>
+        )}
+
         {formData.savings_method === "Item" && selectedItemsTotal > 0 && (
           <>
             <div className="pf-calc-row" style={{ marginTop: "8px" }}>
               <span>Selected items total</span>
               <strong>{formatMoney(selectedItemsTotal)}</strong>
             </div>
-            {moneyMismatch ? (
+            {itemsSettings.money_check_mode !== "off" && (
               <div
                 style={{
                   marginTop: "10px",
                   padding: "10px 12px",
                   borderRadius: "8px",
-                  background: "rgba(239,68,68,0.12)",
-                  border: "1px solid rgba(239,68,68,0.35)",
-                  color: "#ef4444",
+                  background: "rgba(16,185,129,0.12)",
+                  border: "1px solid rgba(16,185,129,0.35)",
+                  color: "var(--pf-accent)",
                   fontSize: "12.5px",
-                  lineHeight: 1.5,
+                  fontWeight: 600,
                 }}
               >
-                ⚠️{" "}
-                {moneyMismatch.mode === "min" ? (
-                  <>
-                    Your contribution is short by{" "}
-                    <strong>{formatMoney(moneyMismatch.diff)}</strong>. Increase
-                    your amount or duration.
-                  </>
-                ) : (
-                  <>
-                    Your contribution is{" "}
-                    <strong>
-                      {moneyMismatch.short ? "short by" : "over by"}{" "}
-                      {formatMoney(moneyMismatch.diff)}
-                    </strong>
-                    . Adjust the amount or duration so they match.
-                  </>
-                )}
+                ✅ Totals match exactly — you're good to go.
               </div>
-            ) : (
-              itemsSettings.money_check_mode !== "off" && (
-                <div
-                  style={{
-                    marginTop: "10px",
-                    padding: "10px 12px",
-                    borderRadius: "8px",
-                    background: "rgba(16,185,129,0.12)",
-                    border: "1px solid rgba(16,185,129,0.35)",
-                    color: "var(--pf-accent)",
-                    fontSize: "12.5px",
-                    fontWeight: 600,
-                  }}
-                >
-                  {itemsSettings.money_check_mode === "min"
-                    ? "✅ Meets the minimum — you're good to go."
-                    : "✅ Totals match — you're good to go."}
-                </div>
-              )
             )}
           </>
         )}
@@ -1856,7 +1987,12 @@ const MemberProfile = () => {
             {formData.savings_method === "Item" && (
               <InfoRow label="Items" value={itemLabel} />
             )}
-            <InfoRow label="Duration" value={formData.duration} />
+            <InfoRow
+              label="Duration"
+              value={
+                formData.duration ? getDurationLabel(formData.duration) : "—"
+              }
+            />
             <InfoRow
               label="Amount per period"
               value={formData.amount ? formatMoney(formData.amount) : "—"}
@@ -1895,6 +2031,15 @@ const MemberProfile = () => {
       </div>
     );
   }
+
+  const amountLabelText =
+    formData.savings_plan === "Daily"
+      ? "day"
+      : formData.savings_plan === "Weekly"
+        ? "week"
+        : formData.savings_plan === "Monthly"
+          ? "month"
+          : "period";
 
   return (
     <div className="profile-page">
@@ -2113,20 +2258,7 @@ const MemberProfile = () => {
 
                 <div className="pf-grid">
                   <div>
-                    <label className="pf-label">
-                      Duration of Saving *{" "}
-                      {selectedItemsDuration &&
-                        selectedItemsDuration !== "MIXED" && (
-                          <span
-                            style={{
-                              color: "var(--pf-accent)",
-                              fontWeight: 500,
-                            }}
-                          >
-                            (locked by items)
-                          </span>
-                        )}
-                    </label>
+                    <label className="pf-label">Duration of Saving *</label>
                     <Dropdown
                       name="duration"
                       value={formData.duration}
@@ -2134,25 +2266,25 @@ const MemberProfile = () => {
                       options={DURATION_OPTIONS}
                       placeholder="Choose duration"
                       required
-                      disabled={
-                        (formData.savings_method === "Item" &&
-                          !!selectedItemsDuration &&
-                          selectedItemsDuration !== "MIXED") ||
-                        branchSavingsMethod === "item"
-                      }
+                      disabled={false}
                     />
+                    {DURATION_OPTIONS.length === 0 && (
+                      <div
+                        style={{
+                          fontSize: 11,
+                          color: "#f59e0b",
+                          marginTop: 4,
+                        }}
+                      >
+                        No durations returned from branch settings. Ask admin to
+                        configure allowed durations.
+                      </div>
+                    )}
                   </div>
                   <div>
                     <label className="pf-label">
-                      Amount per{" "}
-                      {formData.savings_plan === "Daily"
-                        ? "day"
-                        : formData.savings_plan === "Weekly"
-                          ? "week"
-                          : formData.savings_plan === "Monthly"
-                            ? "month"
-                            : "period"}{" "}
-                      (₦) *
+                      Amount per {amountLabelText} (₦){" "}
+                      {formData.savings_method === "Item" ? "🔒" : "*"}
                     </label>
                     <input
                       type="number"
@@ -2162,9 +2294,53 @@ const MemberProfile = () => {
                       className="pf-input"
                       min="1"
                       step="0.01"
-                      placeholder="e.g., 2000"
-                      required
+                      placeholder={
+                        formData.savings_method === "Item"
+                          ? "Auto-calculated"
+                          : "e.g., 2000"
+                      }
+                      required={formData.savings_method !== "Item"}
+                      readOnly={formData.savings_method === "Item"}
+                      style={
+                        formData.savings_method === "Item"
+                          ? { opacity: 0.7, cursor: "not-allowed" }
+                          : undefined
+                      }
                     />
+                    {formData.savings_method === "Item" &&
+                      autoAmountPerPeriod != null &&
+                      periodsForSelection && (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 11,
+                            color: "var(--pf-text-muted)",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          Auto-calculated: ₦
+                          {selectedItemsTotal.toLocaleString()} ÷{" "}
+                          {periodsForSelection} payments ≈ ₦
+                          {autoAmountPerPeriod.toLocaleString("en-NG", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          per {amountLabelText}
+                          {lastPaymentAmount != null &&
+                            Math.abs(lastPaymentAmount - autoAmountPerPeriod) >
+                              0.001 && (
+                              <>
+                                {" "}
+                                (last payment: ₦
+                                {lastPaymentAmount.toLocaleString("en-NG", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                                )
+                              </>
+                            )}
+                        </div>
+                      )}
                   </div>
                 </div>
 
@@ -2404,36 +2580,21 @@ const MemberProfile = () => {
                     </div>
                   )}
                   <div>
-                    <label className="pf-label">
-                      Duration of Saving{" "}
-                      {selectedItemsDuration &&
-                        selectedItemsDuration !== "MIXED" && (
-                          <span
-                            style={{
-                              color: "var(--pf-accent)",
-                              fontWeight: 500,
-                            }}
-                          >
-                            (locked)
-                          </span>
-                        )}
-                    </label>
+                    <label className="pf-label">Duration of Saving</label>
                     <Dropdown
                       name="duration"
                       value={formData.duration}
                       onChange={handleChange}
                       options={DURATION_OPTIONS}
                       placeholder="Choose duration"
-                      disabled={
-                        (formData.savings_method === "Item" &&
-                          !!selectedItemsDuration &&
-                          selectedItemsDuration !== "MIXED") ||
-                        branchSavingsMethod === "item"
-                      }
+                      disabled={false}
                     />
                   </div>
                   <div>
-                    <label className="pf-label">Amount per period (₦)</label>
+                    <label className="pf-label">
+                      Amount per {amountLabelText} (₦){" "}
+                      {formData.savings_method === "Item" ? "🔒" : ""}
+                    </label>
                     <input
                       type="number"
                       name="amount"
@@ -2442,8 +2603,52 @@ const MemberProfile = () => {
                       className="pf-input"
                       min="1"
                       step="0.01"
-                      placeholder="e.g., 2000"
+                      placeholder={
+                        formData.savings_method === "Item"
+                          ? "Auto-calculated"
+                          : "e.g., 2000"
+                      }
+                      readOnly={formData.savings_method === "Item"}
+                      style={
+                        formData.savings_method === "Item"
+                          ? { opacity: 0.7, cursor: "not-allowed" }
+                          : undefined
+                      }
                     />
+                    {formData.savings_method === "Item" &&
+                      autoAmountPerPeriod != null &&
+                      periodsForSelection && (
+                        <div
+                          style={{
+                            marginTop: 4,
+                            fontSize: 11,
+                            color: "var(--pf-text-muted)",
+                            lineHeight: 1.4,
+                          }}
+                        >
+                          Auto-calculated: ₦
+                          {selectedItemsTotal.toLocaleString()} ÷{" "}
+                          {periodsForSelection} payments ≈ ₦
+                          {autoAmountPerPeriod.toLocaleString("en-NG", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })}{" "}
+                          per {amountLabelText}
+                          {lastPaymentAmount != null &&
+                            Math.abs(lastPaymentAmount - autoAmountPerPeriod) >
+                              0.001 && (
+                              <>
+                                {" "}
+                                (last payment: ₦
+                                {lastPaymentAmount.toLocaleString("en-NG", {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                                )
+                              </>
+                            )}
+                        </div>
+                      )}
                   </div>
                 </>
               )}

@@ -1,10 +1,10 @@
 // src/utils/api.js
 // ============================================================
-// ⚠️ CHANGE THIS to the URL that actually serves your PHP backend.
-// Confirm by opening in a browser (must return JSON, not 404):
-//   http://localhost/baleeg/api/transactions.php?branch_id=1
+// ⚠️ Set this to the URL that ACTUALLY serves your PHP backend.
+// Verify in browser first (must return JSON, not 404):
+//   http://localhost:8000/api/login.php
 // ============================================================
-const API_BASE_URL = "http://localhost/baleeg";
+const API_BASE_URL = "http://localhost:8000";
 
 const BRANCH_REQUIRED_PATHS = [
     "/api/members.php",
@@ -23,9 +23,7 @@ const PUBLIC_PATHS = [
     "/api/daily-marks.php",
 ];
 
-const isPublicPath = (path) =>
-    PUBLIC_PATHS.some((p) => path.startsWith(p));
-
+const isPublicPath = (path) => PUBLIC_PATHS.some((p) => path.startsWith(p));
 const requiresBranch = (path) =>
     BRANCH_REQUIRED_PATHS.some((p) => path.startsWith(p));
 
@@ -69,6 +67,10 @@ const resolveUserId = () => {
     }
 };
 
+/**
+ * apiFetch — returns a parsed JSON object (NOT a Response).
+ * Throws Error with the server's message on non-2xx.
+ */
 export const apiFetch = async (path, options = {}) => {
     let url = path.startsWith("http")
         ? path
@@ -84,11 +86,6 @@ export const apiFetch = async (path, options = {}) => {
     const needsBranch = requiresBranch(path);
     const isAllQuery = /[?&]all=1(&|$)/.test(path);
 
-    // ------------------------------------------------------------
-    // Only append ?branch_id= when path needs it AND it isn't there yet.
-    // Do NOT short-circuit on missing branchId — let the backend answer
-    // so you see a real 400 with a real message (not a synthetic one).
-    // ------------------------------------------------------------
     if (
         !isPublic &&
         needsBranch &&
@@ -124,7 +121,34 @@ export const apiFetch = async (path, options = {}) => {
         }
     }
 
-    return fetch(url, { ...options, headers });
+    // Debug log — remove after diagnosis
+    console.log("🌐 apiFetch →", method, url);
+
+    let res;
+    try {
+        res = await fetch(url, { ...options, headers });
+    } catch (err) {
+        console.error("❌ Network error:", method, url, err);
+        throw new Error(
+            `Cannot reach server at ${url}. Check that PHP is running on ${API_BASE_URL} and the path is correct.`,
+        );
+    }
+
+    const text = await res.text();
+    let data = null;
+    try {
+        data = text ? JSON.parse(text) : null;
+    } catch {
+        throw new Error(
+            `Server returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`,
+        );
+    }
+
+    if (!res.ok) {
+        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+    }
+
+    return data;
 };
 
 export { resolveBranchId, API_BASE_URL };

@@ -15,6 +15,75 @@ import { useBranch } from "../../context/BranchContext";
 const API_BASE_URL = "http://localhost:8000";
 const CYCLE_DAYS = 30;
 
+// ────────────────────────────────────────────────────────────
+// Rotation helpers
+// ────────────────────────────────────────────────────────────
+const ROTATION_STORAGE_KEY = "payout_rotation_v1";
+
+const readAllRotations = () => {
+  try {
+    return JSON.parse(localStorage.getItem(ROTATION_STORAGE_KEY) || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const getMemberContribution = (member) => {
+  if (!member) return 0;
+  const candidates = [
+    "amount",
+    "plan_amount",
+    "savings_amount",
+    "contribution_amount",
+    "amount_per_month",
+    "monthly_amount",
+    "amount_per_period",
+    "daily_amount",
+    "amount_per_day",
+  ];
+  for (const k of candidates) {
+    if (member[k] !== undefined && member[k] !== null && member[k] !== "") {
+      const n = parseFloat(member[k]);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  }
+  return 0;
+};
+
+const formatMonthYear = (d) => {
+  if (!d) return "—";
+  return d.toLocaleDateString("en-NG", { month: "long", year: "numeric" });
+};
+
+const findMyRotation = (member, joinDateStr) => {
+  if (!member) return { sixMonth: null, oneYear: null };
+  const amount = getMemberContribution(member);
+  if (amount <= 0) return { sixMonth: null, oneYear: null };
+  const rounded = Math.round(amount);
+  const all = readAllRotations();
+
+  const start = parseDate(joinDateStr) || new Date();
+
+  const findSlot = (rot) => {
+    if (!rot?.slots?.length) return null;
+    const slot = rot.slots.find(
+      (s) => String(s.memberId) === String(member.id),
+    );
+    if (!slot) return null;
+    const payoutDate = new Date(
+      start.getFullYear(),
+      start.getMonth() + (slot.month - 1),
+      1,
+    );
+    return { ...slot, payoutDate };
+  };
+
+  return {
+    sixMonth: findSlot(all[`6 months::${rounded}`]),
+    oneYear: findSlot(all[`1 year::${rounded}`]),
+  };
+};
+
 // ---------- Role helpers ----------
 const ROLE_META = {
   admin: { icon: "👑", label: "Admin", color: "#dc2626" },
@@ -329,14 +398,13 @@ const Dashboard = () => {
   const [balance, setBalance] = useState(0);
   const [userProfile, setUserProfile] = useState(null);
   const [pendingCount, setPendingCount] = useState(0);
-
+  const [pendingTotal, setPendingTotal] = useState(0);
+  const [approvedTotal, setApprovedTotal] = useState(0);
   const [branchInfo, setBranchInfo] = useState(null);
   const [branchSavingsMethod, setBranchSavingsMethod] = useState("both");
   const [branchPlanLoaded, setBranchPlanLoaded] = useState(false);
-
   const [recipientOpen, setRecipientOpen] = useState(false);
   const recipientRef = useRef(null);
-
   const [theme, setTheme] = useState(() => detectTheme());
 
   const [depositData, setDepositData] = useState({
@@ -357,16 +425,12 @@ const Dashboard = () => {
   const [marksLoading, setMarksLoading] = useState(false);
   const [cycleIndex, setCycleIndex] = useState(0);
 
-  // Role
   const roleRaw = userProfile?.role || user?.role || "member";
   const roleMeta = getRoleMeta(roleRaw);
   const isAdmin = ["admin", "administrator"].includes(
     String(roleRaw).toLowerCase(),
   );
 
-  // ============================================================
-  // 🔒 Member's branch — never activeBranchId
-  // ============================================================
   const myBranchId =
     userProfile?.branch_id ??
     userProfile?.branchId ??
@@ -374,13 +438,11 @@ const Dashboard = () => {
     user?.branchId ??
     null;
 
-  // 🔒 True when we're a manager but the branch isn't resolved yet
   const isManager = ["manager", "branch_manager"].includes(
     String(roleRaw).toLowerCase(),
   );
   const managerMissingBranch = isManager && !myBranchId && !userProfile;
 
-  // Theme watcher
   useEffect(() => {
     const update = () => setTheme(detectTheme());
     update();
@@ -389,12 +451,11 @@ const Dashboard = () => {
       attributes: true,
       attributeFilter: ["class", "data-theme"],
     });
-    if (document.body) {
+    if (document.body)
       observer.observe(document.body, {
         attributes: true,
         attributeFilter: ["class", "data-theme"],
       });
-    }
     window.addEventListener("storage", update);
     const interval = setInterval(update, 800);
     return () => {
@@ -404,7 +465,6 @@ const Dashboard = () => {
     };
   }, []);
 
-  // Click-outside recipient
   useEffect(() => {
     const handler = (e) => {
       if (recipientRef.current && !recipientRef.current.contains(e.target)) {
@@ -443,9 +503,6 @@ const Dashboard = () => {
   const purpleColor = isLight ? "#7c3aed" : "#a78bfa";
   const infoColor = isLight ? "#2563eb" : "#60a5fa";
 
-  // ============================================================
-  // Fetches — EVERY call must include ?branch_id=
-  // ============================================================
   const fetchBranchSavingsMethod = useCallback(async (branchId) => {
     if (!branchId) {
       setBranchSavingsMethod("both");
@@ -453,8 +510,7 @@ const Dashboard = () => {
       return;
     }
     try {
-      const res = await apiFetch(`/api/settings.php?branch_id=${branchId}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/settings.php?branch_id=${branchId}`);
       setBranchSavingsMethod(pickSavingsMethodFromSettings(data) || "both");
     } catch (err) {
       console.warn("[Dashboard] branch savings method fetch failed:", err);
@@ -467,8 +523,7 @@ const Dashboard = () => {
   const fetchBranchInfo = useCallback(async (branchId) => {
     if (!branchId) return null;
     try {
-      const res = await apiFetch(`/api/get-branch.php?id=${branchId}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/get-branch.php?id=${branchId}`);
       const b = pickBranchFromResponse(data);
       if (b) {
         setBranchInfo(b);
@@ -488,8 +543,7 @@ const Dashboard = () => {
     }
     setMarksLoading(true);
     try {
-      const res = await apiFetch(`/api/daily-marks.php?member_id=${memberId}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/daily-marks.php?member_id=${memberId}`);
       setDailyMarks(new Set(Array.isArray(data?.marks) ? data.marks : []));
     } catch (err) {
       console.warn("[Dashboard] daily marks fetch failed:", err);
@@ -499,7 +553,6 @@ const Dashboard = () => {
     }
   }, []);
 
-  // 🔒 fetchUserProfile — always includes ?branch_id=
   const fetchUserProfile = useCallback(async () => {
     try {
       let bid = user?.branch_id ?? user?.branchId ?? null;
@@ -511,9 +564,9 @@ const Dashboard = () => {
       }
       if (!bid) return null;
 
-      const url = `/api/members.php?branch_id=${encodeURIComponent(bid)}`;
-      const response = await apiFetch(url);
-      const data = await response.json();
+      const data = await apiFetch(
+        `/api/members.php?branch_id=${encodeURIComponent(bid)}`,
+      );
 
       if (Array.isArray(data?.members)) {
         const currentUser = data.members.find(
@@ -522,7 +575,6 @@ const Dashboard = () => {
         if (currentUser) {
           setUserProfile(currentUser);
           setBalance(parseFloat(currentUser.balance) || 0);
-
           const memberBranch =
             currentUser.branch_id ?? currentUser.branchId ?? bid ?? null;
           if (memberBranch) {
@@ -547,19 +599,16 @@ const Dashboard = () => {
     fetchDailyMarks,
   ]);
 
-  // 🔒 fetchMembers — ONLY the manager's branch. No fallback to global.
   const fetchMembers = useCallback(async () => {
     if (!myBranchId) {
       setMembers([]);
       return;
     }
     try {
-      const response = await apiFetch(
+      const data = await apiFetch(
         `/api/members.php?branch_id=${encodeURIComponent(myBranchId)}`,
       );
-      const data = await response.json();
       if (Array.isArray(data?.members)) {
-        // Sanity filter: keep only rows that really belong to this branch
         const onlyMine = data.members.filter((m) => {
           const b = m.branch_id ?? m.branchId;
           if (b === undefined || b === null) return true;
@@ -572,26 +621,51 @@ const Dashboard = () => {
     }
   }, [myBranchId, user?.id]);
 
-  // 🔒 fetchTransactions — scoped + filtered to this member
   const fetchTransactions = useCallback(async () => {
     if (!myBranchId) {
       setTransactions([]);
       setPendingCount(0);
+      setPendingTotal(0);
+      setApprovedTotal(0);
       return;
     }
     try {
-      const response = await apiFetch(
+      const data = await apiFetch(
         `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
       );
-      const data = await response.json();
       if (Array.isArray(data?.transactions)) {
         const userTransactions = data.transactions.filter(
           (t) => String(t.memberId ?? t.member_id) === String(user?.id),
         );
+        const pendingCreditTotal = userTransactions
+          .filter(
+            (t) =>
+              String(t.status || "").toLowerCase() === "pending" &&
+              ["deposit", "transfer_in"].includes(
+                String(t.type || "").toLowerCase(),
+              ),
+          )
+          .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+        const approvedCreditTotal = userTransactions
+          .filter(
+            (t) =>
+              ["approved", "completed"].includes(
+                String(t.status || "").toLowerCase(),
+              ) &&
+              ["deposit", "transfer_in"].includes(
+                String(t.type || "").toLowerCase(),
+              ),
+          )
+          .reduce(
+            (sum, t) => sum + (parseFloat(t.net_amount ?? t.amount) || 0),
+            0,
+          );
         setTransactions(userTransactions.slice(0, 10));
         setPendingCount(
           userTransactions.filter((t) => t.status === "pending").length,
         );
+        setPendingTotal(pendingCreditTotal);
+        setApprovedTotal(approvedCreditTotal);
       }
     } catch (error) {
       console.error("Error fetching transactions:", error);
@@ -681,22 +755,20 @@ const Dashboard = () => {
     const amt = parseFloat(amount);
     const diff = amt - expected;
     const EPS = 0.01;
-    if (diff > EPS) {
+    if (diff > EPS)
       return {
         ok: false,
         reason: "greater",
         expected,
         message: `❌ Deposit amount is GREATER than your savings plan.\n\nYour plan expects ${formatCurrency(expected)} ${plan.periodLabel}.\nYou entered ${formatCurrency(amt)}.`,
       };
-    }
-    if (diff < -EPS) {
+    if (diff < -EPS)
       return {
         ok: false,
         reason: "less",
         expected,
         message: `❌ Deposit amount is LESS than your savings plan.\n\nYour plan expects ${formatCurrency(expected)} ${plan.periodLabel}.\nYou entered ${formatCurrency(amt)}.`,
       };
-    }
     return { ok: true, expected };
   };
 
@@ -739,7 +811,7 @@ const Dashboard = () => {
         description: depositData.description || "Deposit request",
         branch_id: myBranchId,
       };
-      const response = await apiFetch(
+      await apiFetch(
         `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
         {
           method: "POST",
@@ -750,25 +822,10 @@ const Dashboard = () => {
           body: JSON.stringify(transactionData),
         },
       );
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        toast.error("Server returned invalid response.");
-        setLoading(false);
-        return;
-      }
-      if (response.ok) {
-        toast.success("✅ Deposit submitted for approval");
-        setShowDepositModal(false);
-        setDepositData({ amount: "", description: "" });
-        await refreshData(true);
-      } else {
-        toast.error(
-          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
-        );
-      }
+      toast.success("✅ Deposit submitted for approval");
+      setShowDepositModal(false);
+      setDepositData({ amount: "", description: "" });
+      await refreshData(true);
     } catch (error) {
       console.error("Error submitting deposit:", error);
       toast.error(`❌ ${error.message || "Failed to submit deposit"}`);
@@ -816,7 +873,7 @@ const Dashboard = () => {
         description: withdrawData.description || "Withdrawal request",
         branch_id: myBranchId,
       };
-      const response = await apiFetch(
+      await apiFetch(
         `/api/transactions.php?branch_id=${encodeURIComponent(myBranchId)}`,
         {
           method: "POST",
@@ -827,25 +884,10 @@ const Dashboard = () => {
           body: JSON.stringify(transactionData),
         },
       );
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        toast.error("Server returned invalid response");
-        setLoading(false);
-        return;
-      }
-      if (response.ok) {
-        toast.success("✅ Withdrawal submitted for approval");
-        setShowWithdrawModal(false);
-        setWithdrawData({ amount: "", description: "" });
-        await refreshData(true);
-      } else {
-        toast.error(
-          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
-        );
-      }
+      toast.success("✅ Withdrawal submitted for approval");
+      setShowWithdrawModal(false);
+      setWithdrawData({ amount: "", description: "" });
+      await refreshData(true);
     } catch (error) {
       console.error("Error submitting withdrawal:", error);
       toast.error(`❌ ${error.message}`);
@@ -912,7 +954,7 @@ const Dashboard = () => {
           `Transfer to ${toMember.name || toMember.full_name}`,
         branch_id: myBranchId,
       };
-      const response = await apiFetch(
+      await apiFetch(
         `/api/transfers.php?branch_id=${encodeURIComponent(myBranchId)}`,
         {
           method: "POST",
@@ -923,25 +965,10 @@ const Dashboard = () => {
           body: JSON.stringify(transferPayload),
         },
       );
-      const text = await response.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        toast.error("Server returned invalid response");
-        setLoading(false);
-        return;
-      }
-      if (response.ok) {
-        toast.success("✅ Transfer submitted for approval");
-        setShowTransferModal(false);
-        setTransferData({ toMemberId: "", amount: "", description: "" });
-        await refreshData(true);
-      } else {
-        toast.error(
-          `❌ ${data.error || data.message || `Server error: ${response.status}`}`,
-        );
-      }
+      toast.success("✅ Transfer submitted for approval");
+      setShowTransferModal(false);
+      setTransferData({ toMemberId: "", amount: "", description: "" });
+      await refreshData(true);
     } catch (error) {
       console.error("Error submitting transfer:", error);
       toast.error(`❌ ${error.message}`);
@@ -1105,8 +1132,28 @@ const Dashboard = () => {
   const canGoPrev = cycleIndex > 0;
   const canGoNext = cycleIndex < cycles.length - 1;
 
-  // 🔒 If the manager has no branch assigned, refuse to render the
-  // member list — show a clear message instead of everything.
+  const myRotation = useMemo(
+    () =>
+      findMyRotation(
+        userProfile,
+        userProfile?.joinDate ||
+          userProfile?.join_date ||
+          user?.join_date ||
+          user?.joinDate,
+      ),
+    [
+      userProfile?.id,
+      userProfile?.amount,
+      userProfile?.plan_amount,
+      userProfile?.savings_amount,
+      userProfile?.contribution_amount,
+      userProfile?.joinDate,
+      userProfile?.join_date,
+      user?.join_date,
+      user?.joinDate,
+    ],
+  );
+
   if (isManager && managerMissingBranch) {
     return (
       <div
@@ -1366,6 +1413,19 @@ const Dashboard = () => {
                       />
                       {durationMeta.icon} {durationMeta.label}
                     </span>
+                    {planSummary && (
+                      <span
+                        className="plan-mark-chip"
+                        style={{ color: creditColor }}
+                      >
+                        <span
+                          className="plan-mark-chip-dot"
+                          style={{ background: creditColor }}
+                        />
+                        💰 {formatCurrency(planSummary.perPeriod)}{" "}
+                        {planSummary.periodLabel}
+                      </span>
+                    )}
                   </>
                 ) : (
                   <span className="plan-mark-chip" style={{ color: textMuted }}>
@@ -1586,6 +1646,7 @@ const Dashboard = () => {
             </div>
           </div>
 
+          {/* BALANCE CARD — shows Awaiting Approval when pending > 0 and no approved balance */}
           <div
             style={{
               backgroundColor: cardSurface,
@@ -1606,7 +1667,7 @@ const Dashboard = () => {
               >
                 <span style={{ fontSize: "24px" }}>💰</span>
               </div>
-              <div>
+              <div style={{ minWidth: 0, flex: 1 }}>
                 <p
                   style={{
                     color: textMuted,
@@ -1614,18 +1675,87 @@ const Dashboard = () => {
                     margin: "0 0 4px 0",
                   }}
                 >
-                  Balance
+                  {balance > 0
+                    ? "Approved Balance"
+                    : pendingTotal > 0
+                      ? "Awaiting Approval"
+                      : "Balance"}
                 </p>
-                <p
-                  style={{
-                    fontSize: "22px",
-                    fontWeight: "bold",
-                    color: creditColor,
-                    margin: 0,
-                  }}
-                >
-                  {formatCurrency(balance)}
-                </p>
+                {balance > 0 ? (
+                  <>
+                    <p
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: "bold",
+                        color: creditColor,
+                        margin: 0,
+                      }}
+                    >
+                      {formatCurrency(balance)}
+                    </p>
+                    {pendingTotal > 0 && (
+                      <p
+                        style={{
+                          fontSize: "11px",
+                          color: warningColor,
+                          margin: "6px 0 0 0",
+                          fontWeight: 600,
+                          display: "flex",
+                          alignItems: "center",
+                          gap: "4px",
+                        }}
+                      >
+                        <span>⏳</span>+{formatCurrency(pendingTotal)} pending
+                      </p>
+                    )}
+                  </>
+                ) : pendingTotal > 0 ? (
+                  <div>
+                    <p
+                      style={{
+                        fontSize: "13px",
+                        fontWeight: 600,
+                        color: warningColor,
+                        margin: "0 0 4px 0",
+                        display: "flex",
+                        alignItems: "center",
+                        gap: "6px",
+                      }}
+                    >
+                      <span style={{ fontSize: 15 }}>⏳</span> Awaiting Approval
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "22px",
+                        fontWeight: "bold",
+                        color: warningColor,
+                        margin: 0,
+                      }}
+                    >
+                      {formatCurrency(pendingTotal)}
+                    </p>
+                    <p
+                      style={{
+                        fontSize: "11px",
+                        color: textMuted,
+                        margin: "4px 0 0 0",
+                      }}
+                    >
+                      Pending manager approval
+                    </p>
+                  </div>
+                ) : (
+                  <p
+                    style={{
+                      fontSize: "22px",
+                      fontWeight: "bold",
+                      color: textMuted,
+                      margin: 0,
+                    }}
+                  >
+                    {formatCurrency(0)}
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -1823,8 +1953,7 @@ const Dashboard = () => {
                   Your manager ticks each day you save. You can only view this.
                   {cycleStart && cycleEnd && (
                     <>
-                      {" "}
-                      <strong>{cycleStart}</strong> →{" "}
+                      <strong> {cycleStart}</strong> →{" "}
                       <strong>{cycleEnd}</strong>
                     </>
                   )}
@@ -1930,35 +2059,149 @@ const Dashboard = () => {
           </div>
         )}
 
+        {/* My Payout Rotation */}
+        {!isAdmin && (myRotation.sixMonth || myRotation.oneYear) && (
+          <div className="plan-summary">
+            <div className="plan-summary-header">
+              <h3 className="plan-summary-title">🎯 My Payout Rotation</h3>
+              <div className="plan-summary-badges">
+                {myRotation.sixMonth && (
+                  <span className="plan-badge plan-badge-green">
+                    6-month plan
+                  </span>
+                )}
+                {myRotation.oneYear && (
+                  <span className="plan-badge plan-badge-blue">
+                    1-year plan
+                  </span>
+                )}
+              </div>
+            </div>
+            <div className="plan-grid">
+              {myRotation.sixMonth && (
+                <div className="plan-cell">
+                  <div className="plan-cell-label">
+                    📅 6-Month Payout — Month {myRotation.sixMonth.month} of 6
+                  </div>
+                  <div className="plan-cell-value accent">
+                    {formatMonthYear(myRotation.sixMonth.payoutDate)}
+                  </div>
+                  <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>
+                    {formatCurrency(planSummary?.perPeriod || 0)} × 6 members ={" "}
+                    <strong style={{ color: creditColor }}>
+                      {formatCurrency((planSummary?.perPeriod || 0) * 6)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+              {myRotation.oneYear && (
+                <div className="plan-cell">
+                  <div className="plan-cell-label">
+                    📅 1-Year Payout — Month {myRotation.oneYear.month} of 12
+                  </div>
+                  <div className="plan-cell-value accent">
+                    {formatMonthYear(myRotation.oneYear.payoutDate)}
+                  </div>
+                  <div style={{ fontSize: 11, color: textMuted, marginTop: 4 }}>
+                    {formatCurrency(planSummary?.perPeriod || 0)} × 12 members ={" "}
+                    <strong style={{ color: creditColor }}>
+                      {formatCurrency((planSummary?.perPeriod || 0) * 12)}
+                    </strong>
+                  </div>
+                </div>
+              )}
+            </div>
+            <div
+              style={{
+                marginTop: 14,
+                padding: 10,
+                borderRadius: 8,
+                fontSize: 12,
+                color: textMuted,
+                background: isLight
+                  ? "rgba(37,99,235,0.06)"
+                  : "rgba(59,130,246,0.10)",
+                border: `1px solid ${isLight ? "rgba(37,99,235,0.25)" : "rgba(59,130,246,0.30)"}`,
+              }}
+            >
+              💡 <strong>What this means:</strong> Each member contributes the
+              amount per period for the entire duration. Every month, one member
+              receives the full monthly pot. Your slot tells you which month you
+              receive the pot.
+            </div>
+          </div>
+        )}
+
         {/* Savings Plan */}
         {!isAdmin && (
           <div className="plan-summary">
             <div className="plan-summary-header">
               <h3 className="plan-summary-title">💼 My Savings Plan</h3>
-              <div className="plan-summary-badges">
-                {branchPlanLoaded ? (
-                  <span className={`branch-plan-pill ${branchSavingsMethod}`}>
-                    {branchPlanMeta.icon} {branchPlanMeta.label}
-                  </span>
-                ) : (
-                  effectiveMethod && (
-                    <span className="plan-badge plan-badge-purple">
-                      {effectiveMethod === "Item"
-                        ? `📦 ${itemName || "Item"}`
-                        : "💵 Cash"}
-                    </span>
-                  )
-                )}
+              <div
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  flexWrap: "wrap",
+                }}
+              >
                 {planSummary && (
-                  <>
-                    <span className="plan-badge plan-badge-green">
-                      {planSummary.plan}
+                  <span
+                    style={{
+                      display: "inline-flex",
+                      alignItems: "center",
+                      gap: 6,
+                      padding: "6px 14px",
+                      borderRadius: 9999,
+                      background: isLight
+                        ? "rgba(5,150,105,0.12)"
+                        : "rgba(16,185,129,0.18)",
+                      border: `1px solid ${isLight ? "rgba(5,150,105,0.35)" : "rgba(16,185,129,0.45)"}`,
+                      color: creditColor,
+                      fontWeight: 800,
+                      fontSize: 14,
+                      letterSpacing: "0.2px",
+                      whiteSpace: "nowrap",
+                    }}
+                    title={`Your savings amount ${planSummary.periodLabel}`}
+                  >
+                    💰 {formatCurrency(planSummary.perPeriod)}
+                    <span
+                      style={{
+                        fontSize: 11,
+                        fontWeight: 600,
+                        opacity: 0.85,
+                      }}
+                    >
+                      {planSummary.periodLabel}
                     </span>
-                    <span className="plan-badge plan-badge-blue">
-                      {planSummary.duration}
-                    </span>
-                  </>
+                  </span>
                 )}
+                <div className="plan-summary-badges">
+                  {branchPlanLoaded ? (
+                    <span className={`branch-plan-pill ${branchSavingsMethod}`}>
+                      {branchPlanMeta.icon} {branchPlanMeta.label}
+                    </span>
+                  ) : (
+                    effectiveMethod && (
+                      <span className="plan-badge plan-badge-purple">
+                        {effectiveMethod === "Item"
+                          ? `📦 ${itemName || "Item"}`
+                          : "💵 Cash"}
+                      </span>
+                    )
+                  )}
+                  {planSummary && (
+                    <>
+                      <span className="plan-badge plan-badge-green">
+                        {planSummary.plan}
+                      </span>
+                      <span className="plan-badge plan-badge-blue">
+                        {planSummary.duration}
+                      </span>
+                    </>
+                  )}
+                </div>
               </div>
             </div>
             {branchPlanLoaded && (
@@ -2047,6 +2290,18 @@ const Dashboard = () => {
                         {formatCurrency(planSummary.total)}
                       </div>
                     </div>
+                    {userProfile?.last_payment_amount != null &&
+                      Math.abs(
+                        Number(userProfile.last_payment_amount) -
+                          Number(planSummary.perPeriod),
+                      ) > 0.001 && (
+                        <div className="plan-cell">
+                          <div className="plan-cell-label">Final Payment</div>
+                          <div className="plan-cell-value accent">
+                            {formatCurrency(userProfile.last_payment_amount)}
+                          </div>
+                        </div>
+                      )}
                   </>
                 )}
               </div>
@@ -2413,7 +2668,7 @@ const Dashboard = () => {
         </div>
       </div>
 
-      {/* Deposit / Withdraw / Transfer modals — unchanged from your file */}
+      {/* Deposit modal */}
       {showDepositModal && (
         <div className="modal-overlay">
           <div className="modal-content">
@@ -2454,6 +2709,25 @@ const Dashboard = () => {
                       {formatCurrency(planSummary.perPeriod)}
                     </strong>{" "}
                     {planSummary.periodLabel}.
+                  </div>
+                )}
+                {pendingTotal > 0 && (
+                  <div
+                    style={{
+                      color: warningColor,
+                      fontSize: "12px",
+                      marginTop: "6px",
+                      padding: "8px 10px",
+                      borderRadius: 8,
+                      backgroundColor: isLight
+                        ? "rgba(217,119,6,0.06)"
+                        : "rgba(234,179,8,0.10)",
+                      border: `1px solid ${isLight ? "rgba(217,119,6,0.25)" : "rgba(234,179,8,0.30)"}`,
+                      fontWeight: 600,
+                    }}
+                  >
+                    ⏳ You already have {formatCurrency(pendingTotal)} awaiting
+                    approval.
                   </div>
                 )}
                 <div

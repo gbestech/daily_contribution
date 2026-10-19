@@ -2,8 +2,8 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
+import { API_BASE_URL, apiFetch } from "../../utils/api";
 
-const API_BASE_URL = "http://localhost:8000";
 const POLL_INTERVAL = 30000;
 
 const NotificationBell = () => {
@@ -20,18 +20,37 @@ const NotificationBell = () => {
   const dropdownRef = useRef(null);
   const pollRef = useRef(null);
 
-  const userId = user?.id || user?.user_id || null;
+  // Prefer the raw numeric id. Both fields are populated by login.php.
+  const userId = user?.id ?? user?.user_id ?? null;
+  const userRole = String(user?.role || "")
+    .trim()
+    .toLowerCase();
 
+  // ============================================================
+  // Fetch notifications
+  // ============================================================
   const fetchNotifications = useCallback(
     async (silent = false) => {
-      if (!userId) return;
+      if (!userId) {
+        console.warn("[bell] userId is missing — cannot fetch notifications");
+        return;
+      }
       if (!silent) setLoading(true);
       try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/notifications.php?user_id=${encodeURIComponent(
+        const res = await apiFetch(
+          `/api/notifications.php?user_id=${encodeURIComponent(
             userId,
-          )}&limit=30`,
+          )}&role=${encodeURIComponent(userRole)}&limit=30`,
         );
+
+        // Handle non-200 gracefully (endpoint may 404 on new setups)
+        if (!res.ok) {
+          const text = await res.text();
+          console.warn("[bell] HTTP", res.status, text.slice(0, 200));
+          setError(`HTTP ${res.status}`);
+          return;
+        }
+
         const data = await res.json();
         if (data.status && Array.isArray(data.data)) {
           setNotifications(data.data);
@@ -43,13 +62,13 @@ const NotificationBell = () => {
           setError(data.message || "Failed to load notifications");
         }
       } catch (err) {
-        console.error("Notifications fetch error:", err);
-        setError("Network error loading notifications");
+        console.error("[bell] fetch error:", err);
+        setError(err.message || "Network error");
       } finally {
         if (!silent) setLoading(false);
       }
     },
-    [userId],
+    [userId, userRole],
   );
 
   useEffect(() => {
@@ -77,19 +96,22 @@ const NotificationBell = () => {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  // ============================================================
+  // Actions
+  // ============================================================
   const markAsRead = async (id) => {
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, is_read: true } : n)),
     );
     setUnreadCount((c) => Math.max(0, c - 1));
     try {
-      await fetch(`${API_BASE_URL}/api/notifications.php`, {
+      await apiFetch(`/api/notifications.php`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_read", id, user_id: userId }),
       });
     } catch (err) {
-      console.error("mark read failed:", err);
+      console.error("[bell] mark read failed:", err);
     }
   };
 
@@ -97,13 +119,13 @@ const NotificationBell = () => {
     setNotifications((prev) => prev.map((n) => ({ ...n, is_read: true })));
     setUnreadCount(0);
     try {
-      await fetch(`${API_BASE_URL}/api/notifications.php`, {
+      await apiFetch(`/api/notifications.php`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "mark_all_read", user_id: userId }),
       });
     } catch (err) {
-      console.error("mark all read failed:", err);
+      console.error("[bell] mark all read failed:", err);
     }
   };
 
@@ -114,13 +136,13 @@ const NotificationBell = () => {
       setUnreadCount((c) => Math.max(0, c - 1));
     }
     try {
-      await fetch(`${API_BASE_URL}/api/notifications.php`, {
+      await apiFetch(`/api/notifications.php`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ action: "delete", id, user_id: userId }),
       });
     } catch (err) {
-      console.error("delete failed:", err);
+      console.error("[bell] delete failed:", err);
     }
   };
 
@@ -132,6 +154,9 @@ const NotificationBell = () => {
     }
   };
 
+  // ============================================================
+  // Helpers
+  // ============================================================
   const iconForType = (type) => {
     switch ((type || "").toLowerCase()) {
       case "deposit":
@@ -514,7 +539,6 @@ const NotificationBell = () => {
             ))}
           </div>
 
-          {/* ✅ FIXED: footer just closes, no navigation */}
           <div
             style={{
               padding: "8px 16px",

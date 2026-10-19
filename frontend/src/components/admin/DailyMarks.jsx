@@ -161,7 +161,6 @@ const computeCycles = (joinDateStr, durationStr) => {
   return cycles;
 };
 
-// 🆕 Money formatter (no decimals for clean ₦50,000)
 const fmtNaira = (n) => {
   const val = Number(n || 0);
   return "₦" + val.toLocaleString("en-NG", { maximumFractionDigits: 0 });
@@ -226,14 +225,14 @@ const AdminDailyMarks = () => {
   const warningColor = isLight ? "#d97706" : "#fbbf24";
   const accentColor = "#10b981";
 
+  // ✅ FIXED: no .json() — apiFetch returns parsed data
   const fetchMembers = useCallback(async () => {
     setMembersLoading(true);
     try {
       const url = activeBranchId
         ? `/api/members.php?branch_id=${activeBranchId}`
         : "/api/members.php";
-      const res = await apiFetch(url);
-      const data = await res.json();
+      const data = await apiFetch(url);
       const list = Array.isArray(data?.members) ? data.members : [];
       const sorted = list.slice().sort((a, b) =>
         String(a.name || a.full_name || "")
@@ -243,13 +242,14 @@ const AdminDailyMarks = () => {
       setMembers(sorted);
     } catch (err) {
       console.error("[AdminDailyMarks] members fetch failed:", err);
-      toast.error("Failed to load members");
+      toast.error(err.message || "Failed to load members");
       setMembers([]);
     } finally {
       setMembersLoading(false);
     }
   }, [activeBranchId]);
 
+  // ✅ FIXED: no .json()
   const fetchMarks = useCallback(async (memberId) => {
     if (!memberId) {
       setDailyMarks(new Set());
@@ -257,8 +257,7 @@ const AdminDailyMarks = () => {
     }
     setMarksLoading(true);
     try {
-      const res = await apiFetch(`/api/daily-marks.php?member_id=${memberId}`);
-      const data = await res.json();
+      const data = await apiFetch(`/api/daily-marks.php?member_id=${memberId}`);
       const arr = Array.isArray(data?.marks) ? data.marks : [];
       setDailyMarks(new Set(arr));
     } catch (err) {
@@ -286,6 +285,7 @@ const AdminDailyMarks = () => {
     setCycleIndex(0);
   }, [selectedMemberId, members, fetchMarks]);
 
+  // ✅ FIXED: no .text(), no .json(), no .ok — try/catch only
   const toggleMark = async (iso) => {
     if (!canMark) {
       toast.error("Only managers can mark days");
@@ -307,7 +307,7 @@ const AdminDailyMarks = () => {
     setMarkSaving(iso);
 
     try {
-      const res = await apiFetch("/api/daily-marks.php", {
+      await apiFetch("/api/daily-marks.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -322,18 +322,9 @@ const AdminDailyMarks = () => {
           ...(activeBranchId ? { branch_id: activeBranchId } : {}),
         }),
       });
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch {
-        throw new Error(`Server returned non-JSON (HTTP ${res.status})`);
-      }
-      if (!res.ok) {
-        setDailyMarks(new Set(dailyMarks));
-        toast.error(data.error || `Save failed (HTTP ${res.status})`);
-      }
+      // Success — apiFetch throws on non-2xx, so no error handling needed
     } catch (err) {
+      // Rollback
       setDailyMarks(new Set(dailyMarks));
       toast.error(err.message || "Failed to save mark");
     } finally {
@@ -341,7 +332,6 @@ const AdminDailyMarks = () => {
     }
   };
 
-  // Plan info
   const planType = getPlanTypeMeta(selectedMember?.savings_plan);
   const durationMeta = getDurationMeta(selectedMember?.duration);
   const savingsMethod = String(selectedMember?.savings_method || "")
@@ -370,17 +360,13 @@ const AdminDailyMarks = () => {
   const checkedCount = cycleDays.filter((d) => d.checked).length;
   const totalDays = cycleDays.length;
 
-  // 🆕 Money math for this cycle
   const paidThisCycle = checkedCount * amountPerPeriod;
-  // Expected total for one cycle: cycles are 30 days, but plan periods are per-month (30/4/1)
-  // Use plan's periods-per-month × amount = expected per cycle
   const expectedPerCycle = amountPerPeriod * (planType.perMonth || 0);
   const cycleProgressPct =
     expectedPerCycle > 0
       ? Math.min(100, Math.round((paidThisCycle / expectedPerCycle) * 100))
       : 0;
 
-  // Totals across ALL cycles
   const totalCheckedAllCycles = dailyMarks.size;
   const totalPaidAllCycles = totalCheckedAllCycles * amountPerPeriod;
 
@@ -451,7 +437,6 @@ const AdminDailyMarks = () => {
         .dm-cycle-dropdown { padding: 8px 12px; border-radius: 8px; border: 1px solid ${fieldBorder}; background: ${fieldBg}; color: ${fieldText}; font-size: 13px; cursor: pointer; }
         .dm-cycle-badge { padding: 5px 12px; border-radius: 9999px; font-size: 11px; font-weight: 700; letter-spacing: 0.4px; text-transform: uppercase; background: ${isLight ? "rgba(37,99,235,0.12)" : "rgba(59,130,246,0.20)"}; color: ${isLight ? "#1d4ed8" : "#93c5fd"}; border: 1px solid ${isLight ? "rgba(37,99,235,0.35)" : "rgba(59,130,246,0.45)"}; }
 
-        /* 🆕 Paid amount panel */
         .dm-paid-panel {
           display: grid;
           grid-template-columns: 1fr 1fr;
@@ -484,7 +469,6 @@ const AdminDailyMarks = () => {
         .dm-day-cell.future .dm-num { color: ${textMuted}; }
         .dm-day-cell.past:not(.checked) .dm-num { color: ${textMuted}; }
 
-        /* 🆕 Per-day paid amount chip */
         .dm-day-cell .dm-paid {
           position: absolute; bottom: 4px; left: 50%; transform: translateX(-50%);
           font-size: 8.5px; font-weight: 800; letter-spacing: 0.2px;
@@ -618,7 +602,6 @@ const AdminDailyMarks = () => {
               </div>
             </div>
 
-            {/* Plan panel */}
             {selectedMember?.savings_plan || selectedMember?.duration ? (
               <div className="dm-plan-panel">
                 <div className="dm-plan-cell">
@@ -684,7 +667,6 @@ const AdminDailyMarks = () => {
               </div>
             )}
 
-            {/* Overall progress bar */}
             {expectedTotalAllCycles != null && (
               <div className="dm-progress-wrap" style={{ marginBottom: 16 }}>
                 <div className="dm-progress-label">
@@ -707,7 +689,6 @@ const AdminDailyMarks = () => {
               </div>
             )}
 
-            {/* Cycle navigator */}
             {cycles.length > 0 && (
               <div className="dm-cycle-nav">
                 <div className="dm-cycle-nav-left">
@@ -758,7 +739,6 @@ const AdminDailyMarks = () => {
               </div>
             )}
 
-            {/* 🆕 PAID AMOUNT PANEL — shows money for this cycle */}
             <div className="dm-paid-panel">
               <div className="dm-paid-cell">
                 <div className="dm-paid-label">💰 Paid this cycle</div>
@@ -795,7 +775,6 @@ const AdminDailyMarks = () => {
               </div>
             </div>
 
-            {/* Grid */}
             <div className="dm-day-grid">
               {cycleDays.map((d) => {
                 const cellClass = [
@@ -830,7 +809,6 @@ const AdminDailyMarks = () => {
                     <div className="dm-box" />
                     <div className="dm-num">{d.dayNum}</div>
                     <div className="dm-month">{d.monthShort}</div>
-                    {/* 🆕 Show amount chip on ticked cells */}
                     {d.checked && amountPerPeriod > 0 && (
                       <div className="dm-paid">{fmtNaira(amountPerPeriod)}</div>
                     )}

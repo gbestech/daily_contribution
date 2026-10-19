@@ -26,14 +26,12 @@ const Login = () => {
 
   // Prefill + auto-submit + capture redirect
   useEffect(() => {
-    // 1) Read from URL query (hard-redirect fallback)
     const params = new URLSearchParams(window.location.search);
     const qEmail = params.get("email");
     const qPass = params.get("password");
     const qRedirect = params.get("redirectTo");
     const qJustReg = params.get("justRegistered");
 
-    // 2) Read from React Router state
     const state = location.state || {};
     const sEmail = state.email;
     const sPass = state.password;
@@ -73,7 +71,6 @@ const Login = () => {
       }, 350);
     }
 
-    // Clean URL params so refresh doesn't retrigger
     if (qEmail || qPass) {
       window.history.replaceState({}, document.title, window.location.pathname);
     }
@@ -84,14 +81,10 @@ const Login = () => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
   };
 
-  // ------------------------------------------------------------
   // Check if the member's profile is complete.
-  // Returns true if completed, false if not, null if unknown.
-  // ------------------------------------------------------------
   const checkProfileCompletion = async (user) => {
     if (!user?.id) return null;
 
-    // Prefer what login returned
     if (
       user.profile_completed === 1 ||
       user.profile_completed === "1" ||
@@ -107,26 +100,9 @@ const Login = () => {
       return false;
     }
 
-    // Otherwise fetch the member record directly by id
     try {
-      const res = await apiFetch(`/api/members.php/${user.id}`);
-      if (!res.ok) {
-        const listRes = await apiFetch("/api/members.php");
-        const listData = await listRes.json();
-        const found = Array.isArray(listData?.members)
-          ? listData.members.find((m) => String(m.id) === String(user.id))
-          : null;
-        if (found) {
-          return (
-            found.profile_completed === 1 ||
-            found.profile_completed === "1" ||
-            found.profile_completed === true
-          );
-        }
-        return null;
-      }
-      const data = await res.json();
-      const m = data.member || data.data || data;
+      const data = await apiFetch(`/api/members.php/${user.id}`);
+      const m = data?.member || data?.data || data;
       if (m) {
         return (
           m.profile_completed === 1 ||
@@ -152,7 +128,8 @@ const Login = () => {
     setLoading(true);
 
     try {
-      const res = await apiFetch("/api/login.php", {
+      // ✅ apiFetch returns parsed JSON, NOT a Response
+      const data = await apiFetch("/api/login.php", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -165,10 +142,9 @@ const Login = () => {
         }),
       });
 
-      const data = await res.json();
-
-      if (!res.ok || !data.user) {
-        toast.error(data.error || data.message || "Invalid credentials");
+      // login.php returns { status, token, user }
+      if (!data?.status || !data?.user) {
+        toast.error(data?.error || data?.message || "Invalid credentials");
         setLoading(false);
         return;
       }
@@ -178,42 +154,31 @@ const Login = () => {
       const role = String(data.user?.role || "").toLowerCase();
       const isAdmin = role === "admin" || role === "administrator";
 
-      // 🆕 Determine target destination
       let destination;
-
-      // 1. If the previous page asked for a specific redirect, respect it
       const requestedRedirect =
         pendingRedirectRef.current || location.state?.redirectTo || null;
 
       if (isAdmin) {
-        // Admins → dashboard
         destination = "/admin/dashboard";
       } else {
-        // Members: check profile completion
         const profileDone = await checkProfileCompletion(data.user);
 
         if (profileDone === false) {
-          // Profile NOT complete → force them to the profile page
           destination = "/member/profile";
           toast("Please complete your profile to continue.", {
             icon: "📝",
             duration: 5000,
           });
         } else if (requestedRedirect) {
-          // Profile done but a specific redirect was requested
           destination = requestedRedirect;
         } else if (profileDone === true) {
-          // Profile done → dashboard
           destination = "/member/dashboard";
         } else {
-          // Unknown status — safest bet is profile page
           destination = "/member/profile";
         }
       }
 
       toast.success(`Welcome back, ${data.user.name || "User"}!`);
-
-      // 🆕 HARD redirect so nothing can block it
       navigate(destination, { replace: true });
     } catch (err) {
       console.error("[Login] error:", err);

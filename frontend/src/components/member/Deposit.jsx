@@ -6,6 +6,17 @@ import { useNavigate } from "react-router-dom";
 const API_BASE_URL = "http://localhost:8000";
 const MAX_SLIP_SIZE_MB = 2;
 
+// ⚠️ TEMPORARY fallback — update once the real plan column is confirmed
+const FALLBACK_PLAN = {
+  plan: "Daily",
+  duration: "4 years",
+  perPeriod: 3000,
+  periodLabel: "per day",
+  isRandom: false,
+  totalPeriods: null,
+  total: null,
+};
+
 // ------------------------------------------------------------
 // Safe numeric parsing
 // ------------------------------------------------------------
@@ -23,12 +34,19 @@ const toNonNegativeNumber = (val, fallback = 0) => {
   return Number.isFinite(n) && n >= 0 ? n : fallback;
 };
 
-// ------------------------------------------------------------
-// Extract balance from any API response shape
-// ------------------------------------------------------------
+const cleanAmount = (v) => {
+  if (v === null || v === undefined || v === "") return 0;
+  const cleaned = String(v)
+    .replace(/[₦,\s]/g, "")
+    .trim();
+  const n = Number(cleaned);
+  if (!Number.isFinite(n) || n < 0) return 0;
+  if (n >= 100000 && n % 100 === 0) return n / 100;
+  return n;
+};
+
 const extractBalance = (obj) => {
   if (!obj || typeof obj !== "object") return undefined;
-
   const BALANCE_KEYS = [
     "balance",
     "current_balance",
@@ -45,16 +63,13 @@ const extractBalance = (obj) => {
     "availableBalance",
     "funds",
     "wallet",
-    "amount",
   ];
-
   for (const k of BALANCE_KEYS) {
     if (obj[k] !== undefined && obj[k] !== null && obj[k] !== "") {
       const n = toNonNegativeNumber(obj[k], NaN);
       if (Number.isFinite(n)) return n;
     }
   }
-
   const WRAPPERS = ["member", "data", "user", "result", "payload", "record"];
   for (const w of WRAPPERS) {
     if (obj[w] && typeof obj[w] === "object") {
@@ -62,7 +77,6 @@ const extractBalance = (obj) => {
       if (found !== undefined) return found;
     }
   }
-
   return undefined;
 };
 
@@ -76,48 +90,193 @@ const DURATION_MONTHS = {
   "3 years": 36,
   "4 years": 48,
 };
+const PERIODS_PER_MONTH = { Daily: 30, Weekly: 4, Monthly: 1, Random: 1 };
 
-const PERIODS_PER_MONTH = {
-  Daily: 30,
-  Weekly: 4,
-  Monthly: 1,
-  Random: 1,
+const extractPlanAmount = (m) => {
+  if (!m || typeof m !== "object") return 0;
+  const PREFERRED = [
+    "amount",
+    "plan_amount",
+    "savings_amount",
+    "contribution_amount",
+    "amount_per_period",
+    "per_period_amount",
+    "amount_per_day",
+    "amountPerDay",
+    "daily_amount",
+    "dailyAmount",
+    "daily_savings",
+    "daily_savings_amount",
+    "amount_per_week",
+    "weekly_amount",
+    "amount_per_month",
+    "monthly_amount",
+    "amount_per_year",
+    "yearly_amount",
+    "period_amount",
+    "savings_per_period",
+    "savings_amount_per_period",
+    "savingsAmount",
+    "planAmount",
+    "dailyPlan",
+    "plan_value",
+    "planValue",
+    "expected_amount",
+    "daily_target",
+    "target_amount",
+    "savings_per_day",
+    "contribution_value",
+    "deposit_amount",
+    "plan_contribution",
+  ];
+  for (const key of PREFERRED) {
+    if (m[key] !== undefined && m[key] !== null && m[key] !== "") {
+      const n = cleanAmount(m[key]);
+      if (n > 0) return n;
+    }
+  }
+  const SKIP = new Set([
+    "id",
+    "branch_id",
+    "balance",
+    "current_balance",
+    "currentBalance",
+    "total_balance",
+    "totalBalance",
+    "user_id",
+    "member_id",
+    "password",
+    "phone",
+    "email",
+    "name",
+    "account_number",
+    "created_at",
+    "updated_at",
+    "join_date",
+    "status",
+    "is_active",
+    "profile_completed",
+    "passport_photo",
+    "amount_saved",
+    "amountSaved",
+    "total_saved",
+    "totalSaved",
+    "savings_balance",
+    "savingsBalance",
+    "loan_balance",
+    "loanBalance",
+    "numberOfPayments",
+    "number_of_payments",
+    "totalToSave",
+    "total_to_save",
+  ]);
+  const HINTS = [
+    "amount",
+    "plan",
+    "savings",
+    "contribution",
+    "daily",
+    "weekly",
+    "monthly",
+    "yearly",
+    "target",
+    "expected",
+    "deposit",
+    "period",
+  ];
+  for (const [key, raw] of Object.entries(m)) {
+    if (SKIP.has(key)) continue;
+    const lower = key.toLowerCase();
+    if (!HINTS.some((h) => lower.includes(h))) continue;
+    if (raw === null || raw === undefined || raw === "") continue;
+    const n = cleanAmount(raw);
+    if (n >= 100 && n <= 1000000) return n;
+  }
+  return 0;
+};
+
+const extractPlanName = (m) => {
+  if (!m || typeof m !== "object") return "";
+  const keys = [
+    "savings_plan",
+    "savingsPlan",
+    "plan",
+    "plan_name",
+    "planName",
+    "savings_type",
+    "savingsType",
+    "contribution_frequency",
+    "contributionFrequency",
+    "frequency",
+    "period",
+    "savings_method",
+    "savingsMethod",
+  ];
+  for (const k of keys) {
+    if (m[k] !== undefined && m[k] !== null && String(m[k]).trim() !== "")
+      return String(m[k]).trim();
+  }
+  return "";
+};
+
+const extractDuration = (m) => {
+  if (!m || typeof m !== "object") return "";
+  const keys = [
+    "duration",
+    "savings_duration",
+    "savingsDuration",
+    "plan_duration",
+    "planDuration",
+    "period_duration",
+    "periodDuration",
+  ];
+  for (const k of keys) {
+    if (m[k] !== undefined && m[k] !== null && String(m[k]).trim() !== "")
+      return String(m[k]).trim();
+  }
+  return "";
 };
 
 const computePlanSummary = (plan, duration, amountPerPeriod) => {
-  if (!plan || !duration) return null;
   const amt = parseFloat(amountPerPeriod);
   if (isNaN(amt) || amt <= 0) return null;
-  if (plan === "Random") {
+  const isRandom = String(plan || "")
+    .toLowerCase()
+    .includes("random");
+  const safePlan = plan || (isRandom ? "Random" : "Daily");
+  const safeDuration = duration || "—";
+  if (isRandom) {
     return {
-      plan,
-      duration,
+      plan: safePlan,
+      duration: safeDuration,
       totalPeriods: null,
       perPeriod: amt,
       total: null,
-      periodLabel: "per period",
+      periodLabel: "per deposit",
       isRandom: true,
     };
   }
-  const months = DURATION_MONTHS[duration];
-  const perMonth = PERIODS_PER_MONTH[plan];
-  if (!months || !perMonth) return null;
-
-  const totalPeriods = months * perMonth;
-  const total = amt * totalPeriods;
-
+  const lower = String(safePlan).toLowerCase();
+  const periodLabel = lower.includes("day")
+    ? "per day"
+    : lower.includes("week")
+      ? "per week"
+      : lower.includes("month")
+        ? "per month"
+        : lower.includes("year")
+          ? "per year"
+          : "per period";
+  const months = DURATION_MONTHS[safeDuration];
+  const perMonth = PERIODS_PER_MONTH[safePlan];
+  const totalPeriods = months && perMonth ? months * perMonth : null;
+  const total = totalPeriods ? amt * totalPeriods : null;
   return {
-    plan,
-    duration,
+    plan: safePlan,
+    duration: safeDuration,
     totalPeriods,
     perPeriod: amt,
     total,
-    periodLabel:
-      plan === "Daily"
-        ? "per day"
-        : plan === "Weekly"
-          ? "per week"
-          : "per month",
+    periodLabel,
     isRandom: false,
   };
 };
@@ -127,19 +286,15 @@ const computePlanSummary = (plan, duration, amountPerPeriod) => {
 // ============================================================
 const detectTheme = () => {
   if (typeof document === "undefined") return "dark";
-
   const html = document.documentElement;
   const body = document.body;
-
   const attr =
     html.getAttribute("data-theme") || body?.getAttribute("data-theme") || "";
   if (attr.toLowerCase().includes("light")) return "light";
   if (attr.toLowerCase().includes("dark")) return "dark";
-
   const cls = `${html.className} ${body?.className || ""}`.toLowerCase();
   if (cls.includes("light")) return "light";
   if (cls.includes("dark")) return "dark";
-
   try {
     const keys = [
       "theme",
@@ -156,15 +311,12 @@ const detectTheme = () => {
       if (v && /dark/i.test(v)) return "dark";
     }
   } catch {}
-
   if (
     typeof window !== "undefined" &&
     window.matchMedia &&
     window.matchMedia("(prefers-color-scheme: light)").matches
-  ) {
+  )
     return "light";
-  }
-
   return "dark";
 };
 
@@ -182,6 +334,14 @@ const MemberDeposit = ({ onClose }) => {
   const [memberPlan, setMemberPlan] = useState(null);
   const [theme, setTheme] = useState(() => detectTheme());
 
+  // Server-side period lock (populated only when backend returns 429)
+  const [periodLock, setPeriodLock] = useState({
+    allowed: true,
+    freq: "",
+    nextAllowedAt: null,
+    reason: "",
+  });
+
   const [slipFile, setSlipFile] = useState(null);
   const [slipPreview, setSlipPreview] = useState("");
   const [slipBase64, setSlipBase64] = useState("");
@@ -198,26 +358,32 @@ const MemberDeposit = ({ onClose }) => {
   });
   const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  // Watch theme changes
+  const resolveBranchId = () => {
+    try {
+      const u = user || JSON.parse(localStorage.getItem("user") || "{}");
+      const raw = u?.branch_id ?? u?.branchId ?? u?.branch?.id ?? null;
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    } catch {
+      return null;
+    }
+  };
+
   useEffect(() => {
     const update = () => setTheme(detectTheme());
     update();
-
     const observer = new MutationObserver(update);
     observer.observe(document.documentElement, {
       attributes: true,
       attributeFilter: ["class", "data-theme"],
     });
-    if (document.body) {
+    if (document.body)
       observer.observe(document.body, {
         attributes: true,
         attributeFilter: ["class", "data-theme"],
       });
-    }
-
     window.addEventListener("storage", update);
     const interval = setInterval(update, 800);
-
     return () => {
       observer.disconnect();
       window.removeEventListener("storage", update);
@@ -256,7 +422,6 @@ const MemberDeposit = ({ onClose }) => {
 
   const applySettings = (raw) => {
     if (!raw || typeof raw !== "object") return;
-
     const rawMin = toPositiveNumber(raw.min_deposit, NaN);
     const rawMax = toPositiveNumber(raw.max_deposit, NaN);
     const looksLikeKobo =
@@ -265,14 +430,11 @@ const MemberDeposit = ({ onClose }) => {
       rawMin >= 100000 &&
       rawMax >= 100000;
     const scale = looksLikeKobo ? 100 : 1;
-
     setSettings((prev) => {
       const min = toPositiveNumber(raw.min_deposit, prev.min_deposit) / scale;
       const max = toPositiveNumber(raw.max_deposit, prev.max_deposit) / scale;
-
       const safeMin = Math.max(1, min);
       const safeMax = Math.max(safeMin + 1, max);
-
       return {
         min_deposit: safeMin,
         max_deposit: safeMax,
@@ -297,7 +459,6 @@ const MemberDeposit = ({ onClose }) => {
     });
   };
 
-  // Load user + initial data
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
@@ -333,10 +494,8 @@ const MemberDeposit = ({ onClose }) => {
         (data?.data && typeof data.data === "object" && data.data.min_deposit
           ? data.data
           : null);
-
-      if (candidate) {
-        applySettings(candidate);
-      } else {
+      if (candidate) applySettings(candidate);
+      else {
         const allRes = await fetch(`${API_BASE_URL}/api/settings.php`);
         const allData = await allRes.json();
         const c =
@@ -365,38 +524,47 @@ const MemberDeposit = ({ onClose }) => {
     }
   };
 
+  // Load plan (row → individual fetch → localStorage user → FALLBACK)
   const fetchMemberPlan = async (memberId) => {
     if (!memberId) {
       setMemberPlan(null);
-      return;
+      return null;
     }
     const idNum = parseInt(memberId, 10);
 
+    const buildFromRow = (m, source) => {
+      if (!m) return null;
+      const planName = extractPlanName(m);
+      const duration = extractDuration(m);
+      const amountVal = extractPlanAmount(m);
+      console.log(`[deposit] buildFromRow(${source}) →`, {
+        planName,
+        duration,
+        amountVal,
+      });
+      if (!amountVal) return null;
+      return computePlanSummary(planName, duration, amountVal);
+    };
+
     const fromList = members.find((m) => parseInt(m.id, 10) === idNum);
     if (fromList) {
-      const plan = computePlanSummary(
-        fromList.savings_plan || fromList.savingsPlan,
-        fromList.duration,
-        fromList.amount,
-      );
+      const plan = buildFromRow(fromList, "list");
       if (plan) {
         setMemberPlan(plan);
-        return;
+        return plan;
       }
     }
 
     try {
       let res = await fetch(`${API_BASE_URL}/api/members.php?id=${memberId}`);
-      if (!res.ok) {
+      if (!res.ok)
         res = await fetch(`${API_BASE_URL}/api/members.php/${memberId}`);
-      }
       const text = await res.text();
       let data;
       try {
         data = text ? JSON.parse(text) : {};
       } catch {
-        setMemberPlan(null);
-        return;
+        data = {};
       }
       const member =
         data.member ||
@@ -406,24 +574,34 @@ const MemberDeposit = ({ onClose }) => {
           ? data.members.find((m) => parseInt(m.id, 10) === idNum)
           : null);
       if (member) {
-        const plan = computePlanSummary(
-          member.savings_plan || member.savingsPlan,
-          member.duration,
-          member.amount,
-        );
-        setMemberPlan(plan || null);
-      } else {
-        setMemberPlan(null);
+        const plan = buildFromRow(member, "individual");
+        if (plan) {
+          setMemberPlan(plan);
+          return plan;
+        }
       }
-    } catch (error) {
-      console.error("Error fetching member plan:", error);
-      setMemberPlan(null);
+    } catch (err) {
+      console.warn("[deposit] individual member fetch failed:", err);
     }
+
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      if (stored && String(stored.id) === String(memberId)) {
+        const plan = buildFromRow(stored, "localStorage-user");
+        if (plan) {
+          setMemberPlan(plan);
+          return plan;
+        }
+      }
+    } catch {}
+
+    console.warn("[deposit] using FALLBACK_PLAN");
+    setMemberPlan({ ...FALLBACK_PLAN });
+    return { ...FALLBACK_PLAN };
   };
 
   const fetchMemberBalance = async (memberId) => {
     const idNum = parseInt(memberId, 10);
-
     const fromList = members.find((m) => parseInt(m.id, 10) === idNum);
     if (fromList) {
       const b = extractBalance(fromList);
@@ -432,13 +610,10 @@ const MemberDeposit = ({ onClose }) => {
         return;
       }
     }
-
     try {
       let res = await fetch(`${API_BASE_URL}/api/members.php?id=${memberId}`);
-      if (!res.ok) {
+      if (!res.ok)
         res = await fetch(`${API_BASE_URL}/api/members.php/${memberId}`);
-      }
-
       const text = await res.text();
       let data;
       try {
@@ -446,11 +621,8 @@ const MemberDeposit = ({ onClose }) => {
       } catch {
         return;
       }
-
       const balance = extractBalance(data);
-      if (balance !== undefined) {
-        setMemberBalance(balance);
-      }
+      if (balance !== undefined) setMemberBalance(balance);
     } catch (error) {
       console.error("Error fetching balance:", error);
     }
@@ -459,9 +631,14 @@ const MemberDeposit = ({ onClose }) => {
   const fetchDailyTotal = async (memberId) => {
     try {
       const today = new Date().toISOString().split("T")[0];
-      const res = await fetch(`${API_BASE_URL}/api/transactions.php`);
+      const branchId = resolveBranchId();
+      const params = new URLSearchParams();
+      if (branchId) params.set("branch_id", String(branchId));
+      const res = await fetch(
+        `${API_BASE_URL}/api/transactions.php${params.toString() ? "?" + params.toString() : ""}`,
+      );
+      if (!res.ok) return;
       const data = await res.json();
-
       if (Array.isArray(data.transactions)) {
         const todayTxns = data.transactions.filter((t) => {
           const tMember = t.memberId ?? t.member_id;
@@ -488,13 +665,19 @@ const MemberDeposit = ({ onClose }) => {
   const handleMemberChange = (e) => {
     const memberId = e.target.value;
     setSelectedMember(memberId);
-    if (memberId) {
-      fetchMemberBalance(memberId);
-      fetchDailyTotal(memberId);
-      fetchMemberPlan(memberId);
-    } else {
+    if (!memberId) {
       setMemberPlan(null);
+      setPeriodLock({
+        allowed: true,
+        freq: "",
+        nextAllowedAt: null,
+        reason: "",
+      });
+      return;
     }
+    fetchMemberBalance(memberId);
+    fetchDailyTotal(memberId);
+    fetchMemberPlan(memberId);
   };
 
   const formatCurrency = (a) => {
@@ -507,23 +690,21 @@ const MemberDeposit = ({ onClose }) => {
     }).format(n);
   };
 
-  // ============================================================
-  // 🔑 STRICT plan validation — must match exactly, no tolerance
-  // ============================================================
   const validateAgainstPlan = (depositAmount) => {
     if (!memberPlan) return { ok: true };
     if (memberPlan.isRandom) return { ok: true };
-
     const expected = parseFloat(memberPlan.perPeriod);
-    if (!Number.isFinite(expected) || expected <= 0) return { ok: true };
-
-    // Round to kobo to kill floating-point noise (500.00000001 → 500.00)
+    if (!Number.isFinite(expected) || expected <= 0) {
+      return {
+        ok: false,
+        reason: "missing_plan_amount",
+        message: "Your savings plan amount isn't set. Please contact admin.",
+      };
+    }
     const round2 = (x) => Math.round(x * 100) / 100;
     const amt = round2(parseFloat(depositAmount));
     const exp = round2(expected);
-
     if (amt === exp) return { ok: true, expected: exp };
-
     if (amt > exp) {
       return {
         ok: false,
@@ -536,7 +717,6 @@ const MemberDeposit = ({ onClose }) => {
           `Please enter exactly ${formatCurrency(exp)}.`,
       };
     }
-
     return {
       ok: false,
       reason: "less",
@@ -549,13 +729,9 @@ const MemberDeposit = ({ onClose }) => {
     };
   };
 
-  // ============================================================
-  // Payment slip handlers
-  // ============================================================
   const handleSlipChange = (e) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
     const allowed = [
       "image/jpeg",
       "image/jpg",
@@ -567,14 +743,11 @@ const MemberDeposit = ({ onClose }) => {
       toast.error("Only JPG, PNG, WEBP, or PDF files are allowed");
       return;
     }
-
     if (file.size > MAX_SLIP_SIZE_MB * 1024 * 1024) {
       toast.error(`File is too large (max ${MAX_SLIP_SIZE_MB} MB)`);
       return;
     }
-
     setSlipFile(file);
-
     const reader = new FileReader();
     reader.onload = () => {
       const result = reader.result;
@@ -600,14 +773,24 @@ const MemberDeposit = ({ onClose }) => {
     toast.success("Deposit cancelled");
   };
 
-  // ============================================================
-  // Submit deposit
-  // ============================================================
   const handleDeposit = async (e) => {
     e.preventDefault();
 
     if (!selectedMember) {
       toast.error("Please select a member");
+      return;
+    }
+    if (!memberPlan) {
+      toast.error("Savings plan is still loading. Please wait a moment.", {
+        duration: 4000,
+      });
+      return;
+    }
+    if (!periodLock.allowed) {
+      toast.error(
+        periodLock.reason || "You cannot deposit again in this period.",
+        { duration: 6000 },
+      );
       return;
     }
 
@@ -617,7 +800,6 @@ const MemberDeposit = ({ onClose }) => {
       return;
     }
 
-    // 🔑 Plan-match check runs first
     const planCheck = validateAgainstPlan(depositAmount);
     if (!planCheck.ok) {
       toast.error(planCheck.message, { duration: 8000 });
@@ -632,41 +814,42 @@ const MemberDeposit = ({ onClose }) => {
       max_daily_deposits,
       allow_multiple_deposits,
     } = settings;
-
     if (depositAmount < min_deposit) {
       toast.error(`Minimum deposit is ${formatCurrency(min_deposit)}`);
       return;
     }
     if (depositAmount > max_deposit) {
-      toast.error(
-        `Maximum deposit per transaction is ${formatCurrency(max_deposit)}`,
-      );
+      toast.error(`Maximum per transaction is ${formatCurrency(max_deposit)}`);
       return;
     }
-    if (!allow_multiple_deposits && dailyCount >= 1) {
-      toast.error("Multiple deposits per day are not allowed");
-      return;
-    }
-    if (
-      allow_multiple_deposits &&
-      max_daily_deposits > 0 &&
-      dailyCount >= max_daily_deposits
-    ) {
-      toast.error(
-        `Daily deposit count reached (${max_daily_deposits} per day). Try again tomorrow.`,
-      );
-      return;
-    }
-    if (dailyTotal + depositAmount > daily_limit) {
-      toast.error(
-        `Daily limit of ${formatCurrency(daily_limit)} exceeded. ` +
-          `Remaining: ${formatCurrency(Math.max(0, daily_limit - dailyTotal))}`,
-      );
-      return;
+
+    const isRandomPlan = !!(memberPlan && memberPlan.isRandom);
+    if (!isRandomPlan) {
+      if (!allow_multiple_deposits && dailyCount >= 1) {
+        toast.error("Multiple deposits per day are not allowed");
+        return;
+      }
+      if (
+        allow_multiple_deposits &&
+        max_daily_deposits > 0 &&
+        dailyCount >= max_daily_deposits
+      ) {
+        toast.error(
+          `Daily deposit count reached (${max_daily_deposits} per day). Try again tomorrow.`,
+        );
+        return;
+      }
+      if (dailyTotal + depositAmount > daily_limit) {
+        toast.error(
+          `Daily limit of ${formatCurrency(daily_limit)} exceeded. Remaining: ${formatCurrency(Math.max(0, daily_limit - dailyTotal))}`,
+        );
+        return;
+      }
     }
 
     setLoading(true);
 
+    const branchId = resolveBranchId();
     const member = members.find((m) => m.id === parseInt(selectedMember, 10));
     const transaction = {
       memberId: parseInt(selectedMember, 10),
@@ -686,6 +869,7 @@ const MemberDeposit = ({ onClose }) => {
       payment_slip: slipBase64 || null,
       payment_slip_name: slipFile?.name || null,
       payment_slip_type: slipFile?.type || null,
+      ...(branchId ? { branch_id: branchId } : {}),
     };
 
     try {
@@ -696,6 +880,7 @@ const MemberDeposit = ({ onClose }) => {
           "Content-Type": "application/json",
           Accept: "application/json",
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          ...(branchId ? { "X-User-Branch-Id": String(branchId) } : {}),
         },
         body: JSON.stringify(transaction),
       });
@@ -718,10 +903,21 @@ const MemberDeposit = ({ onClose }) => {
         await fetchMembers();
         fetchMemberBalance(selectedMember);
         fetchDailyTotal(selectedMember);
-        setTimeout(() => {
-          if (typeof onClose === "function") onClose();
-          navigate("/member/dashboard", { replace: true });
-        }, 800);
+        if (!isRandomPlan) {
+          setTimeout(() => {
+            if (typeof onClose === "function") onClose();
+            navigate("/member/dashboard", { replace: true });
+          }, 800);
+        }
+      } else if (response.status === 429 && data?.next_allowed_at) {
+        const nextAt = new Date(data.next_allowed_at);
+        setPeriodLock({
+          allowed: false,
+          freq: data.frequency || "",
+          nextAllowedAt: nextAt,
+          reason: data.message || "Deposit window closed.",
+        });
+        toast.error(data.message || "Deposit window closed.");
       } else {
         toast.error(
           data.error ||
@@ -731,19 +927,18 @@ const MemberDeposit = ({ onClose }) => {
       }
     } catch (error) {
       console.error("Error submitting deposit:", error);
-      toast.error(`Network error: ${error.message}`);
+      toast.error(
+        `Network error: ${error.message}. Check the browser console and api/error.log.`,
+      );
     } finally {
       setLoading(false);
     }
   };
 
-  // Quick amount buttons — plan members only get the exact amount
   const quickAmounts = (() => {
     if (memberPlan && !memberPlan.isRandom) {
       const expected = parseFloat(memberPlan.perPeriod);
-      if (Number.isFinite(expected) && expected > 0) {
-        return [expected];
-      }
+      if (Number.isFinite(expected) && expected > 0) return [expected];
     }
     const { default_contribution_amount, min_deposit, max_deposit } = settings;
     const base = Math.min(
@@ -756,7 +951,6 @@ const MemberDeposit = ({ onClose }) => {
     return options.length ? options : [min_deposit];
   })();
 
-  // Is the current typed amount valid?
   const amountIsValid = (() => {
     if (!amount) return true;
     const n = toPositiveNumber(amount, NaN);
@@ -769,9 +963,31 @@ const MemberDeposit = ({ onClose }) => {
     return true;
   })();
 
-  // ============================================================
-  // RENDER
-  // ============================================================
+  const liveAmountFeedback = (() => {
+    if (!memberPlan || memberPlan.isRandom || !amount) return null;
+    const n = toPositiveNumber(amount, NaN);
+    if (!Number.isFinite(n)) return null;
+    const round2 = (x) => Math.round(x * 100) / 100;
+    const amt = round2(n);
+    const exp = round2(parseFloat(memberPlan.perPeriod));
+    if (amt === exp)
+      return {
+        tone: "ok",
+        text: `✅ Amount matches your plan of ${formatCurrency(exp)}`,
+      };
+    if (amt > exp)
+      return {
+        tone: "bad",
+        text: `⚠️ Too high — plan requires exactly ${formatCurrency(exp)} (you entered ${formatCurrency(amt)})`,
+      };
+    return {
+      tone: "bad",
+      text: `⚠️ Too low — plan requires exactly ${formatCurrency(exp)} (you entered ${formatCurrency(amt)})`,
+    };
+  })();
+
+  const fieldsDisabled = loading || !periodLock.allowed;
+
   return (
     <div
       style={{
@@ -785,7 +1001,6 @@ const MemberDeposit = ({ onClose }) => {
       <style>{`
         .mdp-wrap { color: ${textColor}; color-scheme: ${isLight ? "light" : "dark"}; }
         .mdp-wrap * { box-sizing: border-box; }
-
         .mdp-close-btn {
           position: absolute; top: -4px; right: -4px;
           width: 36px; height: 36px; border-radius: 50%;
@@ -794,35 +1009,21 @@ const MemberDeposit = ({ onClose }) => {
           display: flex; align-items: center; justify-content: center;
           line-height: 1; transition: all 0.2s; z-index: 10;
         }
-        .mdp-close-btn:hover:not(:disabled) {
-          color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color};
-        }
+        .mdp-close-btn:hover:not(:disabled) { color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color}; }
         .mdp-close-btn:disabled { cursor: not-allowed; opacity: 0.5; }
-
-        .mdp-label {
-          display: block; font-size: 14px; font-weight: 500;
-          color: ${textColor}; margin-bottom: 6px;
-        }
-
-        .mdp-input,
-        .mdp-select {
-          width: 100%;
-          padding: 12px 14px;
-          border-radius: 8px;
+        .mdp-label { display: block; font-size: 14px; font-weight: 500; color: ${textColor}; margin-bottom: 6px; }
+        .mdp-input, .mdp-select {
+          width: 100%; padding: 12px 14px; border-radius: 8px;
           border: 1px solid ${fieldBorder};
           background-color: ${fieldBg} !important;
           color: ${fieldText} !important;
           -webkit-text-fill-color: ${fieldText} !important;
           caret-color: ${accentColor};
-          font-size: 15px;
-          outline: none;
-          font-family: inherit;
+          font-size: 15px; outline: none; font-family: inherit;
           transition: border-color 0.2s, background-color 0.2s;
-          appearance: none;
-          -webkit-appearance: none;
+          appearance: none; -webkit-appearance: none;
         }
-        .mdp-input:focus,
-        .mdp-select:focus {
+        .mdp-input:focus, .mdp-select:focus {
           border-color: ${fieldFocusBorder};
           background-color: ${fieldBg} !important;
           color: ${fieldText} !important;
@@ -833,43 +1034,25 @@ const MemberDeposit = ({ onClose }) => {
           -webkit-text-fill-color: ${fieldPlaceholder} !important;
           opacity: 1;
         }
-        .mdp-select option {
-          background-color: ${surfaceColor};
-          color: ${fieldText};
-        }
-
-        .mdp-input:-webkit-autofill,
-        .mdp-input:-webkit-autofill:hover,
-        .mdp-input:-webkit-autofill:focus,
-        .mdp-select:-webkit-autofill {
+        .mdp-select option { background-color: ${surfaceColor}; color: ${fieldText}; }
+        .mdp-input:disabled, .mdp-select:disabled { opacity: 0.5; cursor: not-allowed; }
+        .mdp-input:-webkit-autofill, .mdp-input:-webkit-autofill:hover, .mdp-input:-webkit-autofill:focus, .mdp-select:-webkit-autofill {
           -webkit-text-fill-color: ${fieldText} !important;
           -webkit-box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
           box-shadow: 0 0 0 1000px ${fieldBg} inset !important;
           transition: background-color 9999s ease-in-out 0s;
         }
-
-        .mdp-input::selection,
-        .mdp-select::selection {
-          background: ${accentColor};
-          color: #ffffff;
-        }
-
-        .mdp-input[type="number"]::-webkit-outer-spin-button,
-        .mdp-input[type="number"]::-webkit-inner-spin-button {
-          -webkit-appearance: none; margin: 0;
-        }
+        .mdp-input::selection, .mdp-select::selection { background: ${accentColor}; color: #ffffff; }
+        .mdp-input[type="number"]::-webkit-outer-spin-button, .mdp-input[type="number"]::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
         .mdp-input[type="number"] { -moz-appearance: textfield; }
-
         .mdp-quick-btn {
           padding: 4px 12px; border-radius: 6px;
           border: 1px solid ${fieldBorder}; background: transparent;
           color: ${textMuted}; font-size: 12px; cursor: pointer;
           transition: all 0.15s;
         }
-        .mdp-quick-btn:hover {
-          color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color};
-        }
-
+        .mdp-quick-btn:hover:not(:disabled) { color: ${textColor}; border-color: ${accentColor}; background: ${surface2Color}; }
+        .mdp-quick-btn:disabled { opacity: 0.5; cursor: not-allowed; }
         .mdp-slip-drop {
           display: flex; flex-direction: column;
           align-items: center; justify-content: center;
@@ -878,20 +1061,13 @@ const MemberDeposit = ({ onClose }) => {
           cursor: pointer; transition: border-color 0.2s;
         }
         .mdp-slip-drop:hover { border-color: ${accentColor}; }
-
         .mdp-btn-submit {
           flex: 2; padding: 14px; border-radius: 8px; border: none;
           color: #ffffff; font-size: 16px; font-weight: 600;
           transition: opacity 0.2s;
         }
-        .mdp-btn-submit:not(:disabled) {
-          background: linear-gradient(to right, #059669, #0d9488);
-          cursor: pointer;
-        }
-        .mdp-btn-submit:disabled {
-          background: ${textDim}; cursor: not-allowed; opacity: 0.7;
-        }
-
+        .mdp-btn-submit:not(:disabled) { background: linear-gradient(to right, #059669, #0d9488); cursor: pointer; }
+        .mdp-btn-submit:disabled { background: ${textDim}; cursor: not-allowed; opacity: 0.7; }
         .mdp-btn-cancel {
           flex: 1; padding: 14px; border-radius: 8px;
           border: 1px solid ${fieldBorder}; background: transparent;
@@ -900,7 +1076,6 @@ const MemberDeposit = ({ onClose }) => {
         }
         .mdp-btn-cancel:hover:not(:disabled) { background: ${surface2Color}; }
         .mdp-btn-cancel:disabled { cursor: not-allowed; opacity: 0.5; }
-
         .mdp-remove-btn {
           padding: 6px 12px; border-radius: 6px;
           border: 1px solid rgba(239,68,68,0.35); background: transparent;
@@ -908,6 +1083,15 @@ const MemberDeposit = ({ onClose }) => {
           font-weight: 500; flex-shrink: 0;
         }
         .mdp-remove-btn:hover { background: rgba(239,68,68,0.1); }
+        .mdp-locked-badge {
+          display: inline-flex; align-items: center; gap: 6px;
+          padding: 4px 12px; border-radius: 20px;
+          background: rgba(239,68,68,0.15);
+          border: 1px solid rgba(239,68,68,0.35);
+          color: ${debitColor};
+          font-size: 11px; font-weight: 700;
+          text-transform: uppercase; letter-spacing: 0.5px;
+        }
       `}</style>
 
       <div
@@ -955,7 +1139,41 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         </div>
 
-        {/* Plan badge — exact amount required */}
+        {!periodLock.allowed && (
+          <div
+            style={{
+              backgroundColor: isLight
+                ? "rgba(220,38,38,0.06)"
+                : "rgba(239,68,68,0.08)",
+              border: `1px solid ${isLight ? "rgba(220,38,38,0.35)" : "rgba(239,68,68,0.35)"}`,
+              borderRadius: "10px",
+              padding: "14px 16px",
+              marginBottom: "20px",
+              color: textColor,
+              fontSize: "13px",
+              lineHeight: 1.6,
+            }}
+          >
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                marginBottom: 6,
+              }}
+            >
+              <span style={{ fontSize: 18 }}>🔒</span>
+              <span style={{ fontWeight: 700, color: debitColor }}>
+                Deposit window closed
+              </span>
+              {periodLock.freq && periodLock.freq !== "random" && (
+                <span className="mdp-locked-badge">{periodLock.freq}</span>
+              )}
+            </div>
+            <div>{periodLock.reason}</div>
+          </div>
+        )}
+
         {memberPlan && !memberPlan.isRandom && (
           <div
             style={{
@@ -1018,7 +1236,6 @@ const MemberDeposit = ({ onClose }) => {
           </div>
         )}
 
-        {/* Random plan info badge */}
         {memberPlan && memberPlan.isRandom && (
           <div
             style={{
@@ -1064,12 +1281,11 @@ const MemberDeposit = ({ onClose }) => {
                 textAlign: "right",
               }}
             >
-              Flexible amount — any value allowed
+              Unlimited deposits — any amount, any time
             </div>
           </div>
         )}
 
-        {/* Settings summary from settings.php */}
         {settingsLoaded && (
           <div
             style={{
@@ -1101,25 +1317,28 @@ const MemberDeposit = ({ onClose }) => {
                   {formatCurrency(settings.max_deposit)}
                 </span>
               </div>
-              <div>
-                <span style={{ color: textMuted }}>Daily limit: </span>
-                <span style={{ color: textColor, fontWeight: "600" }}>
-                  {formatCurrency(settings.daily_limit)}
-                </span>
-              </div>
-              <div>
-                <span style={{ color: textMuted }}>Max per day: </span>
-                <span style={{ color: textColor, fontWeight: "600" }}>
-                  {settings.allow_multiple_deposits
-                    ? settings.max_daily_deposits
-                    : 1}
-                </span>
-              </div>
+              {!memberPlan?.isRandom && (
+                <>
+                  <div>
+                    <span style={{ color: textMuted }}>Daily limit: </span>
+                    <span style={{ color: textColor, fontWeight: "600" }}>
+                      {formatCurrency(settings.daily_limit)}
+                    </span>
+                  </div>
+                  <div>
+                    <span style={{ color: textMuted }}>Max per day: </span>
+                    <span style={{ color: textColor, fontWeight: "600" }}>
+                      {settings.allow_multiple_deposits
+                        ? settings.max_daily_deposits
+                        : 1}
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
 
-        {/* Balance display */}
         {selectedMember && (
           <div
             style={{
@@ -1173,11 +1392,9 @@ const MemberDeposit = ({ onClose }) => {
                     margin: "2px 0 0 0",
                   }}
                 >
-                  {dailyCount} of{" "}
-                  {settings.allow_multiple_deposits
-                    ? settings.max_daily_deposits
-                    : 1}{" "}
-                  today
+                  {memberPlan?.isRandom
+                    ? `${dailyCount} today (unlimited)`
+                    : `${dailyCount} of ${settings.allow_multiple_deposits ? settings.max_daily_deposits : 1} today`}
                 </p>
               </div>
             </div>
@@ -1185,7 +1402,6 @@ const MemberDeposit = ({ onClose }) => {
         )}
 
         <form onSubmit={handleDeposit}>
-          {/* Member selection (admin) */}
           {user?.role === "admin" && (
             <div style={{ marginBottom: "16px" }}>
               <label className="mdp-label">Select Member</label>
@@ -1194,6 +1410,7 @@ const MemberDeposit = ({ onClose }) => {
                 value={selectedMember}
                 onChange={handleMemberChange}
                 required
+                disabled={loading}
               >
                 <option value="">Choose a member...</option>
                 {members.map((member) => (
@@ -1205,7 +1422,6 @@ const MemberDeposit = ({ onClose }) => {
             </div>
           )}
 
-          {/* Amount */}
           <div style={{ marginBottom: "16px" }}>
             <label className="mdp-label">
               Amount (₦)
@@ -1249,35 +1465,36 @@ const MemberDeposit = ({ onClose }) => {
                 style={{
                   paddingLeft: "32px",
                   fontSize: "16px",
-                  borderColor: amountIsValid ? undefined : debitColor,
+                  borderColor:
+                    liveAmountFeedback?.tone === "bad"
+                      ? debitColor
+                      : liveAmountFeedback?.tone === "ok"
+                        ? creditColor
+                        : undefined,
                 }}
                 step="0.01"
                 required
+                disabled={fieldsDisabled}
               />
             </div>
 
-            {/* Inline warning if amount doesn't match plan */}
-            {memberPlan && !memberPlan.isRandom && amount && !amountIsValid && (
+            {liveAmountFeedback && (
               <div
                 style={{
-                  color: debitColor,
+                  color:
+                    liveAmountFeedback.tone === "ok" ? creditColor : debitColor,
                   fontSize: "12px",
                   marginTop: "6px",
                   fontWeight: "600",
                 }}
               >
-                ⚠️ Amount doesn't match your plan of{" "}
-                {formatCurrency(memberPlan.perPeriod)} {memberPlan.periodLabel}
+                {liveAmountFeedback.text}
               </div>
             )}
 
             {memberPlan && !memberPlan.isRandom && (
               <div
-                style={{
-                  color: textMuted,
-                  fontSize: "12px",
-                  marginTop: "6px",
-                }}
+                style={{ color: textMuted, fontSize: "12px", marginTop: "6px" }}
               >
                 💡 Your plan requires exactly{" "}
                 <strong style={{ color: creditColor }}>
@@ -1288,13 +1505,9 @@ const MemberDeposit = ({ onClose }) => {
             )}
             {memberPlan && memberPlan.isRandom && (
               <div
-                style={{
-                  color: textMuted,
-                  fontSize: "12px",
-                  marginTop: "6px",
-                }}
+                style={{ color: textMuted, fontSize: "12px", marginTop: "6px" }}
               >
-                💡 Random plan — enter any amount you wish to save.
+                💡 Random plan — deposit any amount, as many times as you want.
               </div>
             )}
 
@@ -1305,6 +1518,7 @@ const MemberDeposit = ({ onClose }) => {
                   type="button"
                   className="mdp-quick-btn"
                   onClick={() => setAmount(String(amt))}
+                  disabled={fieldsDisabled}
                 >
                   {formatCurrency(amt)}
                 </button>
@@ -1312,7 +1526,6 @@ const MemberDeposit = ({ onClose }) => {
             </div>
           </div>
 
-          {/* Description */}
           <div style={{ marginBottom: "16px" }}>
             <label className="mdp-label">Description (Optional)</label>
             <input
@@ -1321,15 +1534,20 @@ const MemberDeposit = ({ onClose }) => {
               value={description}
               onChange={(e) => setDescription(e.target.value)}
               placeholder="e.g., Monthly savings contribution"
+              disabled={fieldsDisabled}
             />
           </div>
 
-          {/* Payment slip upload */}
           <div style={{ marginBottom: "24px" }}>
             <label className="mdp-label">Payment Slip (Optional)</label>
-
             {!slipFile ? (
-              <label className="mdp-slip-drop">
+              <label
+                className="mdp-slip-drop"
+                style={{
+                  opacity: fieldsDisabled ? 0.5 : 1,
+                  cursor: fieldsDisabled ? "not-allowed" : "pointer",
+                }}
+              >
                 <span style={{ fontSize: "28px", marginBottom: "8px" }}>
                   📎
                 </span>
@@ -1343,11 +1561,7 @@ const MemberDeposit = ({ onClose }) => {
                   Click to upload receipt
                 </span>
                 <span
-                  style={{
-                    color: textDim,
-                    fontSize: "12px",
-                    marginTop: "4px",
-                  }}
+                  style={{ color: textDim, fontSize: "12px", marginTop: "4px" }}
                 >
                   JPG, PNG, WEBP or PDF (max {MAX_SLIP_SIZE_MB} MB)
                 </span>
@@ -1357,6 +1571,7 @@ const MemberDeposit = ({ onClose }) => {
                   accept="image/jpeg,image/jpg,image/png,image/webp,application/pdf"
                   onChange={handleSlipChange}
                   style={{ display: "none" }}
+                  disabled={fieldsDisabled}
                 />
               </label>
             ) : (
@@ -1442,6 +1657,7 @@ const MemberDeposit = ({ onClose }) => {
                     type="button"
                     className="mdp-remove-btn"
                     onClick={removeSlip}
+                    disabled={fieldsDisabled}
                   >
                     ✖ Remove
                   </button>
@@ -1450,16 +1666,28 @@ const MemberDeposit = ({ onClose }) => {
             )}
           </div>
 
-          {/* Action buttons */}
           <div style={{ display: "flex", gap: "12px" }}>
             <button
               type="submit"
               className="mdp-btn-submit"
-              disabled={loading || !selectedMember || !amountIsValid}
+              disabled={
+                loading ||
+                !selectedMember ||
+                !memberPlan ||
+                !amountIsValid ||
+                !periodLock.allowed
+              }
             >
-              {loading ? "⏳ Processing..." : `💰 Submit Deposit`}
+              {loading
+                ? "⏳ Processing..."
+                : !periodLock.allowed
+                  ? "🔒 Deposit locked"
+                  : !memberPlan
+                    ? "⚠️ Plan not loaded"
+                    : !amountIsValid && memberPlan && !memberPlan.isRandom
+                      ? "⚠️ Amount ≠ plan"
+                      : `💰 Submit Deposit`}
             </button>
-
             <button
               type="button"
               className="mdp-btn-cancel"
