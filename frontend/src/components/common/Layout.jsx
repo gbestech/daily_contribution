@@ -166,6 +166,12 @@ const Layout = ({ children }) => {
       permission: "view_broadsheet",
     },
     {
+      path: "/admin/users",
+      label: "Members",
+      icon: "👤",
+      permission: "create_member",
+    },
+    {
       path: "/admin/managers",
       label: "Managers",
       icon: "👔",
@@ -201,12 +207,7 @@ const Layout = ({ children }) => {
       icon: "📈",
       permission: "view_reports",
     },
-    {
-      path: "/admin/users",
-      label: "Members",
-      icon: "👤",
-      permission: "create_member",
-    },
+
     {
       path: "/admin/expenses",
       label: "Expenses",

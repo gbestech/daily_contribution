@@ -9,12 +9,25 @@ import { useBranch } from "../../context/BranchContext";
 const API_BASE_URL = "http://localhost:8000";
 
 const capitalizeWords = (str) =>
-  str
+  String(str || "")
     .split(" ")
     .map((w) =>
       w.length ? w.charAt(0).toUpperCase() + w.slice(1).toLowerCase() : "",
     )
     .join(" ");
+
+const pickMemberName = (m) =>
+  m?.name ||
+  m?.full_name ||
+  m?.fullName ||
+  m?.member_name ||
+  m?.memberName ||
+  m?.display_name ||
+  m?.displayName ||
+  (m?.first_name || m?.firstName
+    ? `${m.firstName || m.first_name || ""} ${m.lastName || m.last_name || ""}`.trim()
+    : "") ||
+  (m?.id ? `Member #${m.id}` : "");
 
 const AdminMembers = ({ publicMode = false }) => {
   const navigate = useNavigate();
@@ -44,21 +57,18 @@ const AdminMembers = ({ publicMode = false }) => {
     role: "member",
   });
 
-  // Bulk upload state
   const [showBulkModal, setShowBulkModal] = useState(false);
   const [bulkRows, setBulkRows] = useState([]);
   const [bulkUploading, setBulkUploading] = useState(false);
   const [bulkResults, setBulkResults] = useState(null);
   const fileInputRef = useRef(null);
 
-  // Bulk selection state
   const [selectedIds, setSelectedIds] = useState(() => new Set());
   const [bulkActionRunning, setBulkActionRunning] = useState(false);
 
-  // ============================================================
-  // 🔑 branchId — synchronous on first render
-  // Priority: BranchContext → localStorage.user
-  // ============================================================
+  // ✅ NEW: resolved branch info from API if context doesn't have it
+  const [branchInfo, setBranchInfo] = useState(null);
+
   const branchId = useMemo(() => {
     if (
       activeBranchId !== undefined &&
@@ -66,6 +76,10 @@ const AdminMembers = ({ publicMode = false }) => {
       String(activeBranchId).trim() !== ""
     ) {
       const n = Number(activeBranchId);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (activeBranch?.id) {
+      const n = Number(activeBranch.id);
       if (Number.isFinite(n) && n > 0) return n;
     }
     try {
@@ -80,7 +94,69 @@ const AdminMembers = ({ publicMode = false }) => {
       }
     } catch {}
     return null;
-  }, [activeBranchId]);
+  }, [activeBranchId, activeBranch]);
+
+  // ✅ NEW: resolve branch name/code — fetches from API if context lacks it
+  useEffect(() => {
+    if (!branchId) return;
+    if (activeBranch?.name && activeBranch?.code) {
+      setBranchInfo(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiFetch(
+          `/api/get-branch.php?id=${encodeURIComponent(branchId)}`,
+        );
+        const b = data?.branch || data?.data?.branch || data?.data || data;
+        if (!cancelled && b && typeof b === "object") {
+          setBranchInfo({
+            id: b.id ?? branchId,
+            name: b.name ?? b.branch_name ?? "",
+            code: b.code ?? b.branch_code ?? "",
+          });
+        }
+      } catch (err) {
+        console.warn("[UserManagement] get-branch fallback failed:", err);
+        if (!cancelled) setBranchInfo(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, activeBranch?.name, activeBranch?.code]);
+
+  // ✅ NEW: resolved values used in the banner
+  const resolvedBranchName = useMemo(() => {
+    if (activeBranch?.name && String(activeBranch.name).trim())
+      return String(activeBranch.name).trim();
+    if (activeBranch?.branch_name && String(activeBranch.branch_name).trim())
+      return String(activeBranch.branch_name).trim();
+    if (branchInfo?.name && String(branchInfo.name).trim())
+      return String(branchInfo.name).trim();
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      const n = stored?.branch_name || stored?.branchName;
+      if (n && String(n).trim()) return String(n).trim();
+    } catch {}
+    return branchId ? `Branch #${branchId}` : "Branch";
+  }, [activeBranch, branchInfo, branchId]);
+
+  const resolvedBranchCode = useMemo(() => {
+    if (activeBranch?.code && String(activeBranch.code).trim())
+      return String(activeBranch.code).trim();
+    if (activeBranch?.branch_code && String(activeBranch.branch_code).trim())
+      return String(activeBranch.branch_code).trim();
+    if (branchInfo?.code && String(branchInfo.code).trim())
+      return String(branchInfo.code).trim();
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      const c = stored?.branch_code || stored?.branchCode;
+      if (c && String(c).trim()) return String(c).trim();
+    } catch {}
+    return "—";
+  }, [activeBranch, branchInfo]);
 
   const generateAccountNumber = () => {
     const prefix = "10";
@@ -122,9 +198,6 @@ const AdminMembers = ({ publicMode = false }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [branchId, publicMode]);
 
-  // ============================================================
-  // fetchMembers — silent on synthetic, banner on real errors
-  // ============================================================
   const fetchMembers = async () => {
     setLoading(true);
     setLastError(null);
@@ -133,50 +206,28 @@ const AdminMembers = ({ publicMode = false }) => {
         ? `/api/members.php?branch_id=${encodeURIComponent(branchId)}`
         : "/api/members.php";
 
-      const response = await apiFetch(url, {
-        headers: { Accept: "application/json" },
-      });
-
-      let body = null;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
-      }
-
-      // Synthetic 400 from api.js — branch not ready yet. Silent.
-      if (body?.synthetic) {
-        setMembers([]);
-        return;
-      }
-
-      if (!response.ok) {
-        const msg =
-          body?.error ||
-          body?.message ||
-          `Failed to load members (HTTP ${response.status})`;
-        console.error("[Members] fetch failed:", response.status, msg, body);
-        setLastError(msg);
-        setMembers([]);
-        return;
-      }
+      const body = await apiFetch(url);
 
       const list = Array.isArray(body?.members) ? body.members : [];
       setMembers(
         list.map((m) => ({
           id: m.id,
           membership_number:
-            m.accountNumber || `MEM-${String(m.id).padStart(4, "0")}`,
-          full_name: m.name,
-          email: m.email,
-          phone: m.phone,
-          balance: m.balance || 0,
-          status: m.status?.toLowerCase() || "active",
-          join_date: m.joinDate || new Date().toISOString().split("T")[0],
+            m.accountNumber ||
+            m.account_number ||
+            m.membership_number ||
+            `MEM-${String(m.id).padStart(4, "0")}`,
+          full_name: pickMemberName(m),
+          email: m.email || "",
+          phone: m.phone || "",
+          balance: parseFloat(m.balance) || 0,
+          status: (m.status || "active").toLowerCase(),
+          join_date:
+            m.joinDate || m.join_date || new Date().toISOString().split("T")[0],
           role: m.role || "member",
           profile_completed: m.profile_completed || 0,
           passport_photo: m.passport_photo || null,
-          branch_id: m.branch_id || null,
+          branch_id: m.branch_id || m.branchId || null,
         })),
       );
     } catch (e) {
@@ -194,26 +245,7 @@ const AdminMembers = ({ publicMode = false }) => {
         ? `/api/transactions.php?branch_id=${encodeURIComponent(branchId)}`
         : "/api/transactions.php";
 
-      const response = await apiFetch(url, {
-        headers: { Accept: "application/json" },
-      });
-
-      let body = null;
-      try {
-        body = await response.json();
-      } catch {
-        body = null;
-      }
-
-      if (body?.synthetic) {
-        setTransactions([]);
-        return;
-      }
-
-      if (!response.ok) {
-        setTransactions([]);
-        return;
-      }
+      const body = await apiFetch(url);
 
       const list = Array.isArray(body?.transactions) ? body.transactions : [];
       setTransactions(
@@ -233,9 +265,6 @@ const AdminMembers = ({ publicMode = false }) => {
     }
   };
 
-  // ============================================================
-  // Manual refresh
-  // ============================================================
   const handleRefresh = async () => {
     if (refreshing) return;
     setRefreshing(true);
@@ -267,6 +296,7 @@ const AdminMembers = ({ publicMode = false }) => {
         account_number: accountNumber,
         name: fullName,
         full_name: fullName,
+        fullName: fullName,
         email: newMember.email,
         phone: "",
         password: newMember.password,
@@ -279,7 +309,7 @@ const AdminMembers = ({ publicMode = false }) => {
         ...(branchId ? { branch_id: branchId } : {}),
       };
 
-      const res = await apiFetch(
+      const response = await apiFetch(
         branchId
           ? `/api/members.php?branch_id=${encodeURIComponent(branchId)}`
           : "/api/members.php",
@@ -290,24 +320,24 @@ const AdminMembers = ({ publicMode = false }) => {
         },
       );
 
-      const data = await res.json();
-      if (res.ok) {
-        setCreatedCredentials({
-          name: fullName,
-          email: newMember.email,
-          password: newMember.password,
-          accountNumber,
-        });
+      const createdName =
+        pickMemberName(response?.member) ||
+        pickMemberName(response) ||
+        fullName;
 
-        setShowAddModal(false);
-        setShowCredentialsModal(true);
-        setNewMember({ firstName: "", lastName: "", email: "", password: "" });
-        if (!publicMode) fetchMembers();
-      } else {
-        toast.error(data.message || data.error || "Failed to create member");
-      }
+      setCreatedCredentials({
+        name: createdName,
+        email: newMember.email,
+        password: newMember.password,
+        accountNumber,
+      });
+
+      setShowAddModal(false);
+      setShowCredentialsModal(true);
+      setNewMember({ firstName: "", lastName: "", email: "", password: "" });
+      if (!publicMode) fetchMembers();
     } catch (e) {
-      toast.error("Failed to create member");
+      toast.error(e.message || "Failed to create member");
     }
   };
 
@@ -334,7 +364,10 @@ Please log in and complete your profile.`;
   };
 
   const handleEditMember = (m) => {
-    setSelectedMember({ ...m });
+    setSelectedMember({
+      ...m,
+      full_name: pickMemberName(m) || m.full_name || "",
+    });
     setEditPassword("");
     setShowEditModal(true);
   };
@@ -342,7 +375,9 @@ Please log in and complete your profile.`;
   const handleUpdateMember = async (e) => {
     e.preventDefault();
     const payload = {
-      name: capitalizeWords(selectedMember.full_name || ""),
+      name: capitalizeWords(
+        selectedMember.full_name || selectedMember.name || "",
+      ),
       email: selectedMember.email,
       phone: selectedMember.phone || "",
       balance: parseFloat(selectedMember.balance) || 0,
@@ -352,7 +387,7 @@ Please log in and complete your profile.`;
     if (editPassword.trim()) payload.password = editPassword.trim();
 
     try {
-      const res = await apiFetch(
+      await apiFetch(
         branchId
           ? `/api/members.php/${selectedMember.id}?branch_id=${encodeURIComponent(branchId)}`
           : `/api/members.php/${selectedMember.id}`,
@@ -362,39 +397,29 @@ Please log in and complete your profile.`;
           body: JSON.stringify(payload),
         },
       );
-      const data = await res.json();
-      if (res.ok) {
-        toast.success("✅ Member updated!");
-        setShowEditModal(false);
-        setSelectedMember(null);
-        setEditPassword("");
-        fetchMembers();
-      } else {
-        toast.error(data.message || "Update failed");
-      }
-    } catch {
-      toast.error("Failed to update");
+      toast.success("✅ Member updated!");
+      setShowEditModal(false);
+      setSelectedMember(null);
+      setEditPassword("");
+      fetchMembers();
+    } catch (e) {
+      toast.error(e.message || "Failed to update");
     }
   };
 
   const handleDeleteMember = async (id) => {
     if (!window.confirm("Delete this member?")) return;
     try {
-      const res = await apiFetch(
+      await apiFetch(
         branchId
           ? `/api/members.php/${id}?branch_id=${encodeURIComponent(branchId)}`
           : `/api/members.php/${id}`,
         { method: "DELETE" },
       );
-      if (res.ok) {
-        toast.success("✅ Deleted!");
-        fetchMembers();
-      } else {
-        const data = await res.json();
-        toast.error(data.message || "Delete failed");
-      }
-    } catch {
-      toast.error("Failed to delete");
+      toast.success("✅ Deleted!");
+      fetchMembers();
+    } catch (e) {
+      toast.error(e.message || "Failed to delete");
     }
   };
 
@@ -405,7 +430,7 @@ Please log in and complete your profile.`;
     }
     const m = members.find((x) => x.id === parseInt(roleAssignment.memberId));
     try {
-      const res = await apiFetch(
+      await apiFetch(
         branchId
           ? `/api/members.php/${roleAssignment.memberId}?branch_id=${encodeURIComponent(branchId)}`
           : `/api/members.php/${roleAssignment.memberId}`,
@@ -414,7 +439,7 @@ Please log in and complete your profile.`;
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             role: roleAssignment.role,
-            name: m?.full_name,
+            name: pickMemberName(m),
             email: m?.email,
             phone: m?.phone || "",
             status: m?.status,
@@ -422,16 +447,12 @@ Please log in and complete your profile.`;
           }),
         },
       );
-      if (res.ok) {
-        toast.success(`✅ Role assigned: ${roleAssignment.role}`);
-        setShowRoleModal(false);
-        setRoleAssignment({ memberId: "", role: "member" });
-        fetchMembers();
-      } else {
-        toast.error("Failed to assign role");
-      }
-    } catch {
-      toast.error("Failed to assign role");
+      toast.success(`✅ Role assigned: ${roleAssignment.role}`);
+      setShowRoleModal(false);
+      setRoleAssignment({ memberId: "", role: "member" });
+      fetchMembers();
+    } catch (e) {
+      toast.error(e.message || "Failed to assign role");
     }
   };
 
@@ -533,6 +554,7 @@ Please log in and complete your profile.`;
           account_number: accountNumber,
           name: fullName,
           full_name: fullName,
+          fullName: fullName,
           email,
           phone: "",
           password: row.password,
@@ -545,7 +567,7 @@ Please log in and complete your profile.`;
           ...(branchId ? { branch_id: branchId } : {}),
         };
 
-        const res = await apiFetch(
+        await apiFetch(
           branchId
             ? `/api/members.php?branch_id=${encodeURIComponent(branchId)}`
             : "/api/members.php",
@@ -556,32 +578,21 @@ Please log in and complete your profile.`;
           },
         );
 
-        const data = await res.json();
-        if (res.ok) {
-          results.push({
-            row: row._row,
-            name: fullName,
-            email,
-            password: row.password,
-            accountNumber,
-            status: "success",
-          });
-        } else {
-          results.push({
-            row: row._row,
-            name: fullName,
-            email,
-            status: "failed",
-            error: data.message || data.error || "Failed",
-          });
-        }
+        results.push({
+          row: row._row,
+          name: fullName,
+          email,
+          password: row.password,
+          accountNumber,
+          status: "success",
+        });
       } catch (err) {
         results.push({
           row: row._row,
           name: `${row.firstName} ${row.lastName}`,
           email: "",
           status: "failed",
-          error: "Network error",
+          error: err.message || "Network error",
         });
       }
     }
@@ -625,7 +636,7 @@ Please log in and complete your profile.`;
     XLSX.utils.book_append_sheet(workbook, worksheet, "Results");
     XLSX.writeFile(
       workbook,
-      `members_upload_results_${activeBranch?.code || "branch"}_${
+      `members_upload_results_${resolvedBranchCode || "branch"}_${
         new Date().toISOString().split("T")[0]
       }.xlsx`,
     );
@@ -696,24 +707,13 @@ Please log in and complete your profile.`;
 
     for (const m of selectedMembers) {
       try {
-        const res = await apiFetch(
+        await apiFetch(
           branchId
             ? `/api/members.php/${m.id}?branch_id=${encodeURIComponent(branchId)}`
             : `/api/members.php/${m.id}`,
           { method: "DELETE" },
         );
-        if (res.ok) success++;
-        else {
-          failed++;
-          try {
-            const data = await res.json();
-            errors.push(
-              `${m.full_name}: ${data.message || data.error || "Failed"}`,
-            );
-          } catch {
-            errors.push(`${m.full_name}: HTTP ${res.status}`);
-          }
-        }
+        success++;
       } catch (err) {
         failed++;
         errors.push(`${m.full_name}: ${err.message}`);
@@ -748,7 +748,7 @@ Please log in and complete your profile.`;
 
     for (const m of selectedMembers) {
       try {
-        const res = await apiFetch(
+        await apiFetch(
           branchId
             ? `/api/members.php/${m.id}?branch_id=${encodeURIComponent(branchId)}`
             : `/api/members.php/${m.id}`,
@@ -756,7 +756,7 @@ Please log in and complete your profile.`;
             method: "PUT",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
-              name: m.full_name,
+              name: pickMemberName(m),
               email: m.email,
               phone: m.phone || "",
               role: m.role,
@@ -765,8 +765,7 @@ Please log in and complete your profile.`;
             }),
           },
         );
-        if (res.ok) success++;
-        else failed++;
+        success++;
       } catch {
         failed++;
       }
@@ -836,9 +835,7 @@ Please log in and complete your profile.`;
     }
   };
 
-  // ============================================================
-  // PUBLIC MODE — registration form only
-  // ============================================================
+  // PUBLIC MODE
   if (publicMode) {
     return (
       <div
@@ -1105,9 +1102,6 @@ Please log in and complete your profile.`;
     );
   }
 
-  // ============================================================
-  // ADMIN MODE
-  // ============================================================
   if (loading && members.length === 0) {
     return (
       <div
@@ -1206,7 +1200,7 @@ Please log in and complete your profile.`;
         .bulk-btn.warning:hover:not(:disabled) { background: rgba(234,179,8,0.12); }
       `}</style>
 
-      {/* Branch banner */}
+      {/* ✅ FIXED: Branch banner uses resolvedBranchName / resolvedBranchCode */}
       <div
         style={{
           display: "flex",
@@ -1231,7 +1225,7 @@ Please log in and complete your profile.`;
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {resolvedBranchName}
             </div>
             <div
               style={{
@@ -1240,7 +1234,7 @@ Please log in and complete your profile.`;
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} · Members for this branch only ·{" "}
+              {resolvedBranchCode} · Members for this branch only ·{" "}
               <strong style={{ color: "var(--credit)" }}>
                 {members.length}
               </strong>{" "}
@@ -1291,8 +1285,7 @@ Please log in and complete your profile.`;
               fontSize: "14px",
             }}
           >
-            Manage members for {activeBranch?.name || "your branch"}, assign
-            roles, view balances
+            Manage members for {resolvedBranchName}, assign roles, view balances
           </p>
         </div>
         <div style={{ display: "flex", gap: "10px", flexWrap: "wrap" }}>
@@ -1593,14 +1586,10 @@ Please log in and complete your profile.`;
             }}
           >
             <div style={{ fontSize: "40px", marginBottom: "8px" }}>📭</div>
-            <p>No members found in {activeBranch?.name || "this branch"}</p>
+            <p>No members found in {resolvedBranchName}</p>
           </div>
         )}
       </div>
-
-      {/* ============================================================ */}
-      {/* Modals — unchanged except the bug-free references to branchId */}
-      {/* ============================================================ */}
 
       {/* Add Member Modal */}
       {showAddModal && (
@@ -1635,8 +1624,8 @@ Please log in and complete your profile.`;
             >
               <p style={{ margin: 0, fontSize: "13px", color: "var(--text)" }}>
                 💡 New member will be created in{" "}
-                <strong>{activeBranch?.name || "this branch"}</strong>. They'll
-                complete their profile after logging in.
+                <strong>{resolvedBranchName}</strong>. They'll complete their
+                profile after logging in.
               </p>
             </div>
 

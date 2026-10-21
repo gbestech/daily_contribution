@@ -12,13 +12,10 @@ import { useBranch } from "../../context/BranchContext";
 
 // ------------------------------------------------------------
 // Unwrap a branch out of several possible API response shapes.
-//   { branch: {...} }  { data: { branch: {...} } }  { data: {...} }
-//   { branches: [...] }  [...]  or the branch object itself
 // ------------------------------------------------------------
 const pickBranchFromResponse = (data, id) => {
   if (!data || typeof data !== "object") return null;
 
-  // List responses → find by id
   const lists = [data?.branches, data?.data?.branches, data?.data, data];
   for (const l of lists) {
     if (Array.isArray(l) && id != null) {
@@ -27,7 +24,6 @@ const pickBranchFromResponse = (data, id) => {
     }
   }
 
-  // Single-record responses
   const candidates = [data?.branch, data?.data?.branch, data?.data, data];
   for (const c of candidates) {
     if (
@@ -77,6 +73,71 @@ const resolveBranchId = (ctxBranchId) => {
     }
   } catch {}
   return null;
+};
+
+// ------------------------------------------------------------
+// NEW: call apiFetch and normalise to { ok, status, data, raw }.
+// Works whether apiFetch returns a Response or parsed JSON.
+// ------------------------------------------------------------
+const callApi = async (url, options) => {
+  let res;
+  try {
+    res = await apiFetch(url, options);
+  } catch (err) {
+    // apiFetch itself threw (network, CORS, TLS, etc.)
+    console.error(`[api] ${url} → network error:`, err);
+    return {
+      ok: false,
+      status: 0,
+      data: null,
+      raw: "",
+      error: err?.message || "Network error",
+    };
+  }
+
+  // Case A — apiFetch returned a Response-like object
+  if (res && typeof res === "object" && "ok" in res && "status" in res) {
+    const status = res.status;
+    const ok = !!res.ok;
+    let text = "";
+    let data = null;
+    try {
+      text = await res.text();
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+    } catch (err) {
+      console.warn(`[api] ${url} → failed reading body:`, err);
+    }
+    if (!ok) {
+      console.error(
+        `[api] ${url} → HTTP ${status}`,
+        "\nbody:",
+        data ?? text?.slice(0, 500),
+      );
+    }
+    return { ok, status, data, raw: text };
+  }
+
+  // Case B — apiFetch already returned parsed JSON
+  const status = res?.status_code ?? res?.code ?? (res?.status ? 200 : 200);
+  const ok =
+    res?.success === false
+      ? false
+      : res?.error
+        ? false
+        : res?.status === false
+          ? false
+          : true;
+
+  if (!ok) {
+    console.error(`[api] ${url} → API error payload:`, res);
+  }
+  return { ok, status, data: res, raw: "" };
 };
 
 const buildSlipSrc = (t) => {
@@ -131,11 +192,6 @@ const resolveCustomerPhone = (t) =>
   "";
 
 const AdminTransactions = () => {
-  // ------------------------------------------------------------
-  // Read the branch from WHATEVER the context exposes.
-  // Some BranchContext versions expose activeBranch / activeBranchId /
-  // setActiveBranchId, others expose selectedBranch / setSelectedBranch.
-  // ------------------------------------------------------------
   const branchCtx = useBranch() || {};
   const ctxBranch = branchCtx.activeBranch || branchCtx.selectedBranch || null;
   const branches = Array.isArray(branchCtx.branches) ? branchCtx.branches : [];
@@ -180,7 +236,6 @@ const AdminTransactions = () => {
     completed: 0,
   });
 
-  // Branch record fetched directly (independent of the context)
   const [branchMeta, setBranchMeta] = useState(null);
   const refreshLockRef = useRef(false);
 
@@ -190,9 +245,7 @@ const AdminTransactions = () => {
   );
 
   // ------------------------------------------------------------
-  // Fetch the branch record.
-  //   1) /api/get-branch.php?id=…
-  //   2) /api/branches.php  → find by id
+  // Branch meta — uses callApi so we see real errors
   // ------------------------------------------------------------
   const fetchBranchMeta = useCallback(async (branchId) => {
     if (branchId === null || branchId === undefined || branchId === "") {
@@ -200,32 +253,31 @@ const AdminTransactions = () => {
       return null;
     }
 
-    try {
-      const res = await apiFetch(
-        `/api/get-branch.php?id=${encodeURIComponent(branchId)}`,
+    const r1 = await callApi(
+      `/api/get-branch.php?id=${encodeURIComponent(branchId)}`,
+    );
+    if (r1.ok) {
+      const b = pickBranchFromResponse(r1.data, branchId);
+      console.log(
+        "[AdminTransactions] get-branch.php →",
+        r1.data,
+        "picked:",
+        b,
       );
-      const data = await res.json().catch(() => null);
-      const b = pickBranchFromResponse(data, branchId);
-      console.log("[AdminTransactions] get-branch.php →", data, "picked:", b);
       if (b) {
         setBranchMeta(b);
         return b;
       }
-    } catch (err) {
-      console.warn("[AdminTransactions] get-branch.php failed:", err);
     }
 
-    try {
-      const res = await apiFetch(`/api/branches.php`);
-      const data = await res.json().catch(() => null);
-      const b = pickBranchFromResponse(data, branchId);
+    const r2 = await callApi(`/api/branches.php`);
+    if (r2.ok) {
+      const b = pickBranchFromResponse(r2.data, branchId);
       console.log("[AdminTransactions] branches.php picked:", b);
       if (b) {
         setBranchMeta(b);
         return b;
       }
-    } catch (err) {
-      console.warn("[AdminTransactions] branches.php failed:", err);
     }
 
     setBranchMeta(null);
@@ -237,7 +289,7 @@ const AdminTransactions = () => {
   }, [resolvedBranchId, fetchBranchMeta]);
 
   // ------------------------------------------------------------
-  // Transactions
+  // Transactions — tolerant to both apiFetch shapes
   // ------------------------------------------------------------
   const fetchTransactions = useCallback(async () => {
     setLoading(true);
@@ -257,17 +309,27 @@ const AdminTransactions = () => {
         return;
       }
 
-      const response = await apiFetch(
-        `/api/transactions.php?branch_id=${encodeURIComponent(branchId)}`,
-      );
-      if (!response.ok) throw new Error("Failed to fetch transactions");
+      const url = `/api/transactions.php?branch_id=${encodeURIComponent(branchId)}`;
+      const { ok, status, data: result, error } = await callApi(url);
 
-      const result = await response.json();
+      if (!ok) {
+        const detail =
+          result?.error ||
+          result?.message ||
+          (status ? `HTTP ${status}` : "") ||
+          error ||
+          "Unknown error";
+        toast.error(`Failed to fetch transactions — ${detail}`);
+        setTransactions([]);
+        return;
+      }
 
       let data = [];
       if (Array.isArray(result)) data = result;
-      else if (Array.isArray(result.transactions)) data = result.transactions;
-      else if (Array.isArray(result.data)) data = result.data;
+      else if (Array.isArray(result?.transactions)) data = result.transactions;
+      else if (Array.isArray(result?.data)) data = result.data;
+      else if (Array.isArray(result?.data?.transactions))
+        data = result.data.transactions;
 
       const branchStr = String(branchId);
       const branchFiltered = data.filter((t) => {
@@ -337,7 +399,7 @@ const AdminTransactions = () => {
       });
     } catch (error) {
       console.error("Error fetching transactions:", error);
-      toast.error("Failed to fetch transactions");
+      toast.error(`Failed to fetch transactions — ${error.message || "error"}`);
       setTransactions([]);
     } finally {
       setLoading(false);
@@ -350,9 +412,6 @@ const AdminTransactions = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resolvedBranchId]);
 
-  // ------------------------------------------------------------
-  // Manual refresh
-  // ------------------------------------------------------------
   const handleRefresh = async () => {
     if (refreshLockRef.current) return;
     refreshLockRef.current = true;
@@ -382,22 +441,17 @@ const AdminTransactions = () => {
 
   const handleApproveTransaction = async (transactionId) => {
     try {
-      const response = await apiFetch(
-        withBranch(`/api/transactions.php/${transactionId}/approve`),
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-        },
-      );
-
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok) {
+      const url = withBranch(`/api/transactions.php/${transactionId}/approve`);
+      const { ok, data } = await callApi(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (ok) {
         toast.success("✅ Transaction approved!");
         fetchTransactions();
       } else {
         toast.error(
-          data.error || data.message || "Failed to approve transaction",
+          data?.error || data?.message || "Failed to approve transaction",
         );
       }
     } catch (error) {
@@ -423,22 +477,18 @@ const AdminTransactions = () => {
       const adminName =
         JSON.parse(localStorage.getItem("user") || "{}")?.name || "Admin";
 
-      const response = await apiFetch(
-        withBranch(`/api/transactions.php/${rejectingId}/reject`),
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            reason: rejectReason.trim(),
-            rejected_by: adminName,
-            branch_id: resolvedBranchId,
-          }),
-        },
-      );
+      const url = withBranch(`/api/transactions.php/${rejectingId}/reject`);
+      const { ok, data } = await callApi(url, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          reason: rejectReason.trim(),
+          rejected_by: adminName,
+          branch_id: resolvedBranchId,
+        }),
+      });
 
-      const data = await response.json().catch(() => ({}));
-
-      if (response.ok) {
+      if (ok) {
         toast.success("✅ Transaction rejected!");
         setShowRejectModal(false);
         setRejectReason("");
@@ -448,7 +498,7 @@ const AdminTransactions = () => {
         fetchTransactions();
       } else {
         toast.error(
-          data.error || data.message || "Failed to reject transaction",
+          data?.error || data?.message || "Failed to reject transaction",
         );
       }
     } catch (error) {
@@ -644,10 +694,6 @@ const AdminTransactions = () => {
     );
   };
 
-  // ------------------------------------------------------------
-  // Branch name / code — priority chain:
-  //   fetched record → context branch → branches list → placeholder
-  // ------------------------------------------------------------
   const branchFromList = useMemo(
     () =>
       branches.find((b) => String(b.id) === String(resolvedBranchId)) || null,
@@ -814,6 +860,7 @@ const AdminTransactions = () => {
     );
   }
 
+  // NOTE: everything below is identical to your original file.
   return (
     <div
       style={{
@@ -890,7 +937,7 @@ const AdminTransactions = () => {
         }
       `}</style>
 
-      {/* ===== Branch banner ===== */}
+      {/* ---- everything from here down is unchanged ---- */}
       <div
         style={{
           display: "flex",

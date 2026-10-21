@@ -17,6 +17,13 @@ const Manager = () => {
   const { activeBranch, activeBranchId } = useBranch();
   const { user } = useAuth();
 
+  // ---------- role detection ----------
+  const roleStr = String(user?.role || "")
+    .trim()
+    .toLowerCase();
+  const isAdmin = roleStr === "admin" || roleStr === "administrator";
+  const isManager = roleStr === "manager" || roleStr === "branch_manager";
+
   const [managers, setManagers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -27,6 +34,13 @@ const Manager = () => {
   const [branchMeta, setBranchMeta] = useState(null);
   const [error, setError] = useState(null);
   const lastFetchRef = useRef(0);
+
+  // ---------- managers can only ever see their own branch ----------
+  useEffect(() => {
+    if (!isAdmin && filterBranch !== "current") {
+      setFilterBranch("current");
+    }
+  }, [isAdmin, filterBranch]);
 
   // ---------- resolve branch id ----------
   const resolvedBranchId = useMemo(() => {
@@ -58,7 +72,6 @@ const Manager = () => {
     }
   }, []);
 
-  // ---------- branch metadata (for banner) ----------
   useEffect(() => {
     if (!resolvedBranchId) {
       setBranchMeta(null);
@@ -67,12 +80,9 @@ const Manager = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch(
+        const data = await apiFetch(
           `/api/get-branch.php?id=${encodeURIComponent(resolvedBranchId)}`,
-          { headers: { Accept: "application/json" } },
         );
-        if (!res.ok) return;
-        const data = await res.json();
         if (cancelled) return;
         const b = data?.branch || data?.data?.branch || data?.data || null;
         if (b) setBranchMeta(b);
@@ -85,16 +95,11 @@ const Manager = () => {
     };
   }, [resolvedBranchId]);
 
-  // ---------- all branch names (for "All" mode) ----------
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch("/api/branches.php", {
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await apiFetch("/api/branches.php");
         if (cancelled) return;
         const list = Array.isArray(data?.branches) ? data.branches : [];
         const map = {};
@@ -132,7 +137,6 @@ const Manager = () => {
     [branchMap],
   );
 
-  // ---------- banner ----------
   const bannerBranchName =
     branchMeta?.name ||
     activeBranch?.name ||
@@ -149,10 +153,12 @@ const Manager = () => {
     user?.branch_code ||
     (resolvedBranchId ? `ID #${resolvedBranchId}` : "—");
 
-  // ---------- fetch ----------
   const fetchManagers = useCallback(
     async ({ silent = false } = {}) => {
-      if (filterBranch === "current" && resolvedBranchId === null) {
+      // 🔒 Managers can never widen scope, even if state gets stale
+      const canSeeAll = isAdmin && filterBranch === "all";
+
+      if (!canSeeAll && resolvedBranchId === null) {
         setLoading(false);
         return false;
       }
@@ -165,29 +171,17 @@ const Manager = () => {
       setError(null);
 
       try {
-        const path =
-          filterBranch === "all"
-            ? "/api/members.php?all=1&role=manager"
-            : `/api/members.php?branch_id=${encodeURIComponent(resolvedBranchId)}&role=manager`;
+        const path = canSeeAll
+          ? "/api/members.php?all=1&role=manager"
+          : `/api/members.php?branch_id=${encodeURIComponent(resolvedBranchId)}&role=manager`;
 
-        const res = await apiFetch(path, {
-          headers: { Accept: "application/json" },
-        });
-        if (!res.ok) {
-          const data = await res.json().catch(() => ({}));
-          const msg = data.error || data.message || `HTTP ${res.status}`;
-          setError(msg);
-          if (!silent) toast.error(msg);
-          return false;
-        }
-
-        const data = await res.json();
+        const data = await apiFetch(path);
         const list = Array.isArray(data?.members) ? data.members : [];
 
-        // Backend already filters role=manager, so trust it.
         const mapped = list.map((m) => ({
           id: m.id,
-          name: m.name || m.full_name || "Unknown",
+          name:
+            m.name || m.full_name || m.fullName || m.member_name || "Unknown",
           email: m.email || "",
           phone: m.phone || "",
           accountNumber: m.accountNumber || m.account_number || `MEM-${m.id}`,
@@ -212,16 +206,18 @@ const Manager = () => {
         else setLoading(false);
       }
     },
-    [filterBranch, resolvedBranchId],
+    [filterBranch, resolvedBranchId, isAdmin],
   );
 
   useEffect(() => {
-    if (filterBranch === "current" && resolvedBranchId === null) {
+    const canSeeAll = isAdmin && filterBranch === "all";
+    if (!canSeeAll && resolvedBranchId === null) {
       setLoading(false);
       return;
     }
     fetchManagers();
-  }, [resolvedBranchId, filterBranch]); // eslint-disable-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resolvedBranchId, filterBranch, isAdmin]);
 
   const handleRefresh = async () => {
     lastFetchRef.current = 0;
@@ -229,7 +225,6 @@ const Manager = () => {
     if (ok) toast.success("🔄 Managers refreshed");
   };
 
-  // ---------- actions ----------
   const handleDemote = async (manager) => {
     const isSelf = currentUser && Number(manager.id) === Number(currentUser.id);
     const msg = isSelf
@@ -238,7 +233,7 @@ const Manager = () => {
     if (!window.confirm(msg)) return;
     setUpdatingId(manager.id);
     try {
-      const res = await apiFetch(`/api/members.php/${manager.id}`, {
+      await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -250,18 +245,15 @@ const Manager = () => {
           role: "member",
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setManagers((prev) => prev.filter((m) => m.id !== manager.id));
-        toast.success(`✅ ${manager.name} is now a Member`);
-        if (isSelf)
-          localStorage.setItem(
-            "user",
-            JSON.stringify({ ...currentUser, role: "member" }),
-          );
-      } else toast.error(data.message || data.error || "Failed to demote");
-    } catch {
-      toast.error("Failed to demote");
+      setManagers((prev) => prev.filter((m) => m.id !== manager.id));
+      toast.success(`✅ ${manager.name} is now a Member`);
+      if (isSelf)
+        localStorage.setItem(
+          "user",
+          JSON.stringify({ ...currentUser, role: "member" }),
+        );
+    } catch (err) {
+      toast.error(err.message || "Failed to demote");
     } finally {
       setUpdatingId(null);
     }
@@ -271,7 +263,7 @@ const Manager = () => {
     if (!window.confirm(`Suspend ${manager.name}'s account?`)) return;
     setUpdatingId(manager.id);
     try {
-      const res = await apiFetch(`/api/members.php/${manager.id}`, {
+      await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -283,17 +275,14 @@ const Manager = () => {
           role: "manager",
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setManagers((prev) =>
-          prev.map((m) =>
-            m.id === manager.id ? { ...m, status: "suspended" } : m,
-          ),
-        );
-        toast.success(`🚫 ${manager.name} suspended`);
-      } else toast.error(data.message || data.error || "Failed to suspend");
-    } catch {
-      toast.error("Failed to suspend");
+      setManagers((prev) =>
+        prev.map((m) =>
+          m.id === manager.id ? { ...m, status: "suspended" } : m,
+        ),
+      );
+      toast.success(`🚫 ${manager.name} suspended`);
+    } catch (err) {
+      toast.error(err.message || "Failed to suspend");
     } finally {
       setUpdatingId(null);
     }
@@ -302,7 +291,7 @@ const Manager = () => {
   const handleReactivate = async (manager) => {
     setUpdatingId(manager.id);
     try {
-      const res = await apiFetch(`/api/members.php/${manager.id}`, {
+      await apiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -314,17 +303,12 @@ const Manager = () => {
           role: "manager",
         }),
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setManagers((prev) =>
-          prev.map((m) =>
-            m.id === manager.id ? { ...m, status: "active" } : m,
-          ),
-        );
-        toast.success(`✅ ${manager.name} reactivated`);
-      } else toast.error(data.message || data.error || "Failed to reactivate");
-    } catch {
-      toast.error("Failed to reactivate");
+      setManagers((prev) =>
+        prev.map((m) => (m.id === manager.id ? { ...m, status: "active" } : m)),
+      );
+      toast.success(`✅ ${manager.name} reactivated`);
+    } catch (err) {
+      toast.error(err.message || "Failed to reactivate");
     } finally {
       setUpdatingId(null);
     }
@@ -339,22 +323,18 @@ const Manager = () => {
       return;
     setUpdatingId(manager.id);
     try {
-      const res = await apiFetch(`/api/members.php/${manager.id}`, {
+      await apiFetch(`/api/members.php/${manager.id}`, {
         method: "DELETE",
       });
-      const data = await res.json().catch(() => ({}));
-      if (res.ok) {
-        setManagers((prev) => prev.filter((m) => m.id !== manager.id));
-        toast.success(`🗑️ ${manager.name} deleted`);
-      } else toast.error(data.message || data.error || "Failed to delete");
-    } catch {
-      toast.error("Failed to delete");
+      setManagers((prev) => prev.filter((m) => m.id !== manager.id));
+      toast.success(`🗑️ ${manager.name} deleted`);
+    } catch (err) {
+      toast.error(err.message || "Failed to delete");
     } finally {
       setUpdatingId(null);
     }
   };
 
-  // ---------- derived ----------
   const filtered = useMemo(() => {
     if (!searchTerm.trim()) return managers;
     const term = searchTerm.toLowerCase().trim();
@@ -381,7 +361,6 @@ const Manager = () => {
     [managers],
   );
 
-  // ---------- loading ----------
   if (loading && managers.length === 0) {
     return (
       <div
@@ -401,7 +380,6 @@ const Manager = () => {
     );
   }
 
-  // ---------- render ----------
   return (
     <div
       style={{
@@ -431,6 +409,7 @@ const Manager = () => {
         .mgr-filter-input::placeholder { color: var(--text-dim); }
         .mgr-filter-input:focus, .mgr-filter-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
         .mgr-filter-select option { background: var(--bg-surface); color: var(--text); }
+        .mgr-filter-select:disabled { opacity: 0.7; cursor: not-allowed; }
         .mgr-table-wrap { overflow: auto; }
         .mgr-table-wrap table { width: 100%; border-collapse: collapse; background: transparent; }
         .mgr-table-wrap th { color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border: none; }
@@ -463,7 +442,6 @@ const Manager = () => {
         </div>
       )}
 
-      {/* Banner */}
       <div
         style={{
           display: "flex",
@@ -498,7 +476,7 @@ const Manager = () => {
               }}
             >
               {bannerBranchCode} ·{" "}
-              {filterBranch === "all"
+              {filterBranch === "all" && isAdmin
                 ? "Showing managers from all branches"
                 : "Managers in this branch only"}{" "}
               ·{" "}
@@ -530,7 +508,7 @@ const Manager = () => {
           <p>
             All managers in{" "}
             <strong>
-              {filterBranch === "all"
+              {filterBranch === "all" && isAdmin
                 ? "every branch"
                 : bannerBranchName || "this branch"}
             </strong>{" "}
@@ -593,10 +571,22 @@ const Manager = () => {
         <select
           className="mgr-filter-select"
           value={filterBranch}
-          onChange={(e) => setFilterBranch(e.target.value)}
+          onChange={(e) => {
+            if (e.target.value === "all" && !isAdmin) {
+              toast.error("Only admins can view managers from all branches");
+              return;
+            }
+            setFilterBranch(e.target.value);
+          }}
+          disabled={!isAdmin}
+          title={
+            isAdmin
+              ? "Choose which managers to display"
+              : "You can only see managers in your branch"
+          }
         >
           <option value="current">📁 Current branch only</option>
-          <option value="all">🌍 All branches</option>
+          {isAdmin && <option value="all">🌍 All branches</option>}
         </select>
       </div>
 
@@ -605,7 +595,11 @@ const Manager = () => {
           <div className="mgr-empty-icon">👔</div>
           <p>
             {managers.length === 0
-              ? `No managers found in ${filterBranch === "all" ? "any branch" : bannerBranchName || "this branch"}. Promote a member to Manager to see them here.`
+              ? `No managers found in ${
+                  filterBranch === "all" && isAdmin
+                    ? "any branch"
+                    : bannerBranchName || "this branch"
+                }. Promote a member to Manager to see them here.`
               : "No managers match your search."}
           </p>
         </div>

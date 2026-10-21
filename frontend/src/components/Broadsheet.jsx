@@ -7,8 +7,6 @@ import MemberDetailModal from "./MemberDetailModal";
 import { apiFetch } from "../utils/api";
 import { useBranch } from "../context/BranchContext";
 
-const API_BASE_URL = "http://localhost:8000";
-
 const MONTHS = [
   { value: "", label: "All Months" },
   { value: "01", label: "January" },
@@ -25,8 +23,28 @@ const MONTHS = [
   { value: "12", label: "December" },
 ];
 
+const pickName = (m) =>
+  m?.name ||
+  m?.full_name ||
+  m?.fullName ||
+  m?.member_name ||
+  m?.memberName ||
+  m?.display_name ||
+  m?.displayName ||
+  (m?.first_name || m?.firstName
+    ? `${m.firstName || m.first_name || ""} ${m.lastName || m.last_name || ""}`.trim()
+    : "") ||
+  "";
+
 const Broadsheet = () => {
-  const { activeBranch, activeBranchId } = useBranch();
+  const branchCtx = useBranch() || {};
+  const activeBranch =
+    branchCtx.activeBranch || branchCtx.selectedBranch || null;
+  const activeBranchId =
+    branchCtx.activeBranchId ??
+    branchCtx.selectedBranchId ??
+    activeBranch?.id ??
+    null;
 
   const [transactions, setTransactions] = useState([]);
   const [members, setMembers] = useState([]);
@@ -50,6 +68,95 @@ const Broadsheet = () => {
 
   const [selectedMember, setSelectedMember] = useState(null);
   const [showMemberModal, setShowMemberModal] = useState(false);
+
+  // ✅ NEW: fallback branch info fetched from API
+  const [branchInfo, setBranchInfo] = useState(null);
+
+  // ✅ Resolve branch ID from context → activeBranch.id → localStorage
+  const branchId = useMemo(() => {
+    if (activeBranchId !== undefined && activeBranchId !== null) {
+      const n = Number(activeBranchId);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    if (activeBranch?.id) {
+      const n = Number(activeBranch.id);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      if (stored?.branch_id) {
+        const n = Number(stored.branch_id);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+      if (stored?.branchId) {
+        const n = Number(stored.branchId);
+        if (Number.isFinite(n) && n > 0) return n;
+      }
+    } catch {}
+    return null;
+  }, [activeBranchId, activeBranch]);
+
+  // ✅ Fetch branch name/code from API if context lacks it
+  useEffect(() => {
+    if (!branchId) return;
+    if (activeBranch?.name && activeBranch?.code) {
+      setBranchInfo(null);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await apiFetch(
+          `/api/get-branch.php?id=${encodeURIComponent(branchId)}`,
+        );
+        const b = data?.branch || data?.data?.branch || data?.data || data;
+        if (!cancelled && b && typeof b === "object") {
+          setBranchInfo({
+            id: b.id ?? branchId,
+            name: b.name ?? b.branch_name ?? "",
+            code: b.code ?? b.branch_code ?? "",
+          });
+        }
+      } catch (err) {
+        console.warn("[Broadsheet] get-branch fallback failed:", err);
+        if (!cancelled) setBranchInfo(null);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [branchId, activeBranch?.name, activeBranch?.code]);
+
+  // ✅ Resolved values used in the banner
+  const resolvedBranchName = useMemo(() => {
+    if (activeBranch?.name && String(activeBranch.name).trim())
+      return String(activeBranch.name).trim();
+    if (activeBranch?.branch_name && String(activeBranch.branch_name).trim())
+      return String(activeBranch.branch_name).trim();
+    if (branchInfo?.name && String(branchInfo.name).trim())
+      return String(branchInfo.name).trim();
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      const n = stored?.branch_name || stored?.branchName;
+      if (n && String(n).trim()) return String(n).trim();
+    } catch {}
+    return branchId ? `Branch #${branchId}` : "Branch";
+  }, [activeBranch, branchInfo, branchId]);
+
+  const resolvedBranchCode = useMemo(() => {
+    if (activeBranch?.code && String(activeBranch.code).trim())
+      return String(activeBranch.code).trim();
+    if (activeBranch?.branch_code && String(activeBranch.branch_code).trim())
+      return String(activeBranch.branch_code).trim();
+    if (branchInfo?.code && String(branchInfo.code).trim())
+      return String(branchInfo.code).trim();
+    try {
+      const stored = JSON.parse(localStorage.getItem("user") || "{}");
+      const c = stored?.branch_code || stored?.branchCode;
+      if (c && String(c).trim()) return String(c).trim();
+    } catch {}
+    return "—";
+  }, [activeBranch, branchInfo]);
 
   const formatCurrency = (amt) => {
     const num = parseFloat(amt) || 0;
@@ -86,7 +193,7 @@ const Broadsheet = () => {
     (memberId) => {
       if (!memberId) return "Unknown";
       const m = members.find((x) => Number(x.id) === Number(memberId));
-      return m ? m.name : "Unknown";
+      return pickName(m) || "Unknown";
     },
     [members],
   );
@@ -99,7 +206,13 @@ const Broadsheet = () => {
       .trim();
   };
 
-  const calculateAndNormalize = (rawTxns) => {
+  const calculateAndNormalizeWithMembers = (rawTxns, membersList) => {
+    const findName = (id) => {
+      if (!id) return "";
+      const m = (membersList || []).find((x) => Number(x.id) === Number(id));
+      return m ? pickName(m) : "";
+    };
+
     return rawTxns.map((t) => {
       const type = (t.type || "").toLowerCase();
       let category = "transaction";
@@ -119,6 +232,14 @@ const Broadsheet = () => {
           ? parseFloat(t.net_amount)
           : amount;
 
+      const resolvedName =
+        t.memberName ||
+        t.member_name ||
+        t.name ||
+        pickName(t) ||
+        findName(t.memberId ?? t.member_id) ||
+        "";
+
       return {
         ...t,
         type,
@@ -126,38 +247,52 @@ const Broadsheet = () => {
         amount,
         charge,
         net,
+        memberName: resolvedName,
+        memberId: t.memberId ?? t.member_id,
+        accountNumber:
+          t.accountNumber || t.account_number || t.membership_number || "",
         description: cleanDescription(t.description),
       };
     });
   };
 
-  // ============================================================
-  // 🆕 All fetches use apiFetch → automatically carry ?branch_id=X
-  // ============================================================
   const fetchData = async () => {
     setLoading(true);
     try {
-      const mRes = await apiFetch("/api/members.php");
-      const mData = await mRes.json();
       let membersList = [];
-      if (mData.members) {
-        membersList = mData.members;
+      try {
+        const mData = await apiFetch("/api/members.php");
+        if (Array.isArray(mData?.members)) {
+          membersList = mData.members;
+        } else if (Array.isArray(mData)) {
+          membersList = mData;
+        }
         setMembers(membersList);
+      } catch (err) {
+        console.warn("[Broadsheet] members fetch failed:", err);
+        setMembers([]);
       }
 
-      const tRes = await apiFetch("/api/transactions.php");
-      const tData = await tRes.json();
-
       let all = [];
-      if (Array.isArray(tData.transactions)) {
-        all = [...tData.transactions];
+      try {
+        const tData = await apiFetch("/api/transactions.php");
+        if (Array.isArray(tData?.transactions)) {
+          all = [...tData.transactions];
+        } else if (Array.isArray(tData)) {
+          all = [...tData];
+        }
+      } catch (err) {
+        console.warn("[Broadsheet] transactions fetch failed:", err);
+        toast.error(err.message || "Failed to load transactions");
       }
 
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
         const u = JSON.parse(storedUser);
         if (u.role === "member" || u.role === "user") {
-          all = all.filter((t) => Number(t.memberId) === Number(u.id));
+          all = all.filter(
+            (t) => Number(t.memberId ?? t.member_id) === Number(u.id),
+          );
         }
       }
 
@@ -165,10 +300,11 @@ const Broadsheet = () => {
         (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
       );
 
-      setTransactions(calculateAndNormalize(all));
+      const normalized = calculateAndNormalizeWithMembers(all, membersList);
+      setTransactions(normalized);
     } catch (err) {
-      console.error(err);
-      toast.error("Failed to load broadsheet data");
+      console.error("[Broadsheet] fetchData error:", err);
+      toast.error(err.message || "Failed to load broadsheet data");
     } finally {
       setLoading(false);
     }
@@ -179,7 +315,7 @@ const Broadsheet = () => {
     if (stored) setUser(JSON.parse(stored));
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]); // 🆕 refetch when branch changes
+  }, [branchId]);
 
   const handleVoiceResult = useCallback(
     (spokenText) => {
@@ -188,13 +324,13 @@ const Broadsheet = () => {
       setSearchTerm(cleaned);
 
       let matches = members.filter((m) =>
-        m.name?.toLowerCase().includes(cleaned),
+        pickName(m).toLowerCase().includes(cleaned),
       );
 
       if (matches.length === 0) {
         const words = cleaned.split(/\s+/).filter(Boolean);
         matches = members.filter((m) =>
-          words.some((w) => m.name?.toLowerCase().includes(w)),
+          words.some((w) => pickName(m).toLowerCase().includes(w)),
         );
       }
 
@@ -203,8 +339,8 @@ const Broadsheet = () => {
         setShowMemberModal(true);
         toast.success(
           matches.length === 1
-            ? `👤 Found: ${matches[0].name}`
-            : `Found ${matches.length} matches — showing ${matches[0].name}`,
+            ? `👤 Found: ${pickName(matches[0])}`
+            : `Found ${matches.length} matches — showing ${pickName(matches[0])}`,
         );
       } else {
         toast.error(`No member found matching "${spokenText}"`);
@@ -461,7 +597,7 @@ const Broadsheet = () => {
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = `broadsheet_${activeBranch?.code || "branch"}_${new Date().toISOString().split("T")[0]}.csv`;
+    a.download = `broadsheet_${resolvedBranchCode || "branch"}_${new Date().toISOString().split("T")[0]}.csv`;
     a.click();
     URL.revokeObjectURL(url);
     toast.success("📥 Broadsheet exported!");
@@ -692,7 +828,7 @@ const Broadsheet = () => {
         .bs-page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
       `}</style>
 
-      {/* ===== 🆕 BRANCH BANNER ===== */}
+      {/* ✅ FIXED: Branch banner uses resolvedBranchName / resolvedBranchCode */}
       <div
         style={{
           display: "flex",
@@ -717,7 +853,7 @@ const Broadsheet = () => {
                 fontWeight: "700",
               }}
             >
-              {activeBranch?.name || "Branch"}
+              {resolvedBranchName}
             </div>
             <div
               style={{
@@ -726,7 +862,7 @@ const Broadsheet = () => {
                 marginTop: "2px",
               }}
             >
-              {activeBranch?.code || "—"} · Ledger for this branch only ·{" "}
+              {resolvedBranchCode} · Ledger for this branch only ·{" "}
               <strong style={{ color: "var(--credit)" }}>
                 {transactions.length}
               </strong>{" "}
@@ -757,8 +893,8 @@ const Broadsheet = () => {
           <h2>📑 Financial Broadsheet</h2>
           <p>
             {user?.role === "admin"
-              ? `All members in ${activeBranch?.name || "this branch"} — complete transaction ledger`
-              : `Your complete transaction ledger — ${activeBranch?.name || "your branch"}`}
+              ? `All members in ${resolvedBranchName} — complete transaction ledger`
+              : `Your complete transaction ledger — ${resolvedBranchName}`}
           </p>
         </div>
         <div className="bs-actions">
@@ -892,7 +1028,7 @@ const Broadsheet = () => {
               <option value="all">👥 All Members</option>
               {members.map((m) => (
                 <option key={m.id} value={m.id}>
-                  {m.name}
+                  {pickName(m) || `Member #${m.id}`}
                 </option>
               ))}
             </select>
@@ -954,7 +1090,7 @@ const Broadsheet = () => {
         <div className="bs-filter-summary">
           Showing <strong>{filtered.length}</strong> of{" "}
           <strong>{transactions.length}</strong> transactions in{" "}
-          <strong>{activeBranch?.name || "this branch"}</strong>
+          <strong>{resolvedBranchName}</strong>
           {filterDay && ` on ${filterDay}`}
           {filterMonth &&
             ` in ${MONTHS.find((m) => m.value === filterMonth)?.label}`}
@@ -986,9 +1122,8 @@ const Broadsheet = () => {
                 <td colSpan="11" className="bs-empty">
                   <div className="bs-empty-icon">📭</div>
                   <p>
-                    No transactions in{" "}
-                    <strong>{activeBranch?.name || "this branch"}</strong> match
-                    your filters
+                    No transactions in <strong>{resolvedBranchName}</strong>{" "}
+                    match your filters
                   </p>
                   <p className="bs-empty-hint">
                     Try clearing the date, month, or year filters
@@ -999,6 +1134,12 @@ const Broadsheet = () => {
               paginated.map((t, idx) => {
                 const isDebit =
                   t.category === "debit" || t.type === "withdrawal";
+                const displayName =
+                  t.memberName &&
+                  t.memberName !== "Unknown" &&
+                  t.memberName.trim() !== ""
+                    ? t.memberName
+                    : getMemberName(t.memberId);
                 return (
                   <tr key={t.id}>
                     <td className="bs-mono">
@@ -1008,7 +1149,7 @@ const Broadsheet = () => {
                     <td className="bs-muted">{formatTime(t.date) || "—"}</td>
                     <td>
                       <div style={{ fontWeight: 500, color: "var(--text)" }}>
-                        {t.memberName || getMemberName(t.memberId)}
+                        {displayName || "—"}
                       </div>
                       {t.accountNumber && (
                         <div
@@ -1088,35 +1229,42 @@ const Broadsheet = () => {
           <div className="bs-page-controls">
             <button
               className="bs-page-btn"
-              onClick={() => setCurrentPage((p) => Math.max(p - 1, 1))}
+              onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1}
             >
-              ←
+              ‹ Prev
             </button>
-            {[...Array(Math.min(totalPages, 7))].map((_, i) => {
-              let num;
-              if (totalPages <= 7) num = i + 1;
-              else if (currentPage <= 4) num = i + 1;
-              else if (currentPage >= totalPages - 3) num = totalPages - 6 + i;
-              else num = currentPage - 3 + i;
-              return (
-                <button
-                  key={i}
-                  className={`bs-page-btn ${
-                    currentPage === num ? "active" : ""
-                  }`}
-                  onClick={() => setCurrentPage(num)}
-                >
-                  {num}
-                </button>
-              );
-            })}
+            {Array.from({ length: totalPages }, (_, i) => i + 1)
+              .filter(
+                (p) =>
+                  p === 1 || p === totalPages || Math.abs(p - currentPage) <= 2,
+              )
+              .map((p, i, arr) => (
+                <React.Fragment key={p}>
+                  {i > 0 && arr[i - 1] !== p - 1 && (
+                    <span
+                      style={{
+                        padding: "6px 4px",
+                        color: "var(--text-dim)",
+                      }}
+                    >
+                      …
+                    </span>
+                  )}
+                  <button
+                    className={`bs-page-btn ${p === currentPage ? "active" : ""}`}
+                    onClick={() => setCurrentPage(p)}
+                  >
+                    {p}
+                  </button>
+                </React.Fragment>
+              ))}
             <button
               className="bs-page-btn"
-              onClick={() => setCurrentPage((p) => Math.min(p + 1, totalPages))}
+              onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
               disabled={currentPage === totalPages}
             >
-              →
+              Next ›
             </button>
           </div>
         </div>
@@ -1126,13 +1274,7 @@ const Broadsheet = () => {
       {showMemberModal && selectedMember && (
         <MemberDetailModal
           member={selectedMember}
-          transactions={transactions}
-          formatCurrency={formatCurrency}
-          formatDate={formatDate}
-          onClose={() => {
-            setShowMemberModal(false);
-            setSelectedMember(null);
-          }}
+          onClose={() => setShowMemberModal(false)}
         />
       )}
     </div>

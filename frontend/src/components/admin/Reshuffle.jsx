@@ -20,7 +20,60 @@ const API_BASE_URL = "http://localhost:8000";
 const MEMBERS_PER_PAGE = 10;
 
 // ────────────────────────────────────────────────────────────
-// Persist rotation to localStorage so members see their payout month
+// Tolerant API reader — works whether apiFetch returns a
+// Response (needs .json()) or already-parsed JSON.
+// ────────────────────────────────────────────────────────────
+const callApi = async (url, options) => {
+  let res;
+  try {
+    res = await apiFetch(url, options);
+  } catch (err) {
+    console.error(`[reshuffle] ${url} → network error:`, err);
+    throw new Error(err?.message || "Network error");
+  }
+
+  // Response-like object
+  if (res && typeof res === "object" && "ok" in res && "status" in res) {
+    let text = "";
+    let data = null;
+    try {
+      text = await res.text();
+      if (text) {
+        try {
+          data = JSON.parse(text);
+        } catch {
+          data = null;
+        }
+      }
+    } catch (err) {
+      console.warn(`[reshuffle] ${url} → body read failed:`, err);
+    }
+    if (!res.ok) {
+      const detail = data?.error || data?.message || `HTTP ${res.status}`;
+      console.error(
+        `[reshuffle] ${url} → ${detail}`,
+        data ?? text?.slice(0, 400),
+      );
+      throw new Error(detail);
+    }
+    return data;
+  }
+
+  // Already-parsed JSON
+  if (res && typeof res === "object") {
+    if (res.success === false || res.status === false || res.error) {
+      const detail = res.error || res.message || "Request failed";
+      console.error(`[reshuffle] ${url} → ${detail}`, res);
+      throw new Error(detail);
+    }
+    return res;
+  }
+
+  return res ?? null;
+};
+
+// ────────────────────────────────────────────────────────────
+// Rotation persistence (localStorage)
 // ────────────────────────────────────────────────────────────
 const ROTATION_STORAGE_KEY = "payout_rotation_v1";
 
@@ -32,7 +85,15 @@ const readAllRotations = () => {
   }
 };
 
-const persistRotation = (durationKey, amount, slots) => {
+const writeAllRotations = (all) => {
+  try {
+    localStorage.setItem(ROTATION_STORAGE_KEY, JSON.stringify(all));
+  } catch (e) {
+    console.warn("[reshuffle] localStorage write failed:", e);
+  }
+};
+
+const persistRotation = (durationKey, amount, slots, collectedSet) => {
   const all = readAllRotations();
   const key = `${durationKey}::${Math.round(amount)}`;
   all[key] = {
@@ -44,29 +105,47 @@ const persistRotation = (durationKey, amount, slots) => {
       memberName: s.member?.name ?? null,
       accountNumber: s.member?.accountNumber ?? null,
     })),
+    collected: Array.from(collectedSet || []).map(String),
     updatedAt: new Date().toISOString(),
   };
-  try {
-    localStorage.setItem(ROTATION_STORAGE_KEY, JSON.stringify(all));
-  } catch (e) {
-    console.warn("[reshuffle] localStorage write failed:", e);
-  }
+  writeAllRotations(all);
 };
 
 const clearPersistedRotation = (durationKey, amount) => {
   const all = readAllRotations();
   const key = `${durationKey}::${Math.round(amount)}`;
   delete all[key];
-  try {
-    localStorage.setItem(ROTATION_STORAGE_KEY, JSON.stringify(all));
-  } catch (e) {
-    console.warn("[reshuffle] localStorage write failed:", e);
-  }
+  writeAllRotations(all);
 };
 
+const persistCollected = (durationKey, amount, slots, collectedSet) => {
+  persistRotation(durationKey, amount, slots, collectedSet);
+};
+
+// Rehydrate a stored rotation for one (duration, amount) into slot objects
+const rehydrateSlots = (storedEntry, membersById) => {
+  if (!storedEntry || !Array.isArray(storedEntry.slots)) return [];
+  return storedEntry.slots.map((s) => {
+    const memberId = s.memberId ?? null;
+    const member = memberId !== null ? membersById.get(String(memberId)) : null;
+    return {
+      month: s.month,
+      member: member || null,
+    };
+  });
+};
+
+// ────────────────────────────────────────────────────────────
+// Misc helpers
+// ────────────────────────────────────────────────────────────
 const fmtNaira = (n) => {
   const val = Number(n || 0);
   return "₦" + val.toLocaleString("en-NG", { maximumFractionDigits: 0 });
+};
+
+const roundAmount = (n) => {
+  const v = Number(n || 0);
+  return Number.isFinite(v) && v > 0 ? Math.round(v) : 0;
 };
 
 const getContribution = (member) => {
@@ -85,7 +164,7 @@ const getContribution = (member) => {
   for (const k of candidates) {
     if (member[k] !== undefined && member[k] !== null && member[k] !== "") {
       const n = parseFloat(member[k]);
-      if (Number.isFinite(n) && n > 0) return n;
+      if (Number.isFinite(n) && n > 0) return roundAmount(n);
     }
   }
   return 0;
@@ -668,8 +747,7 @@ const Reshuffle = () => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await apiFetch(`/api/get-branch.php?id=${branchId}`);
-        const data = await res.json();
+        const data = await callApi(`/api/get-branch.php?id=${branchId}`);
         const b = data?.branch || data?.data?.branch || data?.data || null;
         if (!cancelled) setFallbackBranch(b || null);
       } catch {
@@ -712,9 +790,12 @@ const Reshuffle = () => {
       const url = branchId
         ? `/api/members.php?branch_id=${branchId}`
         : `/api/members.php`;
-      const res = await apiFetch(url);
-      const data = await res.json();
-      const list = Array.isArray(data?.members) ? data.members : [];
+      const data = await callApi(url);
+      const list = Array.isArray(data?.members)
+        ? data.members
+        : Array.isArray(data?.data?.members)
+          ? data.data.members
+          : [];
       setMembers(list);
     } catch (err) {
       console.error("[Reshuffle] fetch failed:", err);
@@ -729,16 +810,36 @@ const Reshuffle = () => {
     fetchMembers();
   }, [fetchMembers]);
 
+  // Stable signature of the current member set
+  const membersSignature = useMemo(
+    () =>
+      members
+        .map((m) => String(m.id))
+        .sort()
+        .join("|"),
+    [members],
+  );
+
+  // Only reset display + groups when the member *identities* change,
+  // not on every refresh with the same ids.
   useEffect(() => {
     originalMembersRef.current = members;
     setDisplayMembers(members);
     setIsShuffled(false);
-    setGroups({});
-  }, [members]);
+    // groups are reset only if the member set actually changed
+    setGroups((prev) => {
+      const next = {};
+      for (const key of Object.keys(prev)) {
+        next[key] = prev[key];
+      }
+      return next;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [membersSignature]);
 
   useEffect(() => {
     setPage(1);
-    setIsShuffled(false);
+    // do NOT clear isShuffled on search — the shuffle order is still valid
   }, [searchTerm]);
 
   const groupedByAmount = useMemo(() => {
@@ -748,7 +849,7 @@ const Reshuffle = () => {
       if (method !== "cash") return;
       const amt = getContribution(m);
       if (!amt || amt <= 0) return;
-      const key = String(Math.round(amt));
+      const key = String(roundAmount(amt));
       if (!buckets.has(key)) buckets.set(key, []);
       buckets.get(key).push(m);
     });
@@ -760,14 +861,17 @@ const Reshuffle = () => {
   const eligibilityByAmount = useMemo(() => {
     const map = new Map();
     groupedByAmount.forEach(({ amount, list }) => {
-      map.set(String(amount), {
-        sixMonth: getEligibleForDuration(list, "6 months"),
-        oneYear: getEligibleForDuration(list, "1 year"),
-      });
+      const sixMonth = getEligibleForDuration(list, "6 months");
+      const sixIds = new Set(sixMonth.map((m) => String(m.id)));
+      // Prevent double-assignment to the same amount group across both durations
+      const oneYearBase = getEligibleForDuration(list, "1 year");
+      const oneYear = oneYearBase.filter((m) => !sixIds.has(String(m.id)));
+      map.set(String(amount), { sixMonth, oneYear });
     });
     return map;
   }, [groupedByAmount]);
 
+  // Initialise group state — no wholesale reset of existing groups
   useEffect(() => {
     setGroups((prev) => {
       const next = { ...prev };
@@ -788,6 +892,64 @@ const Reshuffle = () => {
     });
   }, [groupedByAmount]);
 
+  // Rehydrate rotations + collected sets from localStorage once per
+  // (members, groups) snapshot so shuffles survive a page reload.
+  useEffect(() => {
+    if (members.length === 0 || groupedByAmount.length === 0) return;
+
+    const membersById = new Map(members.map((m) => [String(m.id), m]));
+    const all = readAllRotations();
+    if (!all || Object.keys(all).length === 0) return;
+
+    setGroups((prev) => {
+      let changed = false;
+      const next = { ...prev };
+
+      groupedByAmount.forEach(({ amount }) => {
+        const key = String(amount);
+        const current = next[key];
+        if (!current) return;
+
+        const sixKey = `6 months::${Math.round(amount)}`;
+        const yearKey = `1 year::${Math.round(amount)}`;
+
+        if (all[sixKey] && !current.sixMonthAssigned) {
+          const slots = rehydrateSlots(all[sixKey], membersById);
+          const hasFilled = slots.some((s) => s.member);
+          if (hasFilled) {
+            next[key] = {
+              ...current,
+              sixMonthSlots: slots,
+              sixMonthAssigned: true,
+              sixMonthCollected: new Set(
+                (all[sixKey].collected || []).map(String),
+              ),
+            };
+            changed = true;
+          }
+        }
+
+        if (all[yearKey] && !current.oneYearAssigned) {
+          const slots = rehydrateSlots(all[yearKey], membersById);
+          const hasFilled = slots.some((s) => s.member);
+          if (hasFilled) {
+            next[key] = {
+              ...next[key],
+              oneYearSlots: slots,
+              oneYearAssigned: true,
+              oneYearCollected: new Set(
+                (all[yearKey].collected || []).map(String),
+              ),
+            };
+            changed = true;
+          }
+        }
+      });
+
+      return changed ? next : prev;
+    });
+  }, [members, groupedByAmount]);
+
   const updateGroup = (amount, patch) => {
     const key = String(amount);
     setGroups((prev) => {
@@ -805,12 +967,13 @@ const Reshuffle = () => {
 
   const handleShuffleSixMonth = (amount, eligible) => {
     const slots = buildMonthlyRotation(eligible, 6);
+    const collected = new Set();
     updateGroup(amount, {
       sixMonthSlots: slots,
       sixMonthAssigned: true,
-      sixMonthCollected: new Set(),
+      sixMonthCollected: collected,
     });
-    persistRotation("6 months", amount, slots); // 🆕
+    persistRotation("6 months", amount, slots, collected);
   };
   const handleResetSixMonth = (amount) => {
     updateGroup(amount, {
@@ -818,7 +981,7 @@ const Reshuffle = () => {
       sixMonthAssigned: false,
       sixMonthCollected: new Set(),
     });
-    clearPersistedRotation("6 months", amount); // 🆕
+    clearPersistedRotation("6 months", amount);
   };
   const toggleCollectedSixMonth = (amount, memberId) => {
     const key = String(amount);
@@ -829,6 +992,7 @@ const Reshuffle = () => {
       const idStr = String(memberId);
       if (next.has(idStr)) next.delete(idStr);
       else next.add(idStr);
+      persistCollected("6 months", amount, cur.sixMonthSlots, next);
       return {
         ...prev,
         [key]: { ...cur, sixMonthCollected: next },
@@ -838,12 +1002,13 @@ const Reshuffle = () => {
 
   const handleShuffleOneYear = (amount, eligible) => {
     const slots = buildMonthlyRotation(eligible, 12);
+    const collected = new Set();
     updateGroup(amount, {
       oneYearSlots: slots,
       oneYearAssigned: true,
-      oneYearCollected: new Set(),
+      oneYearCollected: collected,
     });
-    persistRotation("1 year", amount, slots); // 🆕
+    persistRotation("1 year", amount, slots, collected);
   };
   const handleResetOneYear = (amount) => {
     updateGroup(amount, {
@@ -851,7 +1016,7 @@ const Reshuffle = () => {
       oneYearAssigned: false,
       oneYearCollected: new Set(),
     });
-    clearPersistedRotation("1 year", amount); // 🆕
+    clearPersistedRotation("1 year", amount);
   };
   const toggleCollectedOneYear = (amount, memberId) => {
     const key = String(amount);
@@ -862,6 +1027,7 @@ const Reshuffle = () => {
       const idStr = String(memberId);
       if (next.has(idStr)) next.delete(idStr);
       else next.add(idStr);
+      persistCollected("1 year", amount, cur.oneYearSlots, next);
       return {
         ...prev,
         [key]: { ...cur, oneYearCollected: next },

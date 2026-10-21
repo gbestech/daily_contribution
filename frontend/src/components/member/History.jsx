@@ -1,12 +1,45 @@
-import React, { useState, useEffect, useCallback } from "react";
+// src/components/member/MemberHistory.jsx
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 
 const API_BASE_URL = "http://localhost:8000";
+
+// ------------------------------------------------------------
+// Resolve branch id: saved selection → user → URL ?branch=
+// ------------------------------------------------------------
+const resolveBranchId = () => {
+  try {
+    const saved = localStorage.getItem("selectedBranchId");
+    if (saved && String(saved).trim() !== "") {
+      const n = Number(saved);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  } catch {}
+  try {
+    const u = JSON.parse(localStorage.getItem("user") || "{}");
+    const raw = u?.branch_id ?? u?.branchId ?? u?.branch?.id ?? null;
+    const n = Number(raw);
+    if (Number.isFinite(n) && n > 0) return n;
+  } catch {}
+  try {
+    const raw = new URLSearchParams(window.location.search).get("branch");
+    if (raw) {
+      const n = Number(raw);
+      if (Number.isFinite(n) && n > 0) return n;
+    }
+  } catch {}
+  return null;
+};
+
+const txMemberId = (t) => t?.member_id ?? t?.memberId ?? null;
+const txDate = (t) => t?.date ?? t?.created_at ?? t?.updated_at ?? "";
+const txAmount = (t) => parseFloat(t?.amount ?? 0) || 0;
 
 const MemberHistory = () => {
   const [transactions, setTransactions] = useState([]);
   const [filteredTransactions, setFilteredTransactions] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState("");
   const [user, setUser] = useState(null);
   const [members, setMembers] = useState([]);
 
@@ -14,10 +47,7 @@ const MemberHistory = () => {
   const [searchTerm, setSearchTerm] = useState("");
   const [filterType, setFilterType] = useState("all");
   const [filterStatus, setFilterStatus] = useState("all");
-  const [dateRange, setDateRange] = useState({
-    start: "",
-    end: "",
-  });
+  const [dateRange, setDateRange] = useState({ start: "", end: "" });
   const [sortBy, setSortBy] = useState("date");
   const [sortOrder, setSortOrder] = useState("desc");
 
@@ -35,7 +65,7 @@ const MemberHistory = () => {
     rejectedCount: 0,
   });
 
-  // ---------- HELPERS (defined before use) ----------
+  // ---------- HELPERS ----------
 
   const formatCurrency = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
@@ -60,13 +90,23 @@ const MemberHistory = () => {
     });
   };
 
+  // Fast member id → name lookup (single source, one dependency)
+  const memberNameById = useMemo(() => {
+    const map = new Map();
+    for (const m of members) {
+      if (m?.id !== undefined && m?.id !== null) {
+        map.set(Number(m.id), m.name || m.full_name || `Member #${m.id}`);
+      }
+    }
+    return map;
+  }, [members]);
+
   const getMemberName = useCallback(
     (memberId) => {
-      if (!memberId) return "Unknown";
-      const member = members.find((m) => Number(m.id) === Number(memberId));
-      return member ? member.name : "Unknown";
+      if (memberId === null || memberId === undefined) return "Unknown";
+      return memberNameById.get(Number(memberId)) || "Unknown";
     },
-    [members],
+    [memberNameById],
   );
 
   // ---------- DATA FETCHING ----------
@@ -74,18 +114,21 @@ const MemberHistory = () => {
   const calculateStats = (txns) => {
     const totalDeposits = txns
       .filter((t) => t.type === "deposit" || t.type === "contribution")
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+      .reduce((sum, t) => sum + txAmount(t), 0);
 
     const totalWithdrawals = txns
       .filter((t) => t.type === "withdrawal")
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+      .reduce((sum, t) => sum + txAmount(t), 0);
 
     const totalTransfers = txns
       .filter((t) => t.type === "transfer")
-      .reduce((sum, t) => sum + (parseFloat(t.amount) || 0), 0);
+      .reduce((sum, t) => sum + txAmount(t), 0);
 
     const pendingCount = txns.filter((t) => t.status === "pending").length;
-    const approvedCount = txns.filter((t) => t.status === "approved").length;
+    // "approved" and "completed" both count as approved in this app
+    const approvedCount = txns.filter(
+      (t) => t.status === "approved" || t.status === "completed",
+    ).length;
     const rejectedCount = txns.filter((t) => t.status === "rejected").length;
 
     setStats({
@@ -100,44 +143,95 @@ const MemberHistory = () => {
 
   const fetchData = async () => {
     setLoading(true);
+    setLoadError("");
+    const branchId = resolveBranchId();
+    const bq = branchId ? `?branch_id=${encodeURIComponent(branchId)}` : "";
+
     try {
-      const membersResponse = await fetch(`${API_BASE_URL}/api/members.php`);
-      const membersData = await membersResponse.json();
-      let membersList = [];
-      if (membersData.members) {
-        membersList = membersData.members;
-        setMembers(membersList);
+      // 1) Members (for name lookup)
+      try {
+        const membersRes = await fetch(`${API_BASE_URL}/api/members.php${bq}`, {
+          cache: "no-store",
+        });
+        const membersText = await membersRes.text();
+        let membersData = null;
+        try {
+          membersData = membersText ? JSON.parse(membersText) : null;
+        } catch {
+          console.warn("[MemberHistory] members.php non-JSON:", membersText);
+        }
+        const membersList =
+          membersData?.members ||
+          membersData?.data?.members ||
+          (Array.isArray(membersData) ? membersData : []) ||
+          [];
+        setMembers(Array.isArray(membersList) ? membersList : []);
+      } catch (err) {
+        console.warn("[MemberHistory] members fetch failed:", err);
+        setMembers([]);
       }
 
-      const transactionsResponse = await fetch(
-        `${API_BASE_URL}/api/transactions.php`,
-      );
-      const transactionsData = await transactionsResponse.json();
+      // 2) Transactions — branch-scoped
+      const txRes = await fetch(`${API_BASE_URL}/api/transactions.php${bq}`, {
+        cache: "no-store",
+      });
+      const txText = await txRes.text();
+      let txData = null;
+      try {
+        txData = txText ? JSON.parse(txText) : null;
+      } catch {
+        throw new Error(
+          `Server returned non-JSON (HTTP ${txRes.status}). Check api/transactions.php for PHP errors.`,
+        );
+      }
+      if (!txRes.ok) {
+        throw new Error(
+          txData?.error ||
+            txData?.message ||
+            `Failed to load transactions (HTTP ${txRes.status})`,
+        );
+      }
 
       let allTransactions = [];
-      if (transactionsData.transactions) {
-        allTransactions = transactionsData.transactions;
+      if (Array.isArray(txData)) allTransactions = txData;
+      else if (Array.isArray(txData?.transactions))
+        allTransactions = txData.transactions;
+      else if (Array.isArray(txData?.data)) allTransactions = txData.data;
+
+      // Keep only the current branch (defensive — server should already filter)
+      if (branchId) {
+        allTransactions = allTransactions.filter((t) => {
+          const rowBranch = t.branch_id ?? t.branchId;
+          if (rowBranch === undefined || rowBranch === null) return true;
+          return String(rowBranch) === String(branchId);
+        });
       }
 
+      // Scope to the logged-in member (admins see everything)
       const storedUser = localStorage.getItem("user");
       if (storedUser) {
-        const userData = JSON.parse(storedUser);
-        if (userData.role === "member" || userData.role === "user") {
-          allTransactions = allTransactions.filter(
-            (t) => Number(t.memberId) === Number(userData.id),
-          );
-        }
+        try {
+          const userData = JSON.parse(storedUser);
+          if (userData.role === "member" || userData.role === "user") {
+            allTransactions = allTransactions.filter(
+              (t) => Number(txMemberId(t)) === Number(userData.id),
+            );
+          }
+        } catch {}
       }
 
       allTransactions.sort(
-        (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime(),
+        (a, b) => new Date(txDate(b)).getTime() - new Date(txDate(a)).getTime(),
       );
 
       setTransactions(allTransactions);
       calculateStats(allTransactions);
     } catch (error) {
-      console.error("Error fetching data:", error);
-      toast.error("Failed to load transaction history");
+      console.error("[MemberHistory] fetchData failed:", error);
+      setLoadError(error.message || "Failed to load transaction history");
+      toast.error(error.message || "Failed to load transaction history");
+      setTransactions([]);
+      calculateStats([]);
     } finally {
       setLoading(false);
     }
@@ -146,13 +240,15 @@ const MemberHistory = () => {
   useEffect(() => {
     const storedUser = localStorage.getItem("user");
     if (storedUser) {
-      setUser(JSON.parse(storedUser));
+      try {
+        setUser(JSON.parse(storedUser));
+      } catch {}
     }
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ---------- FILTER + SORT EFFECT ----------
+  // ---------- FILTER + SORT ----------
 
   useEffect(() => {
     let filtered = [...transactions];
@@ -162,13 +258,20 @@ const MemberHistory = () => {
       filtered = filtered.filter((t) => {
         const name = (
           t.memberName ||
-          getMemberName(t.memberId) ||
+          t.member_name ||
+          getMemberName(txMemberId(t)) ||
           ""
         ).toLowerCase();
         return (
           name.includes(term) ||
-          String(t.accountNumber || "").includes(term) ||
+          String(t.accountNumber || t.account_number || "").includes(term) ||
           String(t.description || "")
+            .toLowerCase()
+            .includes(term) ||
+          String(t.reference || "")
+            .toLowerCase()
+            .includes(term) ||
+          String(t.invoice_number || "")
             .toLowerCase()
             .includes(term) ||
           String(t.id || "").includes(term)
@@ -189,7 +292,7 @@ const MemberHistory = () => {
       start.setHours(0, 0, 0, 0);
       const startTime = start.getTime();
       filtered = filtered.filter((t) => {
-        const d = new Date(t.date).getTime();
+        const d = new Date(txDate(t)).getTime();
         return !isNaN(d) && d >= startTime;
       });
     }
@@ -198,7 +301,7 @@ const MemberHistory = () => {
       end.setHours(23, 59, 59, 999);
       const endTime = end.getTime();
       filtered = filtered.filter((t) => {
-        const d = new Date(t.date).getTime();
+        const d = new Date(txDate(t)).getTime();
         return !isNaN(d) && d <= endTime;
       });
     }
@@ -206,11 +309,11 @@ const MemberHistory = () => {
     filtered.sort((a, b) => {
       let compareA, compareB;
       if (sortBy === "amount") {
-        compareA = parseFloat(a.amount) || 0;
-        compareB = parseFloat(b.amount) || 0;
+        compareA = txAmount(a);
+        compareB = txAmount(b);
       } else if (sortBy === "date") {
-        compareA = new Date(a.date).getTime() || 0;
-        compareB = new Date(b.date).getTime() || 0;
+        compareA = new Date(txDate(a)).getTime() || 0;
+        compareB = new Date(txDate(b)).getTime() || 0;
       } else if (sortBy === "id") {
         compareA = parseInt(a.id) || 0;
         compareB = parseInt(b.id) || 0;
@@ -233,19 +336,17 @@ const MemberHistory = () => {
     sortBy,
     sortOrder,
     transactions,
-    members,
     getMemberName,
   ]);
 
   // ---------- PAGINATION ----------
 
-  const getPaginatedData = () => {
-    const startIndex = (currentPage - 1) * itemsPerPage;
-    const endIndex = startIndex + itemsPerPage;
-    return filteredTransactions.slice(startIndex, endIndex);
-  };
-
   const totalPages = Math.ceil(filteredTransactions.length / itemsPerPage) || 1;
+
+  const paginatedData = useMemo(() => {
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    return filteredTransactions.slice(startIndex, startIndex + itemsPerPage);
+  }, [filteredTransactions, currentPage, itemsPerPage]);
 
   // ---------- BADGES ----------
 
@@ -256,6 +357,10 @@ const MemberHistory = () => {
         color: "var(--warning)",
       },
       approved: {
+        backgroundColor: "var(--approved-bg)",
+        color: "var(--credit)",
+      },
+      completed: {
         backgroundColor: "var(--approved-bg)",
         color: "var(--credit)",
       },
@@ -517,6 +622,22 @@ const MemberHistory = () => {
         </div>
       </div>
 
+      {loadError && (
+        <div
+          style={{
+            padding: "12px 16px",
+            marginBottom: 16,
+            borderRadius: 10,
+            background: "rgba(239,68,68,0.08)",
+            border: "1px solid rgba(239,68,68,0.3)",
+            color: "var(--debit)",
+            fontSize: 13,
+          }}
+        >
+          ⚠️ {loadError}
+        </div>
+      )}
+
       {/* Stats */}
       <div
         style={{
@@ -675,6 +796,7 @@ const MemberHistory = () => {
             <option value="all">📊 All Status</option>
             <option value="pending">⏳ Pending</option>
             <option value="approved">✅ Approved</option>
+            <option value="completed">✅ Completed</option>
             <option value="rejected">❌ Rejected</option>
           </select>
 
@@ -748,7 +870,7 @@ const MemberHistory = () => {
               </tr>
             </thead>
             <tbody>
-              {getPaginatedData().length === 0 ? (
+              {paginatedData.length === 0 ? (
                 <tr>
                   <td
                     colSpan="7"
@@ -758,21 +880,27 @@ const MemberHistory = () => {
                       <div style={{ fontSize: "48px", marginBottom: "8px" }}>
                         📭
                       </div>
-                      <p>No transactions found</p>
+                      <p>
+                        {loadError
+                          ? "Could not load transactions"
+                          : "No transactions found"}
+                      </p>
                       <p style={{ fontSize: "13px", marginTop: "4px" }}>
-                        {searchTerm ||
-                        filterType !== "all" ||
-                        filterStatus !== "all" ||
-                        dateRange.start ||
-                        dateRange.end
-                          ? "Try adjusting your filters"
-                          : "Your transactions will appear here"}
+                        {loadError
+                          ? "See the message above"
+                          : searchTerm ||
+                              filterType !== "all" ||
+                              filterStatus !== "all" ||
+                              dateRange.start ||
+                              dateRange.end
+                            ? "Try adjusting your filters"
+                            : "Your transactions will appear here"}
                       </p>
                     </div>
                   </td>
                 </tr>
               ) : (
-                getPaginatedData().map((transaction) => (
+                paginatedData.map((transaction) => (
                   <tr key={transaction.id} className="fade-in">
                     <td
                       style={{
@@ -786,13 +914,17 @@ const MemberHistory = () => {
                     <td>
                       <div style={{ color: "var(--text)", fontSize: "14px" }}>
                         {transaction.memberName ||
-                          getMemberName(transaction.memberId)}
+                          transaction.member_name ||
+                          getMemberName(txMemberId(transaction))}
                       </div>
-                      {transaction.accountNumber && (
+                      {(transaction.accountNumber ||
+                        transaction.account_number) && (
                         <div
                           style={{ fontSize: "12px", color: "var(--text-dim)" }}
                         >
-                          Acc: {transaction.accountNumber}
+                          Acc:{" "}
+                          {transaction.accountNumber ||
+                            transaction.account_number}
                         </div>
                       )}
                     </td>
@@ -808,12 +940,12 @@ const MemberHistory = () => {
                       }}
                     >
                       {transaction.type === "withdrawal" ? "-" : ""}
-                      {formatCurrency(transaction.amount)}
+                      {formatCurrency(txAmount(transaction))}
                     </td>
                     <td
                       style={{ color: "var(--text-muted)", fontSize: "13px" }}
                     >
-                      {formatDate(transaction.date)}
+                      {formatDate(txDate(transaction))}
                     </td>
                     <td>{getStatusBadge(transaction.status)}</td>
                     <td style={{ color: "var(--text)", fontSize: "13px" }}>
@@ -923,10 +1055,10 @@ const MemberHistory = () => {
             ];
             const rows = filteredTransactions.map((t) => [
               t.id,
-              t.memberName || getMemberName(t.memberId),
+              t.memberName || t.member_name || getMemberName(txMemberId(t)),
               t.type,
-              t.amount,
-              t.date,
+              txAmount(t),
+              txDate(t),
               t.status,
               (t.description || "").replace(/,/g, ";"),
             ]);

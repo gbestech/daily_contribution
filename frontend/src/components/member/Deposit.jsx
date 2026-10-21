@@ -420,26 +420,20 @@ const MemberDeposit = ({ onClose }) => {
     else navigate(-1);
   };
 
+  // ------------------------------------------------------------
+  // SETTINGS — normalise one section, without the kobo heuristic
+  // ------------------------------------------------------------
   const applySettings = (raw) => {
     if (!raw || typeof raw !== "object") return;
-    const rawMin = toPositiveNumber(raw.min_deposit, NaN);
-    const rawMax = toPositiveNumber(raw.max_deposit, NaN);
-    const looksLikeKobo =
-      Number.isFinite(rawMin) &&
-      Number.isFinite(rawMax) &&
-      rawMin >= 100000 &&
-      rawMax >= 100000;
-    const scale = looksLikeKobo ? 100 : 1;
     setSettings((prev) => {
-      const min = toPositiveNumber(raw.min_deposit, prev.min_deposit) / scale;
-      const max = toPositiveNumber(raw.max_deposit, prev.max_deposit) / scale;
+      const min = toPositiveNumber(raw.min_deposit, prev.min_deposit);
+      const max = toPositiveNumber(raw.max_deposit, prev.max_deposit);
       const safeMin = Math.max(1, min);
       const safeMax = Math.max(safeMin + 1, max);
       return {
         min_deposit: safeMin,
         max_deposit: safeMax,
-        daily_limit:
-          toPositiveNumber(raw.daily_limit, prev.daily_limit) / scale,
+        daily_limit: toPositiveNumber(raw.daily_limit, prev.daily_limit),
         max_daily_deposits: toNonNegativeNumber(
           raw.max_daily_deposits,
           prev.max_daily_deposits,
@@ -448,11 +442,10 @@ const MemberDeposit = ({ onClose }) => {
           raw.allow_multiple_deposits !== undefined
             ? Boolean(raw.allow_multiple_deposits)
             : prev.allow_multiple_deposits,
-        default_contribution_amount:
-          toPositiveNumber(
-            raw.default_contribution_amount,
-            prev.default_contribution_amount,
-          ) / scale,
+        default_contribution_amount: toPositiveNumber(
+          raw.default_contribution_amount,
+          prev.default_contribution_amount,
+        ),
         contribution_frequency:
           raw.contribution_frequency || prev.contribution_frequency,
       };
@@ -480,30 +473,56 @@ const MemberDeposit = ({ onClose }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // ------------------------------------------------------------
+  // FETCH SETTINGS — branch-scoped, no ?key=, no kobo guessing
+  // ------------------------------------------------------------
   const fetchSettings = async () => {
     try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/settings.php?key=contribution`,
-      );
+      // Resolve the member's branch id from localStorage so the
+      // request cannot fall back to "first active branch".
+      let branchId = null;
+      try {
+        const u = JSON.parse(localStorage.getItem("user") || "{}");
+        const raw = u?.branch_id ?? u?.branchId ?? u?.branch?.id ?? null;
+        const n = Number(raw);
+        if (Number.isFinite(n) && n > 0) branchId = n;
+      } catch {}
+
+      const url = branchId
+        ? `${API_BASE_URL}/api/settings.php?branch_id=${branchId}`
+        : `${API_BASE_URL}/api/settings.php`;
+
+      const res = await fetch(url, {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
       const data = await res.json();
+
+      // settings.php returns { status, branch_id, data: { contribution: {...}, ... } }
       const candidate =
         data?.data?.contribution ||
-        data?.data?.settings?.contribution ||
         data?.contribution ||
-        data?.settings?.contribution ||
-        (data?.data && typeof data.data === "object" && data.data.min_deposit
+        (data?.data &&
+        typeof data.data === "object" &&
+        data.data.min_deposit !== undefined
           ? data.data
           : null);
-      if (candidate) applySettings(candidate);
-      else {
-        const allRes = await fetch(`${API_BASE_URL}/api/settings.php`);
-        const allData = await allRes.json();
-        const c =
-          allData?.data?.contribution ||
-          allData?.data?.settings?.contribution ||
-          allData?.contribution ||
-          allData?.settings?.contribution;
-        if (c) applySettings(c);
+
+      if (candidate) {
+        applySettings(candidate);
+        console.log(
+          `[Deposit] settings loaded for branch ${branchId ?? "(fallback)"}:`,
+          {
+            min_deposit: candidate.min_deposit,
+            max_deposit: candidate.max_deposit,
+            daily_limit: candidate.daily_limit,
+          },
+        );
+      } else {
+        console.warn(
+          "[Deposit] settings response did not include a contribution block:",
+          data,
+        );
       }
     } catch (err) {
       console.error("[Deposit] Failed to load settings:", err);
