@@ -11,7 +11,7 @@ import { useBranch } from "../../context/BranchContext";
 import { useAuth } from "../../context/AuthContext";
 import { apiFetch } from "../../utils/api";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const Manager = () => {
   const { activeBranch, activeBranchId } = useBranch();

@@ -6,7 +6,7 @@ import { usePermission } from "../../context/PermissionsContext";
 import { useBranch } from "../../context/BranchContext";
 import Navbar from "./Navbar";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();

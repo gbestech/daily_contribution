@@ -12,7 +12,7 @@ import toast from "react-hot-toast";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 const CYCLE_DAYS = 30;
 
 // ────────────────────────────────────────────────────────────

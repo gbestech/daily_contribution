@@ -11,7 +11,7 @@ import { useBranch } from "../../context/BranchContext";
 import { usePermission } from "../../context/PermissionsContext";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 // ============================================================
 // PHONE VALIDATION — STRICTLY exactly 11 digits

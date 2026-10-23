@@ -7,7 +7,7 @@ import { useBranch } from "../../context/BranchContext";
 import BranchSwitcher from "./BranchSwitcher";
 import NotificationBell from "./NotificationBell";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const ADMIN_VOICE_ROUTES = [
   {

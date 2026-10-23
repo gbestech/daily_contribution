@@ -2,7 +2,7 @@
 import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 // ============================================================
 // Detect the current theme (light / dark)

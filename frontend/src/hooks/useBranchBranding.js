@@ -14,7 +14,7 @@
 // why everybody saw the wrong name.)
 import { useEffect, useState } from "react";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 const STORAGE_KEY = "last_branch_id";
 
 export const rememberBranch = (branchId) => {

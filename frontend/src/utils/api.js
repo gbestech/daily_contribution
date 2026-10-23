@@ -2,9 +2,9 @@
 // ============================================================
 // ⚠️ Set this to the URL that ACTUALLY serves your PHP backend.
 // Verify in browser first (must return JSON, not 404):
-//   http://localhost:8000/api/login.php
+//   https://baleeg.onrender.com/api/login.php
 // ============================================================
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const BRANCH_REQUIRED_PATHS = [
     "/api/members.php",

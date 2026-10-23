@@ -5,7 +5,7 @@ import { useBranch } from "../../context/BranchContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 // ================================================================
 // Duration normalization

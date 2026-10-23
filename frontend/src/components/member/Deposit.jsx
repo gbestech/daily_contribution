@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 const MAX_SLIP_SIZE_MB = 2;
 
 // ⚠️ TEMPORARY fallback — update once the real plan column is confirmed

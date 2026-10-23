@@ -10,7 +10,7 @@ import React, {
 import { useAuth } from "./AuthContext";
 import { useBranch } from "./BranchContext"; // 🆕
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 const PermissionsContext = createContext(null);
 
 export const PermissionsProvider = ({ children }) => {

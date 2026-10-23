@@ -9,7 +9,7 @@ import React, {
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const ROLES = [
   {

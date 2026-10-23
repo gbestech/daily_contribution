@@ -4,7 +4,7 @@ import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
 import { useBranch } from "../../context/BranchContext"; // 🆕
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const CATEGORIES = [
   { value: "Rent", icon: "🏠" },

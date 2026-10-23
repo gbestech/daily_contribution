@@ -3,7 +3,7 @@ import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 const MemberProfile = () => {
   const { user, login } = useAuth();

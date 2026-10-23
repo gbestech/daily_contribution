@@ -5,7 +5,7 @@ import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "http://localhost:8000";
+const API_BASE_URL = "https://baleeg.onrender.com";
 
 // ============================================================
 // Helpers
