@@ -11,6 +11,18 @@ const envBase =
 
 const API_BASE_URL = (envBase || "https://baleeg.onrender.com").replace(/\/+$/, "");
 
+// Warn once at module load if we're pointing at a port that's often misconfigured.
+if (typeof console !== "undefined" && /localhost:\d+/.test(API_BASE_URL)) {
+    const portMatch = API_BASE_URL.match(/localhost:(\d+)/);
+    if (portMatch && portMatch[1] === "8000") {
+        console.warn(
+            "[api.js] API_BASE_URL = " + API_BASE_URL +
+            " — this is the PHP built-in server port. " +
+            "If XAMPP Apache is running on port 80, set VITE_API_BASE_URL=http://localhost/baleeg in .env",
+        );
+    }
+}
+
 // Only truly unauthenticated endpoints belong here.
 const PUBLIC_PATHS = [
     "/api/login.php",
@@ -19,6 +31,7 @@ const PUBLIC_PATHS = [
     "/api/forgot-password.php",
     "/api/reset-password.php",
     "/api/daily-marks.php",
+    "/api/request-password-reset.php",
 ];
 
 // Endpoints where we auto-attach ?branch_id= when missing.
@@ -27,6 +40,12 @@ const BRANCH_REQUIRED_PATHS = [
     "/api/members.php",
     "/api/transactions.php",
     "/api/settings.php",
+    "/api/expenses.php",
+    "/api/items.php",
+    "/api/permissions.php",
+    "/api/get-password-reset-requests.php",
+    "/api/approve-password-reset.php",
+    "/api/branches.php",
 ];
 
 // Path-boundary match — prevents "/api/branches.phpX" matching "/api/branches.php".
@@ -50,6 +69,13 @@ const resolveBranchId = () => {
         const raw = new URLSearchParams(window.location.search).get("branch");
         if (raw) {
             const n = Number(raw);
+            if (Number.isFinite(n) && n > 0) return n;
+        }
+    } catch { }
+    try {
+        const stored = localStorage.getItem("selectedBranchId");
+        if (stored) {
+            const n = Number(stored);
             if (Number.isFinite(n) && n > 0) return n;
         }
     } catch { }
@@ -125,14 +151,23 @@ export const apiFetch = async (path, options = {}) => {
         }
     }
 
+    // Debug log — only in dev
+    if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
+        console.debug(`[api.js] ${method} ${url}`);
+    }
+
     let res;
     try {
         res = await fetch(url, { ...options, headers });
     } catch (err) {
         // True network failure: DNS, offline, CORS preflight fail, etc.
+        const isLocal = /localhost|127\.0\.0\.1/.test(API_BASE_URL);
+        const hint = isLocal
+            ? ` — is Apache (XAMPP) running on the port in ${API_BASE_URL}? ` +
+            `If your API lives at http://localhost/baleeg/api/, set VITE_API_BASE_URL=http://localhost/baleeg in .env`
+            : "";
         throw new Error(
-            `Cannot reach ${API_BASE_URL} (${method} ${path}). ` +
-            `Check that the backend is running. [${err.message}]`,
+            `Cannot reach ${API_BASE_URL} (${method} ${path})${hint}. [${err.message}]`,
         );
     }
 
