@@ -3,7 +3,9 @@ import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const ItemManager = () => {
   const { activeBranch, activeBranchId } = useBranch();
@@ -23,13 +25,16 @@ const ItemManager = () => {
     value: "",
   });
 
-  // ---------- API ----------
   const apiFetch = useCallback(
     async (url, options = {}) => {
       const token = localStorage.getItem("token");
       const headers = {
         ...(options.body ? { "Content-Type": "application/json" } : {}),
+        Accept: "application/json",
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        ...(activeBranchId
+          ? { "X-User-Branch-Id": String(activeBranchId) }
+          : {}),
         ...(options.headers || {}),
       };
 
@@ -44,6 +49,7 @@ const ItemManager = () => {
       try {
         data = text ? JSON.parse(text) : null;
       } catch {
+        console.error("[ItemManager] Non-JSON response:", text.slice(0, 300));
         throw new Error(`Server returned non-JSON (${res.status})`);
       }
       if (!res.ok) {
@@ -56,10 +62,15 @@ const ItemManager = () => {
 
   const fetchItems = useCallback(
     async (showToast = false) => {
+      if (activeBranchId == null || activeBranchId === "") {
+        setItems([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
         const data = await apiFetch(`${API_BASE_URL}/api/items.php`);
-        setItems(data?.items || []);
+        setItems(Array.isArray(data?.items) ? data.items : []);
         if (showToast) toast.success("✅ Items refreshed!");
       } catch (err) {
         console.error("Fetch items failed:", err);
@@ -69,14 +80,13 @@ const ItemManager = () => {
         setLoading(false);
       }
     },
-    [apiFetch],
+    [apiFetch, activeBranchId],
   );
 
   useEffect(() => {
     fetchItems();
   }, [fetchItems, activeBranchId]);
 
-  // ---------- Actions ----------
   const handleRefresh = async () => {
     setRefreshing(true);
     await fetchItems(true);
@@ -107,6 +117,10 @@ const ItemManager = () => {
     e.preventDefault();
     if (!form.name.trim()) {
       toast.error("Item name is required");
+      return;
+    }
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
       return;
     }
 
@@ -144,6 +158,10 @@ const ItemManager = () => {
       )
     )
       return;
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
     try {
       await apiFetch(`${API_BASE_URL}/api/items.php/${id}`, {
         method: "DELETE",
@@ -157,6 +175,10 @@ const ItemManager = () => {
   };
 
   const toggleActive = async (item) => {
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
     try {
       await apiFetch(`${API_BASE_URL}/api/items.php/${item.id}`, {
         method: "PUT",
@@ -170,7 +192,6 @@ const ItemManager = () => {
     }
   };
 
-  // ---------- Derived ----------
   const filtered = useMemo(() => {
     let list = [...items];
     if (searchTerm.trim()) {
@@ -196,7 +217,6 @@ const ItemManager = () => {
     [items],
   );
 
-  // ---------- Loading ----------
   if (loading && items.length === 0) {
     return (
       <div
@@ -216,7 +236,6 @@ const ItemManager = () => {
     );
   }
 
-  // ---------- Render ----------
   return (
     <div
       style={{
@@ -229,221 +248,55 @@ const ItemManager = () => {
     >
       <style>{`
         @keyframes imSpin { to { transform: rotate(360deg); } }
-        .im-header {
-          display: flex; justify-content: space-between;
-          align-items: flex-start; flex-wrap: wrap;
-          gap: 16px; margin-bottom: 24px;
-        }
-        .im-header h2 {
-          font-size: 24px; font-weight: 700; margin: 0;
-          color: var(--text);
-        }
-        .im-header p {
-          color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
-        }
-        .im-btn-outline {
-          padding: 10px 18px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: background 0.15s, opacity 0.15s;
-        }
+        .im-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+        .im-header h2 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text); }
+        .im-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
+        .im-btn-outline { padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s, opacity 0.15s; }
         .im-btn-outline:hover:not(:disabled) { background: var(--bg-surface-3); }
         .im-btn-outline:disabled { opacity: 0.6; cursor: not-allowed; }
-        .im-btn-primary {
-          padding: 10px 18px;
-          border-radius: 8px;
-          border: 1px solid rgba(16, 185, 129, 0.5);
-          background: rgba(16, 185, 129, 0.12);
-          color: var(--credit);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: background 0.15s;
-        }
+        .im-btn-primary { padding: 10px 18px; border-radius: 8px; border: 1px solid rgba(16, 185, 129, 0.5); background: rgba(16, 185, 129, 0.12); color: var(--credit); cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s; }
         .im-btn-primary:hover:not(:disabled) { background: rgba(16, 185, 129, 0.2); }
         .im-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; }
         .im-btn-primary .im-spin { display: inline-block; animation: imSpin 1s linear infinite; }
-
-        .im-stats {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px; margin-bottom: 20px;
-        }
-        .im-stat {
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .im-stat-label {
-          font-size: 12px; color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px; font-weight: 600;
-        }
+        .im-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .im-stat { display: flex; flex-direction: column; gap: 6px; }
+        .im-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
         .im-stat-value { font-size: 22px; font-weight: 700; }
-
-        .im-filter-bar {
-          display: flex; gap: 10px; flex-wrap: wrap;
-          margin-bottom: 20px;
-        }
-        .im-filter-input, .im-filter-select {
-          background: var(--bg-surface-2);
-          color: var(--text);
-          padding: 10px 14px;
-          border-radius: 8px;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          transition: box-shadow 0.2s;
-        }
+        .im-filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .im-filter-input, .im-filter-select { background: var(--bg-surface-2); color: var(--text); padding: 10px 14px; border-radius: 8px; border: none; outline: none; font-size: 14px; transition: box-shadow 0.2s; }
         .im-filter-input { flex: 1; min-width: 220px; }
         .im-filter-input::placeholder { color: var(--text-dim); }
-        .im-filter-input:focus, .im-filter-select:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-        .im-filter-select option {
-          background: var(--bg-surface); color: var(--text);
-        }
-
-        .im-table-wrap {
-          overflow: auto;
-        }
-        .im-table-wrap table {
-          width: 100%; border-collapse: collapse; background: transparent;
-        }
-        .im-table-wrap th {
-          color: var(--text-muted);
-          font-size: 11px; font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 12px 16px;
-          text-align: left;
-          white-space: nowrap;
-          border: none;
-        }
-        .im-table-wrap td {
-          padding: 12px 16px;
-          color: var(--text); font-size: 13px;
-          vertical-align: middle;
-          border: none;
-        }
-        .im-table-wrap tbody tr {
-          transition: background-color 0.15s ease;
-        }
-        .im-table-wrap tbody tr:hover td {
-          background: var(--bg-surface-2);
-        }
-
-        .im-action-btn {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          font-size: 16px;
-          padding: 4px 6px;
-          border-radius: 6px;
-          transition: background 0.15s;
-        }
+        .im-filter-input:focus, .im-filter-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .im-filter-select option { background: var(--bg-surface); color: var(--text); }
+        .im-table-wrap { overflow: auto; }
+        .im-table-wrap table { width: 100%; border-collapse: collapse; background: transparent; }
+        .im-table-wrap th { color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border: none; }
+        .im-table-wrap td { padding: 12px 16px; color: var(--text); font-size: 13px; vertical-align: middle; border: none; }
+        .im-table-wrap tbody tr { transition: background-color 0.15s ease; }
+        .im-table-wrap tbody tr:hover td { background: var(--bg-surface-2); }
+        .im-action-btn { background: transparent; border: none; cursor: pointer; font-size: 16px; padding: 4px 6px; border-radius: 6px; transition: background 0.15s; }
         .im-action-btn:hover { background: var(--bg-surface-2); }
-
-        .im-empty {
-          text-align: center;
-          padding: 60px 20px;
-          color: var(--text-muted);
-          border: 1px dashed var(--border);
-          border-radius: 12px;
-        }
+        .im-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
         .im-empty-icon { font-size: 48px; margin-bottom: 8px; }
-
-        .im-modal-overlay {
-          position: fixed; inset: 0;
-          background: rgba(0,0,0,0.7);
-          backdrop-filter: blur(4px);
-          display: flex; align-items: center; justify-content: center;
-          z-index: 1000; padding: 16px;
-        }
-        .im-modal {
-          background: var(--bg-surface, #1a1a2e);
-          border-radius: 16px;
-          padding: 28px 32px;
-          width: 100%;
-          max-width: 460px;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: 1px solid var(--border, rgba(255,255,255,0.1));
-          box-sizing: border-box;
-        }
-        .im-modal-header {
-          display: flex; justify-content: space-between;
-          align-items: center; margin-bottom: 20px;
-        }
-        .im-modal-title {
-          font-size: 18px; font-weight: 700; margin: 0;
-          color: var(--text);
-        }
-        .im-modal-close {
-          background: none; border: none;
-          color: var(--text-muted);
-          cursor: pointer; padding: 4px;
-          font-size: 22px; line-height: 1;
-        }
+        .im-modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+        .im-modal { background: var(--bg-surface, #1a1a2e); border-radius: 16px; padding: 28px 32px; width: 100%; max-width: 460px; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border, rgba(255,255,255,0.1)); box-sizing: border-box; }
+        .im-modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .im-modal-title { font-size: 18px; font-weight: 700; margin: 0; color: var(--text); }
+        .im-modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 22px; line-height: 1; }
         .im-modal-close:hover { color: var(--text); }
         .im-field { margin-bottom: 18px; display: flex; flex-direction: column; }
-        .im-field label {
-          font-size: 13px; font-weight: 600;
-          color: var(--text); margin-bottom: 8px;
-        }
-        .im-field input {
-          padding: 11px 14px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          font-family: inherit;
-          box-sizing: border-box;
-          transition: border-color 0.15s;
-        }
+        .im-field label { font-size: 13px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+        .im-field input { padding: 11px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); font-size: 14px; outline: none; font-family: inherit; box-sizing: border-box; transition: border-color 0.15s; }
         .im-field input:focus { border-color: var(--credit); }
         .im-field input::placeholder { color: var(--text-dim); }
-        .im-modal-actions {
-          display: flex; gap: 10px; margin-top: 24px;
-          justify-content: flex-end;
-        }
-        .im-cancel {
-          padding: 11px 22px;
-          border-radius: 8px;
-          background: transparent;
-          color: var(--text-muted);
-          border: 1px solid var(--border);
-          font-size: 14px; font-weight: 600;
-          cursor: pointer;
-          font-family: inherit;
-        }
+        .im-modal-actions { display: flex; gap: 10px; margin-top: 24px; justify-content: flex-end; }
+        .im-cancel { padding: 11px 22px; border-radius: 8px; background: transparent; color: var(--text-muted); border: 1px solid var(--border); font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .im-cancel:hover { color: var(--text); background: var(--bg-surface-2); }
-        .im-submit {
-          padding: 11px 22px;
-          border-radius: 8px;
-          background: linear-gradient(to right, #059669, #0d9488);
-          color: #fff;
-          border: none;
-          font-size: 14px; font-weight: 600;
-          cursor: pointer;
-          font-family: inherit;
-        }
+        .im-submit { padding: 11px 22px; border-radius: 8px; background: linear-gradient(to right, #059669, #0d9488); color: #fff; border: none; font-size: 14px; font-weight: 600; cursor: pointer; font-family: inherit; }
         .im-submit:hover:not(:disabled) { filter: brightness(1.1); }
         .im-submit:disabled { opacity: 0.6; cursor: not-allowed; }
       `}</style>
 
-      {/* Branch banner — matches Staff.jsx */}
       <div
         style={{
           display: "flex",
@@ -502,7 +355,6 @@ const ItemManager = () => {
         </span>
       </div>
 
-      {/* Header */}
       <div className="im-header">
         <div>
           <h2>🧾 Contributor Items</h2>
@@ -527,7 +379,6 @@ const ItemManager = () => {
         </div>
       </div>
 
-      {/* Stats */}
       <div className="im-stats">
         <div className="im-stat">
           <span className="im-stat-label">📦 Total</span>
@@ -562,7 +413,6 @@ const ItemManager = () => {
         </div>
       </div>
 
-      {/* Filter bar */}
       <div className="im-filter-bar">
         <input
           type="text"
@@ -582,7 +432,6 @@ const ItemManager = () => {
         </select>
       </div>
 
-      {/* Table */}
       {filtered.length === 0 ? (
         <div className="im-empty">
           <div className="im-empty-icon">📭</div>
@@ -690,7 +539,6 @@ const ItemManager = () => {
         </div>
       )}
 
-      {/* Modal */}
       {showModal && (
         <div className="im-modal-overlay" onClick={() => setShowModal(false)}>
           <div className="im-modal" onClick={(e) => e.stopPropagation()}>

@@ -1,10 +1,11 @@
 // src/components/admin/AdminPending.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const AdminPending = () => {
   const { activeBranch, activeBranchId } = useBranch();
@@ -31,13 +32,38 @@ const AdminPending = () => {
   useEffect(() => {
     fetchPendingTransactions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]); // 🆕 refetch when branch changes
+  }, [activeBranchId]);
 
   const fetchPendingTransactions = async () => {
+    if (activeBranchId == null || activeBranchId === "") {
+      setPendingRequests([]);
+      setStats({
+        total: 0,
+        total_amount: 0,
+        deposits: 0,
+        withdrawals: 0,
+        transfers: 0,
+        today: 0,
+      });
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const response = await apiFetch("/api/transactions.php");
-      if (!response.ok) throw new Error("Failed to fetch transactions");
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions.php?branch_id=${activeBranchId}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
+        },
+      );
+      if (!response.ok) {
+        const errBody = await response.json().catch(() => ({}));
+        throw new Error(errBody.error || `HTTP ${response.status}`);
+      }
 
       const data = await response.json();
 
@@ -71,9 +97,7 @@ const AdminPending = () => {
 
       const totalAmount = formatted.reduce((sum, r) => sum + r.amount, 0);
       const deposits = formatted.filter((r) => r.type === "deposit").length;
-      const withdrawals = formatted.filter(
-        (r) => r.type === "withdrawal",
-      ).length;
+      const withdrawals = formatted.filter((r) => r.type === "withdrawal").length;
       const transfers = formatted.filter((r) => r.type === "transfer").length;
       const today = formatted.filter((r) => {
         const todayDate = new Date().toDateString();
@@ -90,7 +114,11 @@ const AdminPending = () => {
       });
     } catch (error) {
       console.error("Error fetching pending transactions:", error);
-      toast.error("Failed to fetch pending transactions");
+      toast.error(
+        error.message && error.message !== "Failed to fetch"
+          ? error.message
+          : "Failed to fetch pending transactions",
+      );
       setPendingRequests([]);
     } finally {
       setLoading(false);
@@ -155,12 +183,20 @@ const AdminPending = () => {
   };
 
   const handleApprove = async (request) => {
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
     try {
-      const response = await apiFetch(
-        `/api/transactions.php/${request.id}/approve`,
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions.php/${request.id}/approve?branch_id=${activeBranchId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
         },
       );
 
@@ -173,7 +209,7 @@ const AdminPending = () => {
         setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
         fetchPendingTransactions();
       } else {
-        toast.error(data.message || "Failed to approve transaction");
+        toast.error(data.message || data.error || "Failed to approve transaction");
       }
     } catch (error) {
       console.error("Error approving transaction:", error);
@@ -186,14 +222,25 @@ const AdminPending = () => {
       toast.error("Please provide a reason for rejection");
       return;
     }
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
 
     try {
-      const response = await apiFetch(
-        `/api/transactions.php/${request.id}/reject`,
+      const response = await fetch(
+        `${API_BASE_URL}/api/transactions.php/${request.id}/reject?branch_id=${activeBranchId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ reason: rejectReason }),
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
+          body: JSON.stringify({
+            reason: rejectReason,
+            branch_id: activeBranchId,
+          }),
         },
       );
 
@@ -208,7 +255,7 @@ const AdminPending = () => {
         setShowRejectModal(false);
         fetchPendingTransactions();
       } else {
-        toast.error(data.message || "Failed to reject transaction");
+        toast.error(data.message || data.error || "Failed to reject transaction");
       }
     } catch (error) {
       console.error("Error rejecting transaction:", error);
@@ -274,11 +321,7 @@ const AdminPending = () => {
             animation: "spin 1s linear infinite",
           }}
         />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
@@ -293,7 +336,6 @@ const AdminPending = () => {
           minHeight: "100vh",
         }}
       >
-        {/* ===== 🆕 BRANCH BANNER ===== */}
         <div
           style={{
             display: "flex",
@@ -311,22 +353,10 @@ const AdminPending = () => {
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "26px" }}>🏢</span>
             <div>
-              <div
-                style={{
-                  color: "var(--text)",
-                  fontSize: "15px",
-                  fontWeight: "700",
-                }}
-              >
+              <div style={{ color: "var(--text)", fontSize: "15px", fontWeight: "700" }}>
                 {activeBranch?.name || "Branch"}
               </div>
-              <div
-                style={{
-                  color: "var(--text-muted)",
-                  fontSize: "12px",
-                  marginTop: "2px",
-                }}
-              >
+              <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "2px" }}>
                 {activeBranch?.code || "—"} · Pending approvals for this branch
               </div>
             </div>
@@ -348,31 +378,16 @@ const AdminPending = () => {
           </span>
         </div>
 
-        <h2
-          style={{
-            fontSize: "24px",
-            fontWeight: "bold",
-            marginBottom: "24px",
-          }}
-        >
+        <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}>
           ⏳ Pending Approvals
         </h2>
 
-        <div
-          style={{
-            textAlign: "center",
-            color: "var(--text-muted)",
-            padding: "48px 20px",
-          }}
-        >
+        <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "48px 20px" }}>
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
           <p>
-            No pending approvals in{" "}
-            <strong>{activeBranch?.name || "this branch"}</strong>
+            No pending approvals in <strong>{activeBranch?.name || "this branch"}</strong>
           </p>
-          <p style={{ fontSize: "14px" }}>
-            All transactions have been processed
-          </p>
+          <p style={{ fontSize: "14px" }}>All transactions have been processed</p>
         </div>
       </div>
     );
@@ -388,343 +403,65 @@ const AdminPending = () => {
       }}
     >
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-
-        .pending-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: transparent;
-          border: none;
-        }
-        .pending-table thead {
-          background: transparent;
-        }
-        .pending-table th {
-          text-align: left;
-          padding: 12px 16px;
-          font-size: 12px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border: none;
-          background: transparent;
-        }
-        .pending-table td {
-          padding: 12px 16px;
-          border: none;
-          background: transparent;
-        }
-        .pending-table tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
-        .pending-table tbody tr:hover {
-          background-color: var(--bg-surface-2);
-        }
-
-        .badge {
-          display: inline-block;
-          padding: 4px 10px;
-          border-radius: 9999px;
-          font-size: 11px;
-          font-weight: 600;
-          border: none;
-        }
-        .badge-pending {
-          background-color: var(--pending-bg);
-          color: var(--badge-text);
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-          gap: 12px;
-          margin-bottom: 24px;
-        }
-        .stat-card {
-          background: transparent;
-          border: none;
-          padding: 4px 0;
-        }
-        .stat-label {
-          font-size: 12px;
-          color: var(--text-muted);
-        }
-        .stat-value {
-          font-size: 20px;
-          font-weight: 700;
-          margin-top: 4px;
-        }
-
-        .search-input {
-          width: 100%;
-          padding: 10px 0;
-          border: none;
-          border-bottom: 1px solid var(--border);
-          border-radius: 0;
-          background: transparent;
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          margin-bottom: 20px;
-          box-sizing: border-box;
-        }
-        .search-input:focus {
-          border-bottom-color: var(--accent);
-        }
-        .search-input::placeholder {
-          color: var(--text-dim);
-        }
-
-        .pagination {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          padding: 12px 0;
-          margin-top: 4px;
-          flex-wrap: wrap;
-          gap: 8px;
-        }
-        .pagination-info {
-          font-size: 13px;
-          color: var(--text-muted);
-        }
-        .pagination-buttons {
-          display: flex;
-          gap: 4px;
-          flex-wrap: wrap;
-        }
-        .page-btn {
-          padding: 6px 12px;
-          border-radius: 6px;
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          font-size: 13px;
-          transition: all 0.2s;
-        }
-        .page-btn:hover:not(:disabled) {
-          background-color: var(--bg-surface-2);
-          color: var(--text);
-        }
-        .page-btn.active {
-          background-color: var(--accent);
-          color: white;
-        }
-        .page-btn:disabled {
-          opacity: 0.3;
-          cursor: not-allowed;
-        }
-
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background-color: var(--bg-overlay);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 999;
-          padding: 16px;
-        }
-        .modal-content {
-          background-color: var(--bg-surface);
-          border-radius: 16px;
-          padding: 24px;
-          max-width: 500px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: 1px solid var(--border);
-          color: var(--text);
-        }
-        .modal-header {
-          display: flex;
-          justify-content: space-between;
-          align-items: center;
-          margin-bottom: 16px;
-        }
-        .modal-title {
-          font-size: 18px;
-          font-weight: bold;
-          color: var(--text);
-        }
-        .modal-close {
-          background: none;
-          border: none;
-          color: var(--text-muted);
-          cursor: pointer;
-          padding: 4px;
-          font-size: 24px;
-        }
-        .modal-close:hover {
-          color: var(--text);
-        }
-
-        .detail-row {
-          display: grid;
-          grid-template-columns: 1fr 1fr;
-          gap: 12px;
-          font-size: 14px;
-        }
-        .detail-label {
-          font-size: 11px;
-          color: var(--text-muted);
-        }
-        .detail-value {
-          font-weight: 500;
-          color: var(--text);
-        }
-
-        .btn-approve {
-          padding: 8px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--accent);
-          color: white;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-          margin-right: 8px;
-        }
-        .btn-approve:hover {
-          background: var(--accent-hover);
-        }
-        .btn-reject {
-          padding: 8px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--debit);
-          color: white;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-reject:hover {
-          opacity: 0.85;
-        }
-        .btn-view {
-          background: none;
-          border: none;
-          color: var(--info);
-          cursor: pointer;
-          padding: 4px 8px;
-          border-radius: 4px;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-view:hover {
-          background: var(--accent-bg);
-        }
-
-        .btn-confirm {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
-          border: none;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-confirm-approve {
-          background: var(--accent);
-          color: white;
-        }
-        .btn-confirm-approve:hover {
-          background: var(--accent-hover);
-        }
-        .btn-confirm-reject {
-          background: var(--debit);
-          color: white;
-        }
-        .btn-confirm-reject:hover {
-          opacity: 0.85;
-        }
-        .btn-close-modal {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-close-modal:hover {
-          background: var(--bg-surface-3);
-        }
-        .btn-cancel {
-          flex: 1;
-          padding: 10px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-cancel:hover {
-          background: var(--bg-surface-3);
-        }
-
-        .textarea-input {
-          width: 100%;
-          padding: 10px 12px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          transition: border-color 0.2s;
-          box-sizing: border-box;
-          resize: vertical;
-          min-height: 80px;
-          font-family: inherit;
-        }
-        .textarea-input:focus {
-          border-color: var(--debit);
-        }
-        .textarea-input::placeholder {
-          color: var(--text-dim);
-        }
-
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .pending-table { width: 100%; border-collapse: collapse; background: transparent; border: none; }
+        .pending-table thead { background: transparent; }
+        .pending-table th { text-align: left; padding: 12px 16px; font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border: none; background: transparent; }
+        .pending-table td { padding: 12px 16px; border: none; background: transparent; }
+        .pending-table tbody tr { border: none; background: transparent; transition: background-color 0.15s ease; }
+        .pending-table tbody tr:hover { background-color: var(--bg-surface-2); }
+        .badge { display: inline-block; padding: 4px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: none; }
+        .badge-pending { background-color: var(--pending-bg); color: var(--badge-text); }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 12px; margin-bottom: 24px; }
+        .stat-card { background: transparent; border: none; padding: 4px 0; }
+        .stat-label { font-size: 12px; color: var(--text-muted); }
+        .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+        .search-input { width: 100%; padding: 10px 0; border: none; border-bottom: 1px solid var(--border); border-radius: 0; background: transparent; color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; margin-bottom: 20px; box-sizing: border-box; }
+        .search-input:focus { border-bottom-color: var(--accent); }
+        .search-input::placeholder { color: var(--text-dim); }
+        .pagination { display: flex; justify-content: space-between; align-items: center; padding: 12px 0; margin-top: 4px; flex-wrap: wrap; gap: 8px; }
+        .pagination-info { font-size: 13px; color: var(--text-muted); }
+        .pagination-buttons { display: flex; gap: 4px; flex-wrap: wrap; }
+        .page-btn { padding: 6px 12px; border-radius: 6px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; transition: all 0.2s; }
+        .page-btn:hover:not(:disabled) { background-color: var(--bg-surface-2); color: var(--text); }
+        .page-btn.active { background-color: var(--accent); color: white; }
+        .page-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+        .modal-overlay { position: fixed; inset: 0; background-color: var(--bg-overlay); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+        .modal-content { background-color: var(--bg-surface); border-radius: 16px; padding: 24px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); color: var(--text); }
+        .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+        .modal-title { font-size: 18px; font-weight: bold; color: var(--text); }
+        .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 24px; }
+        .modal-close:hover { color: var(--text); }
+        .detail-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; font-size: 14px; }
+        .detail-label { font-size: 11px; color: var(--text-muted); }
+        .detail-value { font-weight: 500; color: var(--text); }
+        .btn-approve { padding: 8px 20px; border-radius: 8px; border: none; background: var(--accent); color: white; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; margin-right: 8px; }
+        .btn-approve:hover { background: var(--accent-hover); }
+        .btn-reject { padding: 8px 20px; border-radius: 8px; border: none; background: var(--debit); color: white; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-reject:hover { opacity: 0.85; }
+        .btn-view { background: none; border: none; color: var(--info); cursor: pointer; padding: 4px 8px; border-radius: 4px; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-view:hover { background: var(--accent-bg); }
+        .btn-confirm { flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-confirm-approve { background: var(--accent); color: white; }
+        .btn-confirm-approve:hover { background: var(--accent-hover); }
+        .btn-confirm-reject { background: var(--debit); color: white; }
+        .btn-confirm-reject:hover { opacity: 0.85; }
+        .btn-close-modal { flex: 1; padding: 10px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-close-modal:hover { background: var(--bg-surface-3); }
+        .btn-cancel { flex: 1; padding: 10px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-cancel:hover { background: var(--bg-surface-3); }
+        .textarea-input { width: 100%; padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; box-sizing: border-box; resize: vertical; min-height: 80px; font-family: inherit; }
+        .textarea-input:focus { border-color: var(--debit); }
+        .textarea-input::placeholder { color: var(--text-dim); }
         @media (max-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          .detail-row {
-            grid-template-columns: 1fr;
-          }
-          .pagination {
-            flex-direction: column;
-            align-items: center;
-          }
-          .pending-table {
-            font-size: 12px;
-          }
-          .pending-table th,
-          .pending-table td {
-            padding: 8px 10px;
-          }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .detail-row { grid-template-columns: 1fr; }
+          .pagination { flex-direction: column; align-items: center; }
+          .pending-table { font-size: 12px; }
+          .pending-table th, .pending-table td { padding: 8px 10px; }
         }
       `}</style>
 
-      {/* ===== 🆕 BRANCH BANNER ===== */}
       <div
         style={{
           display: "flex",
@@ -742,26 +479,12 @@ const AdminPending = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "26px" }}>🏢</span>
           <div>
-            <div
-              style={{
-                color: "var(--text)",
-                fontSize: "15px",
-                fontWeight: "700",
-              }}
-            >
+            <div style={{ color: "var(--text)", fontSize: "15px", fontWeight: "700" }}>
               {activeBranch?.name || "Branch"}
             </div>
-            <div
-              style={{
-                color: "var(--text-muted)",
-                fontSize: "12px",
-                marginTop: "2px",
-              }}
-            >
+            <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "2px" }}>
               {activeBranch?.code || "—"} · Pending approvals for this branch ·{" "}
-              <strong style={{ color: "var(--warning)" }}>
-                {pendingRequests.length}
-              </strong>{" "}
+              <strong style={{ color: "var(--warning)" }}>{pendingRequests.length}</strong>{" "}
               waiting
             </div>
           </div>
@@ -783,53 +506,37 @@ const AdminPending = () => {
         </span>
       </div>
 
-      <h2
-        style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}
-      >
+      <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}>
         ⏳ Pending Approvals
       </h2>
 
-      {/* Stats */}
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Pending</div>
-          <div className="stat-value" style={{ color: "var(--warning)" }}>
-            {stats.total}
-          </div>
+          <div className="stat-value" style={{ color: "var(--warning)" }}>{stats.total}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Amount</div>
-          <div className="stat-value" style={{ color: "var(--credit)" }}>
-            {formatNaira(stats.total_amount)}
-          </div>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>{formatNaira(stats.total_amount)}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Deposits</div>
-          <div className="stat-value" style={{ color: "var(--credit)" }}>
-            {stats.deposits}
-          </div>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>{stats.deposits}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Withdrawals</div>
-          <div className="stat-value" style={{ color: "var(--debit)" }}>
-            {stats.withdrawals}
-          </div>
+          <div className="stat-value" style={{ color: "var(--debit)" }}>{stats.withdrawals}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Transfers</div>
-          <div className="stat-value" style={{ color: "var(--info)" }}>
-            {stats.transfers}
-          </div>
+          <div className="stat-value" style={{ color: "var(--info)" }}>{stats.transfers}</div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Today</div>
-          <div className="stat-value" style={{ color: "var(--text)" }}>
-            {stats.today}
-          </div>
+          <div className="stat-value" style={{ color: "var(--text)" }}>{stats.today}</div>
         </div>
       </div>
 
-      {/* Search */}
       <input
         type="text"
         className="search-input"
@@ -839,22 +546,13 @@ const AdminPending = () => {
       />
 
       {searchTerm && (
-        <div
-          style={{
-            fontSize: "13px",
-            color: "var(--text-muted)",
-            marginBottom: "12px",
-          }}
-        >
+        <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
           Found{" "}
-          <span style={{ color: "var(--warning)", fontWeight: "600" }}>
-            {filteredRequests().length}
-          </span>{" "}
+          <span style={{ color: "var(--warning)", fontWeight: "600" }}>{filteredRequests().length}</span>{" "}
           pending request{filteredRequests().length !== 1 ? "s" : ""}
         </div>
       )}
 
-      {/* Table */}
       <div>
         <div style={{ overflowX: "auto" }}>
           <table className="pending-table">
@@ -873,114 +571,49 @@ const AdminPending = () => {
               {filteredRequests().length > 0 ? (
                 filteredRequests().map((request) => {
                   const typeColors = getTypeColors(request.type);
-                  const payColors = getPaymentMethodColors(
-                    request.payment_method,
-                  );
+                  const payColors = getPaymentMethodColors(request.payment_method);
                   return (
                     <tr key={request.id}>
                       <td>
-                        <div
-                          style={{
-                            display: "flex",
-                            alignItems: "center",
-                            gap: "8px",
-                          }}
-                        >
-                          <span style={{ fontSize: "20px" }}>
-                            {getTypeIcon(request.type)}
-                          </span>
-                          <span
-                            className="badge"
-                            style={{
-                              background: typeColors.bg,
-                              color: typeColors.color,
-                            }}
-                          >
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+                          <span style={{ fontSize: "20px" }}>{getTypeIcon(request.type)}</span>
+                          <span className="badge" style={{ background: typeColors.bg, color: typeColors.color }}>
                             {request.type}
                           </span>
                         </div>
                       </td>
                       <td>
                         <div>
-                          <div style={{ fontSize: "14px", fontWeight: "500" }}>
-                            {request.customer}
-                          </div>
-                          <div
-                            style={{
-                              fontSize: "12px",
-                              color: "var(--text-muted)",
-                            }}
-                          >
-                            {request.phone}
-                          </div>
+                          <div style={{ fontSize: "14px", fontWeight: "500" }}>{request.customer}</div>
+                          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{request.phone}</div>
                         </div>
                       </td>
                       <td>
-                        <div
-                          style={{
-                            fontSize: "14px",
-                            fontWeight: "600",
-                            color: "var(--credit)",
-                          }}
-                        >
+                        <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--credit)" }}>
                           {formatNaira(request.amount)}
                         </div>
                       </td>
                       <td>
-                        <span
-                          className="badge"
-                          style={{
-                            background: payColors.bg,
-                            color: payColors.color,
-                          }}
-                        >
+                        <span className="badge" style={{ background: payColors.bg, color: payColors.color }}>
                           {request.payment_method.replace("_", " ")}
                         </span>
                       </td>
                       <td>
-                        <div
-                          style={{
-                            fontSize: "13px",
-                            color: "var(--text-muted)",
-                          }}
-                        >
-                          {formatDate(request.date)}
-                        </div>
+                        <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>{formatDate(request.date)}</div>
                       </td>
-                      <td>
-                        <span className="badge badge-pending">Pending</span>
-                      </td>
+                      <td><span className="badge badge-pending">Pending</span></td>
                       <td style={{ textAlign: "center" }}>
-                        <div
-                          style={{
-                            display: "flex",
-                            justifyContent: "center",
-                            gap: "4px",
-                            flexWrap: "wrap",
-                          }}
-                        >
-                          <button
-                            className="btn-view"
-                            onClick={() => viewDetails(request)}
-                          >
-                            View
-                          </button>
+                        <div style={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "wrap" }}>
+                          <button className="btn-view" onClick={() => viewDetails(request)}>View</button>
                           <button
                             className="btn-approve"
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setShowApproveModal(true);
-                            }}
+                            onClick={() => { setSelectedRequest(request); setShowApproveModal(true); }}
                           >
                             Approve
                           </button>
                           <button
                             className="btn-reject"
-                            onClick={() => {
-                              setSelectedRequest(request);
-                              setRejectReason("");
-                              setShowRejectModal(true);
-                            }}
+                            onClick={() => { setSelectedRequest(request); setRejectReason(""); setShowRejectModal(true); }}
                           >
                             Reject
                           </button>
@@ -992,29 +625,11 @@ const AdminPending = () => {
               ) : (
                 <tr>
                   <td colSpan="7">
-                    <div
-                      style={{
-                        textAlign: "center",
-                        padding: "48px 20px",
-                        color: "var(--text-muted)",
-                      }}
-                    >
-                      <div style={{ fontSize: "48px", marginBottom: "8px" }}>
-                        🔍
-                      </div>
-                      <p style={{ fontSize: "16px", fontWeight: "500" }}>
-                        No pending requests found
-                      </p>
-                      <p
-                        style={{
-                          fontSize: "14px",
-                          color: "var(--text-dim)",
-                          marginTop: "4px",
-                        }}
-                      >
-                        {searchTerm
-                          ? `No requests matching "${searchTerm}"`
-                          : "All requests have been processed"}
+                    <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-muted)" }}>
+                      <div style={{ fontSize: "48px", marginBottom: "8px" }}>🔍</div>
+                      <p style={{ fontSize: "16px", fontWeight: "500" }}>No pending requests found</p>
+                      <p style={{ fontSize: "14px", color: "var(--text-dim)", marginTop: "4px" }}>
+                        {searchTerm ? `No requests matching "${searchTerm}"` : "All requests have been processed"}
                       </p>
                     </div>
                   </td>
@@ -1024,107 +639,54 @@ const AdminPending = () => {
           </table>
         </div>
 
-        {/* Pagination */}
         {pendingRequests.length > 0 && (
           <div className="pagination">
             <div className="pagination-info">
-              Showing {indexOfFirstItem + 1} to{" "}
-              {Math.min(indexOfLastItem, pendingRequests.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "var(--text)" }}>
-                {pendingRequests.length}
-              </span>{" "}
-              requests
+              Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, pendingRequests.length)} of{" "}
+              <span style={{ fontWeight: "600", color: "var(--text)" }}>{pendingRequests.length}</span> requests
             </div>
             <div className="pagination-buttons">
-              <button
-                className="page-btn"
-                onClick={prevPage}
-                disabled={currentPage === 1}
-              >
-                ◀
-              </button>
+              <button className="page-btn" onClick={prevPage} disabled={currentPage === 1}>◀</button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNumber;
-                if (totalPages <= 5) {
-                  pageNumber = i + 1;
-                } else if (currentPage <= 3) {
-                  pageNumber = i + 1;
-                } else if (currentPage >= totalPages - 2) {
-                  pageNumber = totalPages - 4 + i;
-                } else {
-                  pageNumber = currentPage - 2 + i;
-                }
+                if (totalPages <= 5) pageNumber = i + 1;
+                else if (currentPage <= 3) pageNumber = i + 1;
+                else if (currentPage >= totalPages - 2) pageNumber = totalPages - 4 + i;
+                else pageNumber = currentPage - 2 + i;
                 return (
                   <button
                     key={pageNumber}
-                    className={`page-btn ${
-                      currentPage === pageNumber ? "active" : ""
-                    }`}
+                    className={`page-btn ${currentPage === pageNumber ? "active" : ""}`}
                     onClick={() => paginate(pageNumber)}
                   >
                     {pageNumber}
                   </button>
                 );
               })}
-              <button
-                className="page-btn"
-                onClick={nextPage}
-                disabled={currentPage === totalPages}
-              >
-                ▶
-              </button>
+              <button className="page-btn" onClick={nextPage} disabled={currentPage === totalPages}>▶</button>
             </div>
           </div>
         )}
       </div>
 
-      {/* Details Modal */}
       {showDetailsModal && selectedRequest && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Request Details</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedRequest(null);
-                }}
-              >
-                ✕
-              </button>
+              <button className="modal-close" onClick={() => { setShowDetailsModal(false); setSelectedRequest(null); }}>✕</button>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                alignItems: "center",
-                gap: "12px",
-                paddingBottom: "16px",
-                borderBottom: "1px solid var(--border)",
-                marginBottom: "16px",
-              }}
-            >
-              <span style={{ fontSize: "32px" }}>
-                {getTypeIcon(selectedRequest.type)}
-              </span>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingBottom: "16px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
+              <span style={{ fontSize: "32px" }}>{getTypeIcon(selectedRequest.type)}</span>
               <div>
-                <div
-                  style={{
-                    fontSize: "20px",
-                    fontWeight: "bold",
-                    color: "var(--credit)",
-                  }}
-                >
+                <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--credit)" }}>
                   {formatNaira(selectedRequest.amount)}
                 </div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
                   <span
                     className="badge"
-                    style={{
-                      background: getTypeColors(selectedRequest.type).bg,
-                      color: getTypeColors(selectedRequest.type).color,
-                    }}
+                    style={{ background: getTypeColors(selectedRequest.type).bg, color: getTypeColors(selectedRequest.type).color }}
                   >
                     {selectedRequest.type}
                   </span>
@@ -1134,55 +696,27 @@ const AdminPending = () => {
             </div>
 
             <div className="detail-row">
-              <div>
-                <div className="detail-label">Request ID</div>
-                <div className="detail-value">#{selectedRequest.id}</div>
-              </div>
-              <div>
-                <div className="detail-label">Date</div>
-                <div className="detail-value">
-                  {formatDate(selectedRequest.date)}
-                </div>
-              </div>
-              <div>
-                <div className="detail-label">Customer</div>
-                <div className="detail-value">{selectedRequest.customer}</div>
-              </div>
-              <div>
-                <div className="detail-label">Phone</div>
-                <div className="detail-value">{selectedRequest.phone}</div>
-              </div>
-              <div>
-                <div className="detail-label">Email</div>
-                <div className="detail-value">{selectedRequest.email}</div>
-              </div>
-              <div>
-                <div className="detail-label">Branch</div>
-                <div className="detail-value">{selectedRequest.branch}</div>
-              </div>
+              <div><div className="detail-label">Request ID</div><div className="detail-value">#{selectedRequest.id}</div></div>
+              <div><div className="detail-label">Date</div><div className="detail-value">{formatDate(selectedRequest.date)}</div></div>
+              <div><div className="detail-label">Customer</div><div className="detail-value">{selectedRequest.customer}</div></div>
+              <div><div className="detail-label">Phone</div><div className="detail-value">{selectedRequest.phone}</div></div>
+              <div><div className="detail-label">Email</div><div className="detail-value">{selectedRequest.email}</div></div>
+              <div><div className="detail-label">Branch</div><div className="detail-value">{selectedRequest.branch}</div></div>
               <div>
                 <div className="detail-label">Payment Method</div>
-                <div
-                  className="detail-value"
-                  style={{ textTransform: "capitalize" }}
-                >
+                <div className="detail-value" style={{ textTransform: "capitalize" }}>
                   {selectedRequest.payment_method.replace("_", " ")}
                 </div>
               </div>
               <div>
                 <div className="detail-label">Reference</div>
-                <div
-                  className="detail-value"
-                  style={{ fontFamily: "monospace", fontSize: "13px" }}
-                >
+                <div className="detail-value" style={{ fontFamily: "monospace", fontSize: "13px" }}>
                   {selectedRequest.reference}
                 </div>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Description</div>
-                <div className="detail-value">
-                  {selectedRequest.description}
-                </div>
+                <div className="detail-value">{selectedRequest.description}</div>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Notes</div>
@@ -1190,127 +724,47 @@ const AdminPending = () => {
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Submitted By</div>
-                <div className="detail-value">
-                  {selectedRequest.submitted_by}
-                </div>
+                <div className="detail-value">{selectedRequest.submitted_by}</div>
               </div>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
-              <button
-                className="btn-close-modal"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setSelectedRequest(null);
-                }}
-              >
-                Close
-              </button>
-              <button
-                className="btn-confirm btn-confirm-approve"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  handleApprove(selectedRequest);
-                }}
-              >
-                Approve
-              </button>
-              <button
-                className="btn-confirm btn-confirm-reject"
-                onClick={() => {
-                  setShowDetailsModal(false);
-                  setRejectReason("");
-                  setShowRejectModal(true);
-                }}
-              >
-                Reject
-              </button>
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
+              <button className="btn-close-modal" onClick={() => { setShowDetailsModal(false); setSelectedRequest(null); }}>Close</button>
+              <button className="btn-confirm btn-confirm-approve" onClick={() => { setShowDetailsModal(false); handleApprove(selectedRequest); }}>Approve</button>
+              <button className="btn-confirm btn-confirm-reject" onClick={() => { setShowDetailsModal(false); setRejectReason(""); setShowRejectModal(true); }}>Reject</button>
             </div>
           </div>
         </div>
       )}
 
-      {/* Approve Modal */}
       {showApproveModal && selectedRequest && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Confirm Approval</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowApproveModal(false);
-                  setSelectedRequest(null);
-                }}
-              >
-                ✕
-              </button>
+              <button className="modal-close" onClick={() => { setShowApproveModal(false); setSelectedRequest(null); }}>✕</button>
             </div>
 
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
-              <p style={{ fontSize: "16px", fontWeight: "500" }}>
-                Approve {selectedRequest.type} request?
-              </p>
-              <p
-                style={{
-                  fontSize: "14px",
-                  color: "var(--text-muted)",
-                  marginTop: "4px",
-                }}
-              >
+              <p style={{ fontSize: "16px", fontWeight: "500" }}>Approve {selectedRequest.type} request?</p>
+        
+                      <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
                 Customer: <strong>{selectedRequest.customer}</strong>
               </p>
               <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Amount:{" "}
-                <strong style={{ color: "var(--credit)" }}>
-                  {formatNaira(selectedRequest.amount)}
-                </strong>
+                Amount: <strong style={{ color: "var(--credit)" }}>{formatNaira(selectedRequest.amount)}</strong>
               </p>
-              <p
-                style={{
-                  fontSize: "12px",
-                  color: "var(--text-dim)",
-                  marginTop: "8px",
-                }}
-              >
+              <p style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "8px" }}>
                 Branch: {selectedRequest.branch}
               </p>
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
-              <button
-                className="btn-cancel"
-                onClick={() => {
-                  setShowApproveModal(false);
-                  setSelectedRequest(null);
-                }}
-              >
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
+              <button className="btn-cancel" onClick={() => { setShowApproveModal(false); setSelectedRequest(null); }}>
                 Cancel
               </button>
-              <button
-                className="btn-confirm btn-confirm-approve"
-                onClick={() => {
-                  handleApprove(selectedRequest);
-                  setShowApproveModal(false);
-                }}
-              >
+              <button className="btn-confirm btn-confirm-approve" onClick={() => { handleApprove(selectedRequest); setShowApproveModal(false); }}>
                 Yes, Approve
               </button>
             </div>
@@ -1318,39 +772,20 @@ const AdminPending = () => {
         </div>
       )}
 
-      {/* Reject Modal */}
       {showRejectModal && selectedRequest && (
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Reject Request</h3>
-              <button
-                className="modal-close"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setSelectedRequest(null);
-                  setRejectReason("");
-                }}
-              >
-                ✕
-              </button>
+              <button className="modal-close" onClick={() => { setShowRejectModal(false); setSelectedRequest(null); setRejectReason(""); }}>✕</button>
             </div>
 
-            <div
-              style={{
-                paddingBottom: "16px",
-                borderBottom: "1px solid var(--border)",
-                marginBottom: "16px",
-              }}
-            >
+            <div style={{ paddingBottom: "16px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
               <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Customer: <strong>{selectedRequest.customer}</strong>
               </div>
               <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Amount:{" "}
-                <strong style={{ color: "var(--debit)" }}>
-                  {formatNaira(selectedRequest.amount)}
-                </strong>
+                Amount: <strong style={{ color: "var(--debit)" }}>{formatNaira(selectedRequest.amount)}</strong>
               </div>
               <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
                 Branch: {selectedRequest.branch}
@@ -1377,31 +812,16 @@ const AdminPending = () => {
               />
             </div>
 
-            <div
-              style={{
-                display: "flex",
-                gap: "8px",
-                marginTop: "16px",
-                paddingTop: "16px",
-                borderTop: "1px solid var(--border)",
-              }}
-            >
+            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
               <button
                 className="btn-cancel"
-                onClick={() => {
-                  setShowRejectModal(false);
-                  setSelectedRequest(null);
-                  setRejectReason("");
-                }}
+                onClick={() => { setShowRejectModal(false); setSelectedRequest(null); setRejectReason(""); }}
               >
                 Cancel
               </button>
               <button
                 className="btn-confirm btn-confirm-reject"
-                onClick={() => {
-                  handleReject(selectedRequest);
-                  setShowRejectModal(false);
-                }}
+                onClick={() => { handleReject(selectedRequest); setShowRejectModal(false); }}
                 disabled={!rejectReason.trim()}
                 style={{
                   opacity: !rejectReason.trim() ? 0.5 : 1,

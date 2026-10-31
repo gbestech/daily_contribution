@@ -1,10 +1,11 @@
 // src/components/admin/AdminReports.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
-import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const AdminReports = () => {
   const { activeBranch, activeBranchId } = useBranch();
@@ -41,7 +42,7 @@ const AdminReports = () => {
   useEffect(() => {
     fetchData();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]); // 🆕 refetch when branch changes
+  }, [activeBranchId]);
 
   useEffect(() => {
     if (transactions.length > 0) {
@@ -51,16 +52,56 @@ const AdminReports = () => {
   }, [transactions, dateRange, startDate, endDate, selectedReportType]);
 
   const fetchData = async () => {
+    if (activeBranchId == null || activeBranchId === "") {
+      setMembers([]);
+      setTransactions([]);
+      setPendingRequests([]);
+      setFilteredTransactions([]);
+      setFilteredMembers([]);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
-      const membersResponse = await apiFetch("/api/members.php");
+      const headers = {
+        Accept: "application/json",
+        "X-User-Branch-Id": String(activeBranchId),
+      };
+
+      const [membersResponse, transactionsResponse] = await Promise.all([
+        fetch(`${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`, {
+          headers,
+        }),
+        fetch(
+          `${API_BASE_URL}/api/transactions.php?branch_id=${activeBranchId}`,
+          { headers },
+        ),
+      ]);
+
+      if (!membersResponse.ok) {
+        const e = await membersResponse.json().catch(() => ({}));
+        throw new Error(
+          e.error || `members.php HTTP ${membersResponse.status}`,
+        );
+      }
+      if (!transactionsResponse.ok) {
+        const e = await transactionsResponse.json().catch(() => ({}));
+        throw new Error(
+          e.error || `transactions.php HTTP ${transactionsResponse.status}`,
+        );
+      }
+
       const membersData = await membersResponse.json();
-      const membersList = membersData.members || [];
+      const membersList = Array.isArray(membersData.members)
+        ? membersData.members
+        : [];
       setMembers(membersList);
 
-      const transactionsResponse = await apiFetch("/api/transactions.php");
       const transactionsData = await transactionsResponse.json();
-      const transactionsList = transactionsData.transactions || [];
+      const transactionsList = Array.isArray(transactionsData.transactions)
+        ? transactionsData.transactions
+        : [];
       setTransactions(transactionsList);
 
       const pending = transactionsList.filter((t) => t.status === "pending");
@@ -106,7 +147,11 @@ const AdminReports = () => {
       applyFiltersWithData(transactionsList, membersList);
     } catch (error) {
       console.error("Error fetching report data:", error);
-      toast.error("Failed to fetch report data");
+      toast.error(
+        error.message && !/failed to fetch$/i.test(error.message)
+          ? `Report error: ${error.message}`
+          : "Failed to fetch report data",
+      );
     } finally {
       setLoading(false);
     }
@@ -409,18 +454,13 @@ const AdminReports = () => {
             animation: "spin 1s linear infinite",
           }}
         />
-        <style>{`
-          @keyframes spin {
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
+        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
       </div>
     );
   }
 
   const monthlyData = getCurrentMonthlyData();
   const maxMonthlyValue = Math.max(...monthlyData.map((m) => m.sales), 1);
-
   return (
     <div
       style={{
@@ -431,291 +471,63 @@ const AdminReports = () => {
       }}
     >
       <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-        .reports-container {
-          max-width: 1400px;
-          margin: 0 auto;
-        }
-
-        .stats-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px;
-          margin-bottom: 24px;
-        }
-        .stat-card {
-          background: transparent;
-          border: none;
-          padding: 4px 0;
-        }
-        .stat-label {
-          font-size: 12px;
-          color: var(--text-muted);
-        }
-        .stat-value {
-          font-size: 20px;
-          font-weight: 700;
-          margin-top: 4px;
-        }
-
-        .tabs-container {
-          display: flex;
-          gap: 8px;
-          padding: 0;
-          margin-bottom: 24px;
-          flex-wrap: wrap;
-        }
-        .tab-btn {
-          padding: 8px 18px;
-          border-radius: 8px;
-          border: none;
-          background: transparent;
-          color: var(--text-muted);
-          cursor: pointer;
-          font-size: 14px;
-          font-weight: 500;
-          transition: all 0.2s;
-        }
-        .tab-btn:hover {
-          color: var(--text);
-          background: var(--bg-surface-2);
-        }
-        .tab-btn.active {
-          background: var(--accent);
-          color: white;
-        }
-
-        .report-card {
-          background: transparent;
-          border: none;
-          padding: 0;
-          margin-bottom: 24px;
-        }
-        .report-card-title {
-          font-size: 16px;
-          font-weight: 600;
-          margin-bottom: 16px;
-          color: var(--text);
-        }
-
-        .chart-bars {
-          display: flex;
-          align-items: flex-end;
-          gap: 12px;
-          height: 200px;
-          padding: 0 4px;
-        }
-        .chart-bar-wrapper {
-          flex: 1;
-          display: flex;
-          flex-direction: column;
-          align-items: center;
-          height: 100%;
-          justify-content: flex-end;
-        }
-        .chart-bar {
-          width: 100%;
-          max-width: 40px;
-          border-radius: 4px 4px 0 0;
-          min-height: 8px;
-          transition: height 0.5s ease;
-          position: relative;
-        }
-        .chart-bar-label {
-          font-size: 11px;
-          color: var(--text-muted);
-          margin-top: 6px;
-        }
-        .chart-bar-value {
-          font-size: 10px;
-          color: var(--text-muted);
-          margin-bottom: 4px;
-        }
-
-        .reports-table {
-          width: 100%;
-          border-collapse: collapse;
-          background: transparent;
-          border: none;
-        }
-        .reports-table thead {
-          background: transparent;
-        }
-        .reports-table th {
-          text-align: left;
-          padding: 10px 12px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.05em;
-          border: none;
-          background: transparent;
-        }
-        .reports-table td {
-          padding: 10px 12px;
-          border: none;
-          font-size: 13px;
-          background: transparent;
-        }
-        .reports-table tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
-        .reports-table tbody tr:hover {
-          background-color: var(--bg-surface-2);
-        }
-
-        .badge {
-          display: inline-block;
-          padding: 3px 10px;
-          border-radius: 9999px;
-          font-size: 11px;
-          font-weight: 600;
-          border: none;
-        }
-
-        .filter-controls {
-          display: flex;
-          gap: 12px;
-          margin-bottom: 20px;
-          flex-wrap: wrap;
-          align-items: center;
-        }
-        .filter-select {
-          padding: 8px 16px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 13px;
-          outline: none;
-          cursor: pointer;
-          transition: box-shadow 0.2s;
-        }
-        .filter-select:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-        .filter-select option {
-          background: var(--bg-surface);
-          color: var(--text);
-        }
-        .date-input {
-          padding: 8px 12px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 13px;
-          outline: none;
-          transition: box-shadow 0.2s;
-        }
-        .date-input:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-
-        .btn-export {
-          padding: 8px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--accent);
-          color: white;
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-export:hover {
-          background: var(--accent-hover);
-        }
-        .btn-print {
-          padding: 8px 20px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          transition: all 0.2s;
-        }
-        .btn-print:hover {
-          background: var(--bg-surface-3);
-        }
-
-        .action-buttons {
-          display: flex;
-          gap: 8px;
-          flex-wrap: wrap;
-        }
-        .filter-label {
-          font-size: 13px;
-          color: var(--text-muted);
-          margin-right: 4px;
-        }
-        .filter-indicator {
-          font-size: 12px;
-          color: var(--text-muted);
-          padding: 4px 0;
-        }
-
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .reports-container { max-width: 1400px; margin: 0 auto; }
+        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 24px; }
+        .stat-card { background: transparent; border: none; padding: 4px 0; }
+        .stat-label { font-size: 12px; color: var(--text-muted); }
+        .stat-value { font-size: 20px; font-weight: 700; margin-top: 4px; }
+        .tabs-container { display: flex; gap: 8px; padding: 0; margin-bottom: 24px; flex-wrap: wrap; }
+        .tab-btn { padding: 8px 18px; border-radius: 8px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
+        .tab-btn:hover { color: var(--text); background: var(--bg-surface-2); }
+        .tab-btn.active { background: var(--accent); color: white; }
+        .report-card { background: transparent; border: none; padding: 0; margin-bottom: 24px; }
+        .report-card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; color: var(--text); }
+        .chart-bars { display: flex; align-items: flex-end; gap: 12px; height: 200px; padding: 0 4px; }
+        .chart-bar-wrapper { flex: 1; display: flex; flex-direction: column; align-items: center; height: 100%; justify-content: flex-end; }
+        .chart-bar { width: 100%; max-width: 40px; border-radius: 4px 4px 0 0; min-height: 8px; transition: height 0.5s ease; position: relative; }
+        .chart-bar-label { font-size: 11px; color: var(--text-muted); margin-top: 6px; }
+        .chart-bar-value { font-size: 10px; color: var(--text-muted); margin-bottom: 4px; }
+        .reports-table { width: 100%; border-collapse: collapse; background: transparent; border: none; }
+        .reports-table thead { background: transparent; }
+        .reports-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border: none; background: transparent; }
+        .reports-table td { padding: 10px 12px; border: none; font-size: 13px; background: transparent; }
+        .reports-table tbody tr { border: none; background: transparent; transition: background-color 0.15s ease; }
+        .reports-table tbody tr:hover { background-color: var(--bg-surface-2); }
+        .badge { display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 600; border: none; }
+        .filter-controls { display: flex; gap: 12px; margin-bottom: 20px; flex-wrap: wrap; align-items: center; }
+        .filter-select { padding: 8px 16px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); font-size: 13px; outline: none; cursor: pointer; transition: box-shadow 0.2s; }
+        .filter-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .filter-select option { background: var(--bg-surface); color: var(--text); }
+        .date-input { padding: 8px 12px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); font-size: 13px; outline: none; transition: box-shadow 0.2s; }
+        .date-input:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .btn-export { padding: 8px 20px; border-radius: 8px; border: none; background: var(--accent); color: white; cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-export:hover { background: var(--accent-hover); }
+        .btn-print { padding: 8px 20px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; transition: all 0.2s; }
+        .btn-print:hover { background: var(--bg-surface-3); }
+        .action-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+        .filter-label { font-size: 13px; color: var(--text-muted); margin-right: 4px; }
+        .filter-indicator { font-size: 12px; color: var(--text-muted); padding: 4px 0; }
         @media (max-width: 768px) {
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr);
-          }
-          .tabs-container {
-            flex-direction: column;
-          }
-          .tab-btn {
-            flex: none;
-            min-width: auto;
-          }
-          .filter-controls {
-            flex-direction: column;
-          }
-          .chart-bars {
-            height: 150px;
-            gap: 8px;
-          }
-          .action-buttons {
-            flex-direction: column;
-          }
-          .action-buttons button {
-            width: 100%;
-          }
+          .stats-grid { grid-template-columns: repeat(2, 1fr); }
+          .tabs-container { flex-direction: column; }
+          .tab-btn { flex: none; min-width: auto; }
+          .filter-controls { flex-direction: column; }
+          .chart-bars { height: 150px; gap: 8px; }
+          .action-buttons { flex-direction: column; }
+          .action-buttons button { width: 100%; }
         }
         @media print {
-          .no-print {
-            display: none !important;
-          }
-          body {
-            background-color: white !important;
-          }
-          .stat-card,
-          .report-card {
-            background: transparent !important;
-            border: none !important;
-          }
-          .stat-value,
-          .report-card-title,
-          .reports-table td {
-            color: #0f172a !important;
-          }
-          .stat-label,
-          .reports-table th {
-            color: #64748b !important;
-          }
-          .badge {
-            color: white !important;
-          }
+          .no-print { display: none !important; }
+          body { background-color: white !important; }
+          .stat-card, .report-card { background: transparent !important; border: none !important; }
+          .stat-value, .report-card-title, .reports-table td { color: #0f172a !important; }
+          .stat-label, .reports-table th { color: #64748b !important; }
+          .badge { color: white !important; }
         }
       `}</style>
 
       <div className="reports-container">
-        {/* ===== 🆕 BRANCH BANNER ===== */}
         <div
           className="no-print"
           style={{
@@ -779,7 +591,6 @@ const AdminReports = () => {
           </span>
         </div>
 
-        {/* Header */}
         <div
           style={{
             display: "flex",
@@ -814,7 +625,6 @@ const AdminReports = () => {
           </div>
         </div>
 
-        {/* Filters */}
         <div className="filter-controls no-print">
           <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
             <span className="filter-label">Date:</span>
@@ -880,7 +690,6 @@ const AdminReports = () => {
           </span>
         </div>
 
-        {/* Stats */}
         <div className="stats-grid">
           <div className="stat-card">
             <div className="stat-label">Total Sales</div>
@@ -932,7 +741,6 @@ const AdminReports = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="tabs-container no-print">
           <button
             className={`tab-btn ${activeTab === "overview" ? "active" : ""}`}
@@ -960,7 +768,6 @@ const AdminReports = () => {
           </button>
         </div>
 
-        {/* Overview Tab */}
         {activeTab === "overview" && (
           <div>
             <div className="report-card">
@@ -1031,11 +838,7 @@ const AdminReports = () => {
                     }}
                   >
                     {reportData.overview.active_members > 0
-                      ? `+${Math.round(
-                          (reportData.overview.active_members /
-                            reportData.overview.total_members) *
-                            100,
-                        )}%`
+                      ? `+${Math.round((reportData.overview.active_members / reportData.overview.total_members) * 100)}%`
                       : "0%"}
                   </div>
                 </div>
@@ -1044,7 +847,6 @@ const AdminReports = () => {
           </div>
         )}
 
-        {/* Monthly Tab */}
         {activeTab === "monthly" && (
           <div>
             <div className="report-card">
@@ -1122,7 +924,6 @@ const AdminReports = () => {
           </div>
         )}
 
-        {/* Members Tab */}
         {activeTab === "members" && (
           <div>
             <div className="report-card">
@@ -1187,7 +988,6 @@ const AdminReports = () => {
           </div>
         )}
 
-        {/* Transactions Tab */}
         {activeTab === "transactions" && (
           <div>
             <div className="report-card">

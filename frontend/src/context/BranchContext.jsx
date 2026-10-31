@@ -7,7 +7,9 @@ import React, {
   useCallback,
 } from "react";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const BranchContext = createContext(null);
 
@@ -21,10 +23,58 @@ export const useBranch = () => {
       loading: false,
       error: null,
       switchBranch: () => {},
-      refreshBranches: () => {},
+      refreshBranches: async () => [],
     };
   }
   return ctx;
+};
+
+const LS_ACTIVE_BRANCH = "active_branch";
+const LS_ACTIVE_BRANCH_ID = "active_branch_id";
+const LS_SELECTED_BRANCH_ID = "selectedBranchId";
+
+const readUser = () => {
+  try {
+    return JSON.parse(localStorage.getItem("user") || "{}");
+  } catch {
+    return {};
+  }
+};
+
+const isStaffUser = () => {
+  const u = readUser();
+  const role = String(u?.role || "").toLowerCase();
+  return (
+    role === "admin" ||
+    role === "administrator" ||
+    role === "manager" ||
+    role === "branch_manager"
+  );
+};
+
+const persistBranch = (branch) => {
+  try {
+    if (!branch) {
+      localStorage.removeItem(LS_ACTIVE_BRANCH);
+      localStorage.removeItem(LS_ACTIVE_BRANCH_ID);
+      localStorage.removeItem(LS_SELECTED_BRANCH_ID);
+      return;
+    }
+    localStorage.setItem(LS_ACTIVE_BRANCH, JSON.stringify(branch));
+    localStorage.setItem(LS_ACTIVE_BRANCH_ID, String(branch.id));
+    localStorage.setItem(LS_SELECTED_BRANCH_ID, String(branch.id));
+  } catch {
+    /* storage may be blocked */
+  }
+};
+
+const pickDefault = (list) => {
+  if (!Array.isArray(list) || list.length === 0) return null;
+  return (
+    list.find((b) => String(b.status).toLowerCase() === "active") ||
+    list[0] ||
+    null
+  );
 };
 
 export const BranchProvider = ({ children }) => {
@@ -34,20 +84,6 @@ export const BranchProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  // Helper — is the logged-in user staff?
-  const isStaffUser = () => {
-    try {
-      const u = JSON.parse(localStorage.getItem("user") || "{}");
-      const role = String(u?.role || "").toLowerCase();
-      return role === "admin" || role === "administrator" || role === "manager";
-    } catch {
-      return false;
-    }
-  };
-
-  // ------------------------------------------------------------
-  // Load the list of branches from the DB
-  // ------------------------------------------------------------
   const refreshBranches = useCallback(async () => {
     setLoading(true);
     setError(null);
@@ -78,97 +114,83 @@ export const BranchProvider = ({ children }) => {
     }
   }, []);
 
-  // ------------------------------------------------------------
-  // Switch active branch (staff only)
-  // ------------------------------------------------------------
   const switchBranch = useCallback((branch) => {
-    if (!isStaffUser()) {
-      // Non-staff can never set an active branch
-      return;
-    }
+    if (!isStaffUser()) return;
     if (!branch) {
       setActiveBranch(null);
       setActiveBranchId(null);
-      localStorage.removeItem("active_branch");
-      localStorage.removeItem("active_branch_id");
+      persistBranch(null);
       return;
     }
     setActiveBranch(branch);
     setActiveBranchId(branch.id ?? null);
-    localStorage.setItem("active_branch", JSON.stringify(branch));
-    localStorage.setItem("active_branch_id", String(branch.id ?? ""));
+    persistBranch(branch);
   }, []);
 
-  // ------------------------------------------------------------
-  // On mount — validate the cached branch against the DB.
-  // If the cached branch no longer exists, wipe it.
-  // Non-staff users should never have a cached branch at all.
-  // ------------------------------------------------------------
   useEffect(() => {
     let cancelled = false;
 
     const bootstrap = async () => {
-      // Wipe any branch cache for non-staff users immediately
       if (!isStaffUser()) {
         setActiveBranch(null);
         setActiveBranchId(null);
-        localStorage.removeItem("active_branch");
-        localStorage.removeItem("active_branch_id");
+        persistBranch(null);
         return;
       }
 
       let cached = null;
       try {
-        cached = JSON.parse(localStorage.getItem("active_branch") || "null");
+        cached = JSON.parse(localStorage.getItem(LS_ACTIVE_BRANCH) || "null");
       } catch {
         cached = null;
       }
+      if (
+        (!cached || !cached.id) &&
+        localStorage.getItem(LS_ACTIVE_BRANCH_ID)
+      ) {
+        cached = { id: localStorage.getItem(LS_ACTIVE_BRANCH_ID) };
+      }
 
-      if (!cached || !cached.id) return;
+      const list = await refreshBranches();
+      if (cancelled) return;
 
-      // Validate: does the cached branch still exist in the DB?
-      try {
-        const res = await fetch(
-          `${API_BASE_URL}/api/get-branch.php?id=${encodeURIComponent(cached.id)}`,
-          { headers: { Accept: "application/json" } },
+      const findById = (id) =>
+        id == null
+          ? null
+          : list.find((b) => String(b.id) === String(id)) || null;
+
+      if (cached?.id) {
+        const real = findById(cached.id);
+        if (real) {
+          setActiveBranch(real);
+          setActiveBranchId(real.id);
+          persistBranch(real);
+          return;
+        }
+        console.warn(
+          "[BranchContext] cached branch id",
+          cached.id,
+          "no longer exists — clearing",
         );
-        const text = await res.text();
-        let data = {};
-        try {
-          data = text ? JSON.parse(text) : {};
-        } catch {
-          data = {};
+        persistBranch(null);
+      }
+
+      const u = readUser();
+      if (u?.branch_id) {
+        const own = findById(u.branch_id);
+        if (own) {
+          setActiveBranch(own);
+          setActiveBranchId(own.id);
+          persistBranch(own);
+          return;
         }
+      }
 
-        const branch = data.branch || data.data?.branch || data.data || null;
-        const isReal =
-          data.status === true &&
-          branch &&
-          branch.id !== undefined &&
-          (branch.name || branch.code);
-
-        if (cancelled) return;
-
-        if (isReal) {
-          // Keep it — but refresh with the latest DB values
-          setActiveBranch(branch);
-          setActiveBranchId(branch.id);
-          localStorage.setItem("active_branch", JSON.stringify(branch));
-          localStorage.setItem("active_branch_id", String(branch.id));
-        } else {
-          // Cached branch no longer exists → clear it
-          console.warn(
-            "[BranchContext] cached branch id",
-            cached.id,
-            "no longer exists in DB — clearing",
-          );
-          setActiveBranch(null);
-          setActiveBranchId(null);
-          localStorage.removeItem("active_branch");
-          localStorage.removeItem("active_branch_id");
-        }
-      } catch (e) {
-        console.error("[BranchContext] cached branch validation failed:", e);
+      const first = pickDefault(list);
+      if (first) {
+        setActiveBranch(first);
+        setActiveBranchId(first.id);
+        persistBranch(first);
       }
     };
 
@@ -176,28 +198,27 @@ export const BranchProvider = ({ children }) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [refreshBranches]);
 
-  // ------------------------------------------------------------
-  // Whenever the list of branches is loaded (e.g. after admin edits),
-  // make sure the active branch still exists. If not, clear it.
-  // ------------------------------------------------------------
   useEffect(() => {
-    if (!activeBranchId) return;
+    if (!isStaffUser()) return;
     if (branches.length === 0) return;
+    if (!activeBranchId) return;
+
     const stillExists = branches.some(
       (b) => String(b.id) === String(activeBranchId),
     );
-    if (!stillExists && isStaffUser()) {
-      console.warn(
-        "[BranchContext] active branch id",
-        activeBranchId,
-        "was removed — clearing",
-      );
+    if (stillExists) return;
+
+    const replacement = pickDefault(branches);
+    if (replacement) {
+      setActiveBranch(replacement);
+      setActiveBranchId(replacement.id);
+      persistBranch(replacement);
+    } else {
       setActiveBranch(null);
       setActiveBranchId(null);
-      localStorage.removeItem("active_branch");
-      localStorage.removeItem("active_branch_id");
+      persistBranch(null);
     }
   }, [branches, activeBranchId]);
 

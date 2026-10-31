@@ -13,6 +13,62 @@ import { apiFetch } from "../../utils/api";
 
 const API_BASE_URL = "https://baleeg.onrender.com";
 
+/* ------------------------------------------------------------------ */
+/*  Safe fetch wrapper — never throws, always returns { ok, data, err } */
+/* ------------------------------------------------------------------ */
+async function safeApiFetch(path, options = {}) {
+  const url = `${API_BASE_URL}${path}`;
+  try {
+    // Prefer the project's apiFetch so auth headers / base URL stay consistent
+    const data = await apiFetch(path, options);
+    return { ok: true, data, error: null, url };
+  } catch (err) {
+    // If apiFetch fails, try a raw fetch once (Render cold-start often
+    // returns HTML on first hit; a second call succeeds).
+    try {
+      const res = await fetch(url, {
+        ...options,
+        headers: {
+          Accept: "application/json",
+          ...(options.headers || {}),
+        },
+      });
+      if (!res.ok) {
+        return {
+          ok: false,
+          data: null,
+          error: `Server responded ${res.status} ${res.statusText}`,
+          url,
+        };
+      }
+      const text = await res.text();
+      try {
+        const parsed = JSON.parse(text);
+        return { ok: true, data: parsed, error: null, url };
+      } catch {
+        return {
+          ok: false,
+          data: null,
+          error: `Non-JSON response (likely API is down or path is wrong). First 120 chars: ${text.slice(
+            0,
+            120,
+          )}`,
+          url,
+        };
+      }
+    } catch (netErr) {
+      return {
+        ok: false,
+        data: null,
+        error:
+          netErr.message ||
+          "Network error — server unreachable (check https://baleeg.onrender.com is awake)",
+        url,
+      };
+    }
+  }
+}
+
 const Manager = () => {
   const { activeBranch, activeBranchId } = useBranch();
   const { user } = useAuth();
@@ -33,6 +89,7 @@ const Manager = () => {
   const [branchMap, setBranchMap] = useState({});
   const [branchMeta, setBranchMeta] = useState(null);
   const [error, setError] = useState(null);
+  const [lastErrorUrl, setLastErrorUrl] = useState(null);
   const lastFetchRef = useRef(0);
 
   // ---------- managers can only ever see their own branch ----------
@@ -72,6 +129,7 @@ const Manager = () => {
     }
   }, []);
 
+  /* ---------- branch metadata (non-blocking, fails silently) ---------- */
   useEffect(() => {
     if (!resolvedBranchId) {
       setBranchMeta(null);
@@ -79,15 +137,16 @@ const Manager = () => {
     }
     let cancelled = false;
     (async () => {
-      try {
-        const data = await apiFetch(
-          `/api/get-branch.php?id=${encodeURIComponent(resolvedBranchId)}`,
-        );
-        if (cancelled) return;
-        const b = data?.branch || data?.data?.branch || data?.data || null;
+      const res = await safeApiFetch(
+        `/api/get-branch.php?id=${encodeURIComponent(resolvedBranchId)}`,
+      );
+      if (cancelled) return;
+      if (res.ok) {
+        const b =
+          res.data?.branch || res.data?.data?.branch || res.data?.data || null;
         if (b) setBranchMeta(b);
-      } catch (err) {
-        console.warn("[Manager] branch metadata fetch failed:", err);
+      } else {
+        console.warn("[Manager] branch metadata fetch failed:", res.error);
       }
     })();
     return () => {
@@ -95,13 +154,14 @@ const Manager = () => {
     };
   }, [resolvedBranchId]);
 
+  /* ---------- branch list for name resolution (non-blocking) ---------- */
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      try {
-        const data = await apiFetch("/api/branches.php");
-        if (cancelled) return;
-        const list = Array.isArray(data?.branches) ? data.branches : [];
+      const res = await safeApiFetch("/api/branches.php");
+      if (cancelled) return;
+      if (res.ok) {
+        const list = Array.isArray(res.data?.branches) ? res.data.branches : [];
         const map = {};
         list.forEach((b) => {
           if (b?.id != null)
@@ -111,8 +171,8 @@ const Manager = () => {
             };
         });
         setBranchMap(map);
-      } catch (err) {
-        console.warn("[Manager] failed to load branches:", err);
+      } else {
+        console.warn("[Manager] failed to load branches:", res.error);
       }
     })();
     return () => {
@@ -153,9 +213,9 @@ const Manager = () => {
     user?.branch_code ||
     (resolvedBranchId ? `ID #${resolvedBranchId}` : "—");
 
+  /* -------------------- fetch managers -------------------- */
   const fetchManagers = useCallback(
     async ({ silent = false } = {}) => {
-      // 🔒 Managers can never widen scope, even if state gets stale
       const canSeeAll = isAdmin && filterBranch === "all";
 
       if (!canSeeAll && resolvedBranchId === null) {
@@ -169,13 +229,26 @@ const Manager = () => {
       if (silent) setRefreshing(true);
       else setLoading(true);
       setError(null);
+      setLastErrorUrl(null);
 
       try {
         const path = canSeeAll
           ? "/api/members.php?all=1&role=manager"
-          : `/api/members.php?branch_id=${encodeURIComponent(resolvedBranchId)}&role=manager`;
+          : `/api/members.php?branch_id=${encodeURIComponent(
+              resolvedBranchId,
+            )}&role=manager`;
 
-        const data = await apiFetch(path);
+        const res = await safeApiFetch(path);
+
+        if (!res.ok) {
+          // Non-fatal: show banner, keep whatever we had, don't clear the list
+          setError(res.error);
+          setLastErrorUrl(res.url);
+          if (!silent) toast.error("Could not load managers — retrying later");
+          return false;
+        }
+
+        const data = res.data;
         const list = Array.isArray(data?.members) ? data.members : [];
 
         const mapped = list.map((m) => ({
@@ -199,7 +272,6 @@ const Manager = () => {
       } catch (e) {
         setError(e.message || "Failed to load managers");
         if (!silent) toast.error(e.message || "Failed to load managers");
-        setManagers([]);
         return false;
       } finally {
         if (silent) setRefreshing(false);
@@ -223,8 +295,11 @@ const Manager = () => {
     lastFetchRef.current = 0;
     const ok = await fetchManagers({ silent: true });
     if (ok) toast.success("🔄 Managers refreshed");
+    else
+      toast.error("Still cannot reach the server — will retry on next visit");
   };
 
+  /* -------------------- actions -------------------- */
   const handleDemote = async (manager) => {
     const isSelf = currentUser && Number(manager.id) === Number(currentUser.id);
     const msg = isSelf
@@ -233,7 +308,7 @@ const Manager = () => {
     if (!window.confirm(msg)) return;
     setUpdatingId(manager.id);
     try {
-      await apiFetch(`/api/members.php/${manager.id}`, {
+      const res = await safeApiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -245,6 +320,7 @@ const Manager = () => {
           role: "member",
         }),
       });
+      if (!res.ok) throw new Error(res.error);
       setManagers((prev) => prev.filter((m) => m.id !== manager.id));
       toast.success(`✅ ${manager.name} is now a Member`);
       if (isSelf)
@@ -263,7 +339,7 @@ const Manager = () => {
     if (!window.confirm(`Suspend ${manager.name}'s account?`)) return;
     setUpdatingId(manager.id);
     try {
-      await apiFetch(`/api/members.php/${manager.id}`, {
+      const res = await safeApiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -275,6 +351,7 @@ const Manager = () => {
           role: "manager",
         }),
       });
+      if (!res.ok) throw new Error(res.error);
       setManagers((prev) =>
         prev.map((m) =>
           m.id === manager.id ? { ...m, status: "suspended" } : m,
@@ -291,7 +368,7 @@ const Manager = () => {
   const handleReactivate = async (manager) => {
     setUpdatingId(manager.id);
     try {
-      await apiFetch(`/api/members.php/${manager.id}`, {
+      const res = await safeApiFetch(`/api/members.php/${manager.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -303,6 +380,7 @@ const Manager = () => {
           role: "manager",
         }),
       });
+      if (!res.ok) throw new Error(res.error);
       setManagers((prev) =>
         prev.map((m) => (m.id === manager.id ? { ...m, status: "active" } : m)),
       );
@@ -323,9 +401,10 @@ const Manager = () => {
       return;
     setUpdatingId(manager.id);
     try {
-      await apiFetch(`/api/members.php/${manager.id}`, {
+      const res = await safeApiFetch(`/api/members.php/${manager.id}`, {
         method: "DELETE",
       });
+      if (!res.ok) throw new Error(res.error);
       setManagers((prev) => prev.filter((m) => m.id !== manager.id));
       toast.success(`🗑️ ${manager.name} deleted`);
     } catch (err) {
@@ -434,11 +513,41 @@ const Manager = () => {
         .mgr-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); border: 1px dashed var(--border); border-radius: 12px; }
         .mgr-empty-icon { font-size: 48px; margin-bottom: 8px; }
         .mgr-alert { padding: 12px 16px; border-radius: 10px; margin-bottom: 16px; font-size: 13px; background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.4); color: var(--debit); }
+        .mgr-alert code { background: rgba(0,0,0,0.25); padding: 2px 6px; border-radius: 4px; font-size: 11px; word-break: break-all; }
+        .mgr-alert-actions { margin-top: 8px; display: flex; gap: 8px; flex-wrap: wrap; }
+        .mgr-retry-btn { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--debit); background: transparent; color: var(--debit); cursor: pointer; font-size: 12px; font-weight: 600; }
+        .mgr-retry-btn:hover { background: var(--rejected-bg); }
       `}</style>
 
       {error && (
         <div className="mgr-alert">
           <strong>⚠️ Could not load managers.</strong> {error}
+          {lastErrorUrl && (
+            <div style={{ marginTop: 6 }}>
+              Endpoint: <code>{lastErrorUrl}</code>
+            </div>
+          )}
+          <div className="mgr-alert-actions">
+            <button
+              className="mgr-retry-btn"
+              onClick={handleRefresh}
+              disabled={refreshing}
+            >
+              🔄 Retry now
+            </button>
+            <span style={{ fontSize: 12, color: "var(--text-muted)" }}>
+              Tip: the API host (Render free tier) may be asleep. Open{" "}
+              <a
+                href={`${API_BASE_URL}/api/branches.php`}
+                target="_blank"
+                rel="noreferrer"
+                style={{ color: "var(--info)" }}
+              >
+                {API_BASE_URL}/api/branches.php
+              </a>{" "}
+              in a new tab to wake it, then retry.
+            </span>
+          </div>
         </div>
       )}
 
@@ -594,13 +703,15 @@ const Manager = () => {
         <div className="mgr-empty">
           <div className="mgr-empty-icon">👔</div>
           <p>
-            {managers.length === 0
-              ? `No managers found in ${
-                  filterBranch === "all" && isAdmin
-                    ? "any branch"
-                    : bannerBranchName || "this branch"
-                }. Promote a member to Manager to see them here.`
-              : "No managers match your search."}
+            {error
+              ? "Could not load managers from the server. Use the Retry button above."
+              : managers.length === 0
+                ? `No managers found in ${
+                    filterBranch === "all" && isAdmin
+                      ? "any branch"
+                      : bannerBranchName || "this branch"
+                  }. Promote a member to Manager to see them here.`
+                : "No managers match your search."}
           </p>
         </div>
       ) : (

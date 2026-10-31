@@ -1,39 +1,22 @@
-// src/components/admin/Settings.jsx
-import React, {
-  useState,
-  useEffect,
-  useCallback,
-  useMemo,
-  useRef,
-} from "react";
+import React, { useState, useEffect, useMemo, useRef } from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 import { usePermission } from "../../context/PermissionsContext";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
-// ============================================================
-// PHONE VALIDATION — STRICTLY exactly 11 digits
-// ============================================================
-const validatePhone = (
-  phone,
-  { required = false, label = "Phone number" } = {},
-) => {
+const validatePhone = (phone, { required = false, label = "Phone number" } = {}) => {
   const value = String(phone || "").trim();
   if (!value) return required ? `${label} is required` : "";
-
   const digitsOnly = value.replace(/[\s\-()]/g, "");
-  if (!/^\d+$/.test(digitsOnly))
-    return `${label} must contain only digits (0-9)`;
-  if (digitsOnly.length !== 11)
-    return `${label} must be exactly 11 digits (you entered ${digitsOnly.length})`;
+  if (!/^\d+$/.test(digitsOnly)) return `${label} must contain only digits (0-9)`;
+  if (digitsOnly.length !== 11) return `${label} must be exactly 11 digits (you entered ${digitsOnly.length})`;
   return "";
 };
 
-// ============================================================
-// ITEMS (savings plan / durations / method) helpers
-// ============================================================
 const SAVINGS_METHODS = ["cash", "item", "both"];
 const DURATION_OPTIONS = ["6 months", "1 year"];
 const PLAN_OPTIONS = ["Daily", "Weekly", "Monthly", "Random"];
@@ -47,20 +30,28 @@ const DEFAULT_ITEMS = {
   savings_methods: "both",
 };
 
+const DEFAULTS = {
+  general: { shop_name: "", shop_email: "", shop_phone: "", shop_address: "", currency: "NGN", timezone: "Africa/Lagos", date_format: "DD/MM/YYYY" },
+  contribution: { daily_limit: 100000, min_deposit: 500, max_deposit: 50000, allow_multiple_deposits: true, max_daily_deposits: 3, contribution_frequency: "daily", default_contribution_amount: 5000, enable_auto_contribution: false, auto_contribution_time: "09:00" },
+  commission: { enable_commission: true, commission_type: "percentage", commission_rate: 5, commission_fixed_amount: 500, min_commission_amount: 100, max_commission_amount: 10000, commission_period: "daily", apply_commission_on: "deposit", commission_account: "admin", enable_tiered_commission: false, tiers: [], enable_referral_commission: false, referral_commission_rate: 2, enable_loyalty_commission: false, loyalty_commission_rate: 1 },
+  payment: { payment_percentage: 80, allow_partial_payment: true, max_payment_count: 2, enable_refunds: true, require_admin_approval: true },
+  discount: { enable_discounts: true, discount_type: "percentage", default_discount_percentage: 10, default_discount_fixed: 1000, max_discount_percentage: 50, max_discount_amount: 10000, require_admin_approval: false, loyalty_discount_enabled: true, loyalty_discount_percentage: 5, bulk_discount_enabled: true, bulk_discount_min_qty: 10, bulk_discount_percentage: 15, seasonal_discount_enabled: false, seasonal_discount_percentage: 20, seasonal_start_date: "", seasonal_end_date: "" },
+  security: { two_factor_auth: false, session_timeout: 30, max_login_attempts: 5, password_expiry_days: 90, require_strong_password: true },
+  suspension: { auto_suspend_inactive: false, inactive_days: 30, suspend_on_negative_balance: true, negative_balance_threshold: 5000, require_admin_approval_for_reactivation: true, send_notification_on_suspension: true, notify_admin_on_suspension: true },
+  loan: { min_membership_days: 180, max_borrow_percentage: 50, interest_rate: 5, max_duration_months: 6, min_loan_amount: 100, max_loan_amount: 1000000, enable_loan_requests: true, require_admin_approval: true, auto_approve_small_loans: false, small_loan_threshold: 5000, late_payment_penalty: 10, grace_period_days: 7, max_loans_per_member: 3, loan_cooldown_days: 30 },
+  items: DEFAULT_ITEMS,
+};
+
+const isPlainObject = (v) => v && typeof v === "object" && !Array.isArray(v);
+
 const normalizeItems = (raw) => {
-  const r = raw && typeof raw === "object" ? raw : {};
+  const r = isPlainObject(raw) ? raw : {};
   return {
     ...DEFAULT_ITEMS,
     ...r,
-    durations: Array.isArray(r.durations)
-      ? r.durations
-      : DEFAULT_ITEMS.durations,
-    savings_plans: Array.isArray(r.savings_plans)
-      ? r.savings_plans
-      : DEFAULT_ITEMS.savings_plans,
-    savings_methods: SAVINGS_METHODS.includes(r.savings_methods)
-      ? r.savings_methods
-      : "both",
+    durations: Array.isArray(r.durations) ? r.durations : DEFAULT_ITEMS.durations,
+    savings_plans: Array.isArray(r.savings_plans) ? r.savings_plans : DEFAULT_ITEMS.savings_plans,
+    savings_methods: SAVINGS_METHODS.includes(r.savings_methods) ? r.savings_methods : "both",
   };
 };
 
@@ -78,54 +69,106 @@ const sameItems = (a, b) => {
   );
 };
 
-const readSavedBranchId = () => {
-  try {
-    return localStorage.getItem("selectedBranchId");
-  } catch {
-    return null;
-  }
+const buildSettings = (s = {}) => {
+  const out = {};
+  Object.keys(DEFAULTS).forEach((k) => {
+    out[k] = k === "items" ? normalizeItems(s.items) : { ...DEFAULTS[k], ...(isPlainObject(s[k]) ? s[k] : {}) };
+  });
+  return out;
 };
 
-// Small form helpers
+const readSavedBranchId = () => {
+  try { return localStorage.getItem("selectedBranchId"); } catch { return null; }
+};
+
+const request = async (url, options = {}) => {
+  const res = await fetch(url, options);
+  const text = await res.text();
+  let data;
+  try {
+    data = text ? JSON.parse(text) : {};
+  } catch {
+    console.error("[Settings] Non-JSON response:", text.slice(0, 300));
+    throw new Error(`Server returned non-JSON (HTTP ${res.status}). Check the PHP error log.`);
+  }
+  return { res, data };
+};
+
 const Check = ({ label, checked, onChange }) => (
   <div className="form-checkbox">
     <label style={{ display: "flex", alignItems: "center", gap: 10 }}>
-      <input
-        type="checkbox"
-        checked={!!checked}
-        onChange={(e) => onChange(e.target.checked)}
-      />
+      <input type="checkbox" checked={!!checked} onChange={(e) => onChange(e.target.checked)} />
       <span className="form-checkbox-label">{label}</span>
     </label>
   </div>
 );
 
-const NumField = ({
-  label,
-  value,
-  onChange,
-  parse = parseInt,
-  fallback = 0,
-  ...rest
-}) => (
+const NumField = ({ label, value, onChange, parse = parseInt, fallback = 0, ...rest }) => (
   <div className="form-group">
     <label className="form-label">{label}</label>
-    <input
-      type="number"
-      className="form-input"
-      value={value}
-      onChange={(e) => onChange(parse(e.target.value) || fallback)}
-      {...rest}
-    />
+    <input type="number" className="form-input" value={value}
+      onChange={(e) => { const n = parse(e.target.value); onChange(Number.isFinite(n) ? n : fallback); }}
+      {...rest} />
   </div>
 );
+
+const PhoneField = ({ label, errLabel, value, error, onValue, onError }) => {
+  const check = (v) => validatePhone(v, { required: false, label: errLabel });
+  return (
+    <div className="form-group">
+      <label className="form-label">{label} <span style={{ color: "var(--text-dim)" }}>(exactly 11 digits)</span></label>
+      <input type="tel" className={`form-input ${error ? "input-error" : ""}`} value={value}
+        onChange={(e) => { onValue(e.target.value); if (error) onError(check(e.target.value)); }}
+        onBlur={(e) => onError(check(e.target.value))} placeholder="e.g. 08012345678" maxLength={15} inputMode="numeric" />
+      {error && <div className="field-error"><span>⚠️</span> {error}</div>}
+    </div>
+  );
+};
+
+const METHOD_OPTIONS = (long) => [
+  { value: "both", title: "💵 + 📦 Both Cash & Item", desc: long ? "Members can choose between paying cash or saving for items." : "Members can choose between cash or item." },
+  { value: "cash", title: "💵 Cash Only", desc: long ? "Members of this branch can only pay cash. Item selection is hidden." : "Only cash savings. Item selection is hidden." },
+  { value: "item", title: "📦 Item Only", desc: long ? "Members of this branch can only save for items. Cash option is hidden." : "Only item savings. Cash option is hidden." },
+];
+
+const MethodRadios = ({ name, value, onChange, long }) =>
+  METHOD_OPTIONS(long).map((opt) => {
+    const selected = (value || "both") === opt.value;
+    return (
+      <label key={opt.value} className={`radio-row ${selected ? "selected" : ""}`}>
+        <input type="radio" name={name} value={opt.value} checked={selected} onChange={() => onChange(opt.value)} />
+        <div className="radio-row-body">
+          <div className="radio-row-title">{opt.title}</div>
+          <div className="radio-row-desc">{opt.desc}</div>
+        </div>
+      </label>
+    );
+  });
+
+const TABS = [
+  ["general", "⚙️ General"],
+  ["loan", "💰 Loan"],
+  ["contribution", "💰 Contribution"],
+  ["commission", "💸 Commission"],
+  ["payment", "💳 Payment"],
+  ["discount", "🏷️ Discount"],
+  ["security", "🔒 Security"],
+  ["suspension", "🚫 Suspension"],
+  ["items", "🧾 Items"],
+];
+
+const EMPTY_BRANCH_FORM = { id: null, code: "", name: "", address: "", phone: "", email: "", manager_id: "", manager: "", status: "active", savings_methods: "both" };
+
+const isManagerRole = (m) => {
+  const r = String(m.role || "").trim().toLowerCase();
+  return r === "manager" || r === "branch_manager" || r === "branch-manager" || r === "branchmanager";
+};
 
 const AdminSettings = () => {
   const branchCtx = useBranch() || {};
   const { can } = usePermission() || {};
   const { user } = useAuth();
 
-  // Resolve the active branch from whichever shape the context exposes
   const activeBranch =
     branchCtx.activeBranch || branchCtx.selectedBranch || null;
   const activeBranchId =
@@ -136,18 +179,12 @@ const AdminSettings = () => {
     null;
   const hasBranch = activeBranchId !== null && activeBranchId !== "";
 
-  // ============================================================
-  // Role detection
-  // ============================================================
   const roleStr = String(user?.role || "")
     .trim()
     .toLowerCase();
   const isAdmin = roleStr === "admin" || roleStr === "administrator";
   const isManager = roleStr === "manager" || roleStr === "branch_manager";
 
-  // ============================================================
-  // Permission flags
-  // ============================================================
   const perm = (k) => (typeof can === "function" ? can(k) : false);
   const canViewBranches = perm("view_branches");
   const canCreateBranch = perm("create_branch");
@@ -160,139 +197,22 @@ const AdminSettings = () => {
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
 
-  const settingsReq = useRef(0); // guards against stale responses
+  const settingsReq = useRef(0);
+  const [settings, setSettings] = useState(() => buildSettings());
+  const itemsSettings = settings.items;
 
-  // General Settings
-  const emptyGeneral = {
-    shop_name: "",
-    shop_email: "",
-    shop_phone: "",
-    shop_address: "",
-    currency: "NGN",
-    timezone: "Africa/Lagos",
-    date_format: "DD/MM/YYYY",
-  };
-  const [generalSettings, setGeneralSettings] = useState(emptyGeneral);
-
-  const [contributionSettings, setContributionSettings] = useState({
-    daily_limit: 100000,
-    min_deposit: 500,
-    max_deposit: 50000,
-    allow_multiple_deposits: true,
-    max_daily_deposits: 3,
-    contribution_frequency: "daily",
-    default_contribution_amount: 5000,
-    enable_auto_contribution: false,
-    auto_contribution_time: "09:00",
-  });
-
-  const [commissionSettings, setCommissionSettings] = useState({
-    enable_commission: true,
-    commission_type: "percentage",
-    commission_rate: 5,
-    commission_fixed_amount: 500,
-    min_commission_amount: 100,
-    max_commission_amount: 10000,
-    commission_period: "daily",
-    apply_commission_on: "deposit",
-    commission_account: "admin",
-    enable_tiered_commission: false,
-    tiers: [],
-    enable_referral_commission: false,
-    referral_commission_rate: 2,
-    enable_loyalty_commission: false,
-    loyalty_commission_rate: 1,
-  });
-
-  const [paymentSettings, setPaymentSettings] = useState({
-    payment_percentage: 80,
-    allow_partial_payment: true,
-    max_payment_count: 2,
-    enable_refunds: true,
-    require_admin_approval: true,
-  });
-
-  const [discountSettings, setDiscountSettings] = useState({
-    enable_discounts: true,
-    discount_type: "percentage",
-    default_discount_percentage: 10,
-    default_discount_fixed: 1000,
-    max_discount_percentage: 50,
-    max_discount_amount: 10000,
-    require_admin_approval: false,
-    loyalty_discount_enabled: true,
-    loyalty_discount_percentage: 5,
-    bulk_discount_enabled: true,
-    bulk_discount_min_qty: 10,
-    bulk_discount_percentage: 15,
-    seasonal_discount_enabled: false,
-    seasonal_discount_percentage: 20,
-    seasonal_start_date: "",
-    seasonal_end_date: "",
-  });
-
-  const [securitySettings, setSecuritySettings] = useState({
-    two_factor_auth: false,
-    session_timeout: 30,
-    max_login_attempts: 5,
-    password_expiry_days: 90,
-    require_strong_password: true,
-  });
-
-  const [suspensionSettings, setSuspensionSettings] = useState({
-    auto_suspend_inactive: false,
-    inactive_days: 30,
-    suspend_on_negative_balance: true,
-    negative_balance_threshold: 5000,
-    require_admin_approval_for_reactivation: true,
-    send_notification_on_suspension: true,
-    notify_admin_on_suspension: true,
-  });
-
-  const [loanSettings, setLoanSettings] = useState({
-    min_membership_days: 180,
-    interest_rate: 5,
-    max_duration_months: 6,
-    enable_loan_requests: true,
-    require_admin_approval: true,
-    auto_approve_small_loans: false,
-    small_loan_threshold: 5000,
-    late_payment_penalty: 10,
-    grace_period_days: 7,
-    max_loans_per_member: 3,
-    loan_cooldown_days: 30,
-  });
-
-  // Items settings (durations, savings plans, savings method, rules)
-  const [itemsSettings, setItemsSettings] = useState(DEFAULT_ITEMS);
-
-  // Data from database
   const [members, setMembers] = useState([]);
   const [suspendedAccounts, setSuspendedAccounts] = useState([]);
-  const [transactions, setTransactions] = useState([]); // eslint-disable-line no-unused-vars
   const [allManagers, setAllManagers] = useState([]);
 
-  // Branches
   const [branches, setBranches] = useState([]);
   const [branchesLoading, setBranchesLoading] = useState(false);
   const [branchesSaving, setBranchesSaving] = useState(false);
   const [showBranchModal, setShowBranchModal] = useState(false);
   const [editingBranch, setEditingBranch] = useState(false);
-  const emptyBranchForm = {
-    id: null,
-    code: "",
-    name: "",
-    address: "",
-    phone: "",
-    email: "",
-    manager_id: "",
-    manager: "",
-    status: "active",
-    savings_methods: "both",
-  };
-  const [branchForm, setBranchForm] = useState(emptyBranchForm);
-  // Full "items" object of the branch being edited (so we never clobber its plans)
+  const [branchForm, setBranchForm] = useState(EMPTY_BRANCH_FORM);
   const [branchFormItems, setBranchFormItems] = useState(null);
 
   const [showSuspendModal, setShowSuspendModal] = useState(false);
@@ -305,9 +225,6 @@ const AdminSettings = () => {
   const [generalPhoneError, setGeneralPhoneError] = useState("");
   const [branchPhoneError, setBranchPhoneError] = useState("");
 
-  // ============================================================
-  // Branch ownership
-  // ============================================================
   const myBranchId =
     user?.branch_id ?? user?.branchId ?? activeBranchId ?? null;
 
@@ -321,66 +238,225 @@ const AdminSettings = () => {
 
   const visibleBranches = useMemo(() => {
     if (isAdmin) return branches;
-    if (isManager && myBranchId) {
+    if (isManager && myBranchId)
       return branches.filter((b) => String(b.id) === String(myBranchId));
-    }
     return [];
   }, [branches, isAdmin, isManager, myBranchId]);
-
-  const isManagerRole = (m) => {
-    const r = String(m.role || "")
-      .trim()
-      .toLowerCase();
-    return (
-      r === "manager" ||
-      r === "branch_manager" ||
-      r === "branch-manager" ||
-      r === "branchmanager"
-    );
-  };
 
   const managers = useMemo(() => {
     const source = isAdmin ? allManagers : members;
     return source.filter(isManagerRole);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [allManagers, members, isAdmin]);
 
-  // ============================================================
-  // Initial mount
-  // ============================================================
-  useEffect(() => {
-    (async () => {
-      setLoading(true);
-      try {
-        await Promise.all([
-          fetchSettings(),
-          fetchBranches(),
-          fetchMembers(),
-          fetchAllManagers(),
-        ]);
-      } catch (error) {
-        console.error("Error fetching settings data:", error);
-        toast.error("Failed to load settings");
-      } finally {
-        setLoading(false);
+  const roleHeaders = () => ({
+    "X-User-Role": user?.role || "",
+    "X-User-Branch-Id": String(myBranchId || ""),
+  });
+
+  const upd = (section, key, value) =>
+    setSettings((p) => ({ ...p, [section]: { ...p[section], [key]: value } }));
+  const setGen = (k, v) => upd("general", k, v);
+  const setItem = (k, v) => upd("items", k, v);
+  const toggleInList = (key, value, on) =>
+    setSettings((p) => {
+      const cur = p.items[key] || [];
+      const next = on
+        ? [...new Set([...cur, value])]
+        : cur.filter((x) => x !== value);
+      return { ...p, items: { ...p.items, [key]: next } };
+    });
+
+  const chk = (sec, key, label) => (
+    <Check
+      key={key}
+      label={label}
+      checked={settings[sec][key]}
+      onChange={(v) => upd(sec, key, v)}
+    />
+  );
+  const num = (sec, key, label, opts = {}) => (
+    <NumField
+      key={key}
+      label={label}
+      value={settings[sec][key]}
+      onChange={(v) => upd(sec, key, v)}
+      {...opts}
+    />
+  );
+  const sel = (sec, key, label, options) => (
+    <div className="form-group" key={key}>
+      <label className="form-label">{label}</label>
+      <select
+        className="form-select"
+        value={settings[sec][key]}
+        onChange={(e) => upd(sec, key, e.target.value)}
+      >
+        {options.map(([v, l]) => (
+          <option key={v} value={v}>
+            {l}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
+  const settingsUrl = (bid) =>
+    bid !== null && bid !== undefined && bid !== ""
+      ? `${API_BASE_URL}/api/settings.php?branch_id=${bid}`
+      : `${API_BASE_URL}/api/settings.php`;
+
+  const branchQuery = () => (hasBranch ? `?branch_id=${activeBranchId}` : "");
+
+  const fetchSettings = async (bid = activeBranchId) => {
+    if (bid === null || bid === undefined || bid === "") {
+      setSettingsLoaded(false);
+      return null;
+    }
+    const reqId = ++settingsReq.current;
+    setSettingsLoaded(false);
+    try {
+      const { data } = await request(settingsUrl(bid), {
+        cache: "no-store",
+        headers: { Accept: "application/json" },
+      });
+      if (reqId !== settingsReq.current) return null;
+      if (data.status && data.data) {
+        setSettings(buildSettings(data.data));
+        setSettingsLoaded(true);
+        return data.data;
       }
-    })();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+      toast.error(data.error || "Failed to load settings");
+    } catch (error) {
+      if (reqId === settingsReq.current) {
+        console.error("Error fetching settings:", error);
+        toast.error("Failed to load settings");
+      }
+    }
+    return null;
+  };
+
+  const fetchMembers = async () => {
+    if (!hasBranch) {
+      setMembers([]);
+      setSuspendedAccounts([]);
+      return;
+    }
+    try {
+      const { data } = await request(
+        `${API_BASE_URL}/api/members.php${branchQuery()}`,
+      );
+      if (!Array.isArray(data.members)) {
+        if (data?.error) console.warn("[Settings] members.php:", data.error);
+        return;
+      }
+      setMembers(data.members.filter((m) => m.status !== "Suspended"));
+      setSuspendedAccounts(
+        data.members
+          .filter((m) => m.status === "Suspended")
+          .map((m) => ({
+            id: m.id,
+            name: m.name,
+            email: m.email,
+            phone: m.phone || "N/A",
+            reason: m.suspension_reason || "Suspended by admin",
+            suspended_date:
+              m.suspended_date || new Date().toISOString().split("T")[0],
+            suspended_by: m.suspended_by || "Admin",
+            balance: m.balance || 0,
+            duration: m.suspension_duration || "permanent",
+            role: m.role,
+          })),
+      );
+    } catch (error) {
+      console.error("Error fetching members:", error);
+      toast.error("Failed to fetch members");
+    }
+  };
+
+  const fetchBranches = async () => {
+    setBranchesLoading(true);
+    try {
+      const { res, data } = await request(`${API_BASE_URL}/api/branches.php`, {
+        headers: { Accept: "application/json" },
+      });
+      if (!res.ok)
+        throw new Error(
+          data.error || `Failed to load branches (HTTP ${res.status})`,
+        );
+      setBranches(Array.isArray(data.branches) ? data.branches : []);
+    } catch (err) {
+      console.error("Error fetching branches:", err);
+      toast.error(err.message || "Failed to load branches");
+      setBranches([]);
+    } finally {
+      setBranchesLoading(false);
+    }
+  };
+
+  const fetchAllManagers = async () => {
+    if (!isAdmin) return;
+    try {
+      const res = await fetch(`${API_BASE_URL}/api/members.php?all=1`, {
+        headers: {
+          Accept: "application/json",
+          "X-User-Role": user?.role || "",
+        },
+      });
+      if (!res.ok) return;
+      const data = await res.json();
+      if (Array.isArray(data.members))
+        setAllManagers(data.members.filter(isManagerRole));
+    } catch (err) {
+      console.error("[Settings] fetchAllManagers error:", err);
+    }
+  };
+
+  const getBranchItems = async (branchId) => {
+    if (branchId === null || branchId === undefined || branchId === "")
+      return null;
+    try {
+      const { data } = await request(settingsUrl(branchId), {
+        headers: { Accept: "application/json" },
+        cache: "no-store",
+      });
+      if (data?.status && data?.data?.items)
+        return normalizeItems(data.data.items);
+    } catch (err) {
+      console.warn("[branches] getBranchItems failed:", err);
+    }
+    return null;
+  };
+
+  useEffect(() => {
+    fetchBranches();
+    fetchAllManagers();
   }, []);
 
-  // ============================================================
-  // Reload when the branch changes
-  // ============================================================
   useEffect(() => {
-    setGeneralSettings(emptyGeneral);
+    let alive = true;
+    setSettings(buildSettings());
     setGeneralPhoneError("");
     setSearchTerm("");
-    fetchSettings();
-    fetchMembers();
-    fetchTransactions();
-    fetchSuspendedAccounts();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [activeBranchId]);
+    setMembers([]);
+    setSuspendedAccounts([]);
+    setSettingsLoaded(false);
+
+    if (!hasBranch) {
+      setLoading(false);
+      return () => {
+        alive = false;
+      };
+    }
+
+    (async () => {
+      await Promise.all([fetchSettings(), fetchMembers()]);
+      if (alive) setLoading(false);
+    })();
+
+    return () => {
+      alive = false;
+    };
+  }, [activeBranchId, hasBranch]);
 
   useEffect(() => {
     if (activeTab === "branches" && !canViewBranches) setActiveTab("general");
@@ -388,17 +464,12 @@ const AdminSettings = () => {
       setActiveTab("general");
   }, [activeTab, canViewBranches, isManager, myBranchId]);
 
-  // ============================================================
-  // MANUAL REFRESH
-  // ============================================================
   const handleRefreshAll = async () => {
     setRefreshing(true);
     try {
       await Promise.all([
         fetchSettings(),
         fetchMembers(),
-        fetchTransactions(),
-        fetchSuspendedAccounts(),
         fetchBranches(),
         fetchAllManagers(),
       ]);
@@ -411,69 +482,20 @@ const AdminSettings = () => {
     }
   };
 
-  // ============================================================
-  // FETCH BRANCHES
-  // ============================================================
-  const fetchBranches = useCallback(async () => {
-    setBranchesLoading(true);
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/branches.php`, {
-        method: "GET",
-        headers: { Accept: "application/json" },
-      });
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        console.error("[branches] Non-JSON response:", text);
-        throw new Error(
-          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
-        );
-      }
-      if (!res.ok) {
-        throw new Error(
-          data.error || `Failed to load branches (HTTP ${res.status})`,
-        );
-      }
-      setBranches(Array.isArray(data.branches) ? data.branches : []);
-    } catch (err) {
-      console.error("Error fetching branches:", err);
-      toast.error(err.message || "Failed to load branches");
-      setBranches([]);
-    } finally {
-      setBranchesLoading(false);
-    }
-  }, []);
-
-  // ============================================================
-  // Load ANY branch's items settings (used by the branch modal)
-  // ============================================================
-  const getBranchItems = async (branchId) => {
-    try {
-      const res = await fetch(
-        `${API_BASE_URL}/api/settings.php?branch_id=${branchId}`,
-        { headers: { Accept: "application/json" }, cache: "no-store" },
-      );
-      const data = await res.json();
-      if (data?.status && data?.data?.items) {
-        return normalizeItems(data.data.items);
-      }
-    } catch (err) {
-      console.warn("[branches] getBranchItems failed:", err);
-    }
-    return null;
+  const resetBranchModal = () => {
+    setShowBranchModal(false);
+    setBranchForm(EMPTY_BRANCH_FORM);
+    setBranchFormItems(null);
+    setBranchPhoneError("");
+    setEditingBranch(false);
   };
 
-  // ============================================================
-  // BRANCH MODAL HANDLERS
-  // ============================================================
   const openCreateBranch = () => {
     if (!isAdmin) {
       toast.error("Only admins can create branches");
       return;
     }
-    setBranchForm(emptyBranchForm);
+    setBranchForm(EMPTY_BRANCH_FORM);
     setBranchFormItems(null);
     setBranchPhoneError("");
     setEditingBranch(false);
@@ -485,28 +507,23 @@ const AdminSettings = () => {
       toast.error("You can only edit your own branch");
       return;
     }
-
     let matchedManager = null;
-    if (b.manager_id) {
+    if (b.manager_id)
       matchedManager = managers.find(
         (m) => String(m.id) === String(b.manager_id),
       );
-    }
     if (!matchedManager && b.manager) {
       const target = b.manager.trim().toLowerCase();
       matchedManager = managers.find(
         (m) => (m.name || "").trim().toLowerCase() === target,
       );
     }
-
-    // Pull this branch's REAL items settings from the server
     const items = await getBranchItems(b.id);
     const branchSavingsMethods =
       items?.savings_methods ||
       (SAVINGS_METHODS.includes(b.savings_methods)
         ? b.savings_methods
         : "both");
-
     setBranchFormItems(items);
     setBranchForm({
       id: b.id,
@@ -527,16 +544,9 @@ const AdminSettings = () => {
 
   const closeBranchModal = () => {
     if (branchesSaving) return;
-    setShowBranchModal(false);
-    setBranchForm(emptyBranchForm);
-    setBranchFormItems(null);
-    setBranchPhoneError("");
-    setEditingBranch(false);
+    resetBranchModal();
   };
 
-  // ============================================================
-  // COPY REGISTRATION LINK
-  // ============================================================
   const fallbackCopy = (link, branch) => {
     try {
       const ta = document.createElement("textarea");
@@ -547,11 +557,9 @@ const AdminSettings = () => {
       ta.select();
       const ok = document.execCommand("copy");
       document.body.removeChild(ta);
-      if (ok) {
+      if (ok)
         toast.success(`📋 Link copied for ${branch.name}`, { duration: 4000 });
-      } else {
-        window.prompt("Copy this registration link:", link);
-      }
+      else window.prompt("Copy this registration link:", link);
     } catch {
       window.prompt("Copy this registration link:", link);
     }
@@ -567,7 +575,6 @@ const AdminSettings = () => {
       return;
     }
     const link = `${window.location.origin}/register-member?branch=${branch.id}`;
-
     if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard
         .writeText(link)
@@ -577,16 +584,50 @@ const AdminSettings = () => {
           }),
         )
         .catch(() => fallbackCopy(link, branch));
-    } else {
-      fallbackCopy(link, branch);
+    } else fallbackCopy(link, branch);
+  };
+
+  const saveBranchSavingsMethod = async (targetBranchId) => {
+    const formValue = SAVINGS_METHODS.includes(branchForm.savings_methods)
+      ? branchForm.savings_methods
+      : "both";
+    const isActiveTarget = String(targetBranchId) === String(activeBranchId);
+    let baseItems;
+    if (isActiveTarget) baseItems = itemsSettings;
+    else if (editingBranch)
+      baseItems =
+        branchFormItems ||
+        (await getBranchItems(targetBranchId)) ||
+        DEFAULT_ITEMS;
+    else baseItems = DEFAULT_ITEMS;
+    const itemsToSave = {
+      ...normalizeItems(baseItems),
+      savings_methods: formValue,
+    };
+    try {
+      const { res, data } = await request(settingsUrl(targetBranchId), {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...roleHeaders() },
+        body: JSON.stringify({ items: itemsToSave }),
+      });
+      if (!res.ok || !data?.status) {
+        console.error(
+          "[branches] savings_methods save failed:",
+          res.status,
+          data,
+        );
+        toast.error(
+          data?.error ||
+            "Branch saved, but the savings method could not be stored.",
+          { duration: 7000 },
+        );
+      } else if (isActiveTarget) setItem("savings_methods", formValue);
+    } catch (err) {
+      console.error("[branches] savings_methods network error:", err);
+      toast.error("Branch saved but the savings method request failed.");
     }
   };
 
-  // ============================================================
-  // SAVE BRANCH
-  // Persists the branch AND its savings method, merging with that
-  // branch's own items so its plans/durations are never overwritten.
-  // ============================================================
   const handleSaveBranch = async (e) => {
     e.preventDefault();
     if (!branchForm.name.trim()) {
@@ -597,7 +638,6 @@ const AdminSettings = () => {
       toast.error("Branch code is required");
       return;
     }
-
     const phoneErr = validatePhone(branchForm.phone, {
       required: false,
       label: "Branch phone number",
@@ -615,14 +655,12 @@ const AdminSettings = () => {
         isAdmin && branchForm.manager_id
           ? managers.find((m) => String(m.id) === String(branchForm.manager_id))
           : null;
-
       const basePayload = {
         name: branchForm.name.trim(),
         address: branchForm.address.trim(),
         phone: branchForm.phone.trim(),
         email: branchForm.email.trim(),
       };
-
       const payload = isAdmin
         ? {
             ...basePayload,
@@ -631,112 +669,30 @@ const AdminSettings = () => {
             manager: selectedManager ? selectedManager.name : "",
           }
         : basePayload;
-
       let url = `${API_BASE_URL}/api/branches.php`;
       let method = "POST";
-
       if (editingBranch) {
         method = "PUT";
         payload.id = branchForm.id;
         if (isAdmin) payload.status = branchForm.status;
         url = `${API_BASE_URL}/api/branches.php/${branchForm.id}`;
       }
-
-      const res = await fetch(url, {
+      const { res, data } = await request(url, {
         method,
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Role": user?.role || "",
-          "X-User-Branch-Id": String(myBranchId || ""),
-        },
+        headers: { "Content-Type": "application/json", ...roleHeaders() },
         body: JSON.stringify(payload),
       });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        console.error("[branches] Non-JSON save response:", text);
-        throw new Error(
-          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
-        );
-      }
       if (!res.ok) throw new Error(data.error || "Failed to save branch");
 
       const targetBranchId = data?.branch?.id ?? branchForm.id ?? null;
-      const formValue = SAVINGS_METHODS.includes(branchForm.savings_methods)
-        ? branchForm.savings_methods
-        : "both";
-
-      // Save the savings method into THIS branch's items settings
-      if (targetBranchId) {
-        try {
-          const isActiveTarget =
-            String(targetBranchId) === String(activeBranchId);
-
-          let baseItems;
-          if (isActiveTarget) baseItems = itemsSettings;
-          else if (editingBranch)
-            baseItems =
-              branchFormItems ||
-              (await getBranchItems(targetBranchId)) ||
-              DEFAULT_ITEMS;
-          else baseItems = DEFAULT_ITEMS;
-
-          const itemsToSave = {
-            ...normalizeItems(baseItems),
-            savings_methods: formValue,
-          };
-
-          const settingsRes = await fetch(
-            `${API_BASE_URL}/api/settings.php?branch_id=${targetBranchId}`,
-            {
-              method: "POST",
-              headers: {
-                "Content-Type": "application/json",
-                "X-User-Role": user?.role || "",
-                "X-User-Branch-Id": String(myBranchId || ""),
-              },
-              body: JSON.stringify({ items: itemsToSave }),
-            },
-          );
-          const settingsText = await settingsRes.text();
-          let settingsData = null;
-          try {
-            settingsData = settingsText ? JSON.parse(settingsText) : null;
-          } catch {}
-
-          if (!settingsRes.ok || !settingsData?.status) {
-            console.error(
-              "[branches] savings_methods save failed:",
-              settingsRes.status,
-              settingsText,
-            );
-            toast.error(
-              settingsData?.error ||
-                "Branch saved, but the savings method could not be stored.",
-              { duration: 7000 },
-            );
-          } else if (isActiveTarget) {
-            setItemsSettings(normalizeItems(settingsData.items || itemsToSave));
-          }
-        } catch (err) {
-          console.error("[branches] savings_methods network error:", err);
-          toast.error("Branch saved but the savings method request failed.");
-        }
-      }
+      if (targetBranchId) await saveBranchSavingsMethod(targetBranchId);
 
       toast.success(editingBranch ? "✅ Branch updated" : "✅ Branch created");
-      setShowBranchModal(false);
-      setBranchForm(emptyBranchForm);
-      setBranchFormItems(null);
-      setBranchPhoneError("");
-      setEditingBranch(false);
-
+      const wasEditing = editingBranch;
+      resetBranchModal();
       await fetchBranches();
 
-      if (!editingBranch && data.branch?.id) {
+      if (!wasEditing && data.branch?.id) {
         const newLink = `${window.location.origin}/register-member?branch=${data.branch.id}`;
         setTimeout(() => {
           if (
@@ -755,9 +711,6 @@ const AdminSettings = () => {
     }
   };
 
-  // ============================================================
-  // TOGGLE STATUS
-  // ============================================================
   const handleToggleBranchStatus = async (b) => {
     if (!isAdmin) {
       toast.error("Only admins can activate/deactivate branches");
@@ -765,27 +718,16 @@ const AdminSettings = () => {
     }
     const next = b.status === "active" ? "inactive" : "active";
     if (!window.confirm(`Change "${b.name}" to ${next.toUpperCase()}?`)) return;
-
     try {
-      const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
-        method: "PUT",
-        headers: {
-          "Content-Type": "application/json",
-          "X-User-Role": user?.role || "",
-          "X-User-Branch-Id": String(myBranchId || ""),
+      const { res, data } = await request(
+        `${API_BASE_URL}/api/branches.php/${b.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json", ...roleHeaders() },
+          body: JSON.stringify({ id: b.id, status: next }),
         },
-        body: JSON.stringify({ id: b.id, status: next }),
-      });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(`Server returned non-JSON (HTTP ${res.status})`);
-      }
+      );
       if (!res.ok) throw new Error(data.error || "Failed to update status");
-
       toast.success(`Branch is now ${next}`);
       await fetchBranches();
     } catch (err) {
@@ -793,9 +735,6 @@ const AdminSettings = () => {
     }
   };
 
-  // ============================================================
-  // DELETE BRANCH
-  // ============================================================
   const handleDeleteBranch = async (b) => {
     if (!isAdmin) {
       toast.error("Only admins can delete branches");
@@ -807,28 +746,15 @@ const AdminSettings = () => {
       )
     )
       return;
-
     try {
-      const res = await fetch(`${API_BASE_URL}/api/branches.php/${b.id}`, {
-        method: "DELETE",
-        headers: {
-          Accept: "application/json",
-          "X-User-Role": user?.role || "",
-          "X-User-Branch-Id": String(myBranchId || ""),
+      const { res, data } = await request(
+        `${API_BASE_URL}/api/branches.php/${b.id}`,
+        {
+          method: "DELETE",
+          headers: { Accept: "application/json", ...roleHeaders() },
         },
-      });
-
-      const text = await res.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(
-          `Server returned non-JSON (HTTP ${res.status}). Check api/branches.php for PHP errors.`,
-        );
-      }
+      );
       if (!res.ok) throw new Error(data.error || "Failed to delete branch");
-
       toast.success("🗑️ Branch deleted");
       await fetchBranches();
     } catch (err) {
@@ -836,137 +762,6 @@ const AdminSettings = () => {
     }
   };
 
-  // ============================================================
-  // SETTINGS FETCH — branch-scoped, server is the source of truth
-  // ============================================================
-  const settingsUrl = (bid) =>
-    bid !== null && bid !== undefined && bid !== ""
-      ? `${API_BASE_URL}/api/settings.php?branch_id=${bid}`
-      : `${API_BASE_URL}/api/settings.php`;
-
-  const fetchSettings = async (bid = activeBranchId) => {
-    const reqId = ++settingsReq.current;
-    try {
-      const response = await fetch(settingsUrl(bid), {
-        cache: "no-store",
-        headers: { Accept: "application/json" },
-      });
-      const data = await response.json();
-
-      // Ignore stale responses (e.g. after switching branch quickly)
-      if (reqId !== settingsReq.current) return null;
-
-      if (data.status && data.data) {
-        const s = data.data;
-
-        setGeneralSettings({ ...emptyGeneral, ...(s.general || {}) });
-        setContributionSettings((prev) => ({
-          ...prev,
-          ...(s.contribution || {}),
-        }));
-        setCommissionSettings((prev) => ({ ...prev, ...(s.commission || {}) }));
-        setPaymentSettings((prev) => ({ ...prev, ...(s.payment || {}) }));
-        setDiscountSettings((prev) => ({ ...prev, ...(s.discount || {}) }));
-        setSecuritySettings((prev) => ({ ...prev, ...(s.security || {}) }));
-        setSuspensionSettings((prev) => ({
-          ...prev,
-          ...(s.suspension || {}),
-        }));
-        setLoanSettings((prev) => ({ ...prev, ...(s.loan || {}) }));
-
-        // items — the server value is authoritative
-        setItemsSettings(normalizeItems(s.items));
-        return s;
-      }
-    } catch (error) {
-      console.error("Error fetching settings:", error);
-    }
-    return null;
-  };
-
-  const branchQuery = (extra = "") =>
-    hasBranch
-      ? `?branch_id=${activeBranchId}${extra}`
-      : extra
-        ? `?${extra.replace(/^&/, "")}`
-        : "";
-
-  const fetchMembers = async () => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php${branchQuery()}`,
-      );
-      const data = await response.json();
-      if (data.members) {
-        setMembers(data.members.filter((m) => m.status !== "Suspended"));
-      }
-    } catch (error) {
-      console.error("Error fetching members:", error);
-      toast.error("Failed to fetch members");
-    }
-  };
-
-  const fetchTransactions = async () => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/transactions.php${branchQuery()}`,
-      );
-      const data = await response.json();
-      if (data.transactions) setTransactions(data.transactions);
-    } catch (error) {
-      console.error("Error fetching transactions:", error);
-    }
-  };
-
-  const fetchSuspendedAccounts = async () => {
-    try {
-      const response = await fetch(
-        `${API_BASE_URL}/api/members.php${branchQuery()}`,
-      );
-      const data = await response.json();
-      if (data.members) {
-        const suspended = data.members
-          .filter((m) => m.status === "Suspended")
-          .map((m) => ({
-            id: m.id,
-            name: m.name,
-            email: m.email,
-            phone: m.phone || "N/A",
-            reason: m.suspension_reason || "Suspended by admin",
-            suspended_date:
-              m.suspended_date || new Date().toISOString().split("T")[0],
-            suspended_by: m.suspended_by || "Admin",
-            balance: m.balance || 0,
-            duration: m.suspension_duration || "permanent",
-            role: m.role,
-          }));
-        setSuspendedAccounts(suspended);
-      }
-    } catch (error) {
-      console.error("Error fetching suspended accounts:", error);
-    }
-  };
-
-  const fetchAllManagers = async () => {
-    try {
-      const res = await fetch(`${API_BASE_URL}/api/members.php?all=1`, {
-        headers: {
-          Accept: "application/json",
-          "X-User-Role": user?.role || "",
-        },
-      });
-      if (!res.ok) return;
-      const data = await res.json();
-      if (!data.members) return;
-      setAllManagers(data.members.filter(isManagerRole));
-    } catch (err) {
-      console.error("[Settings] fetchAllManagers error:", err);
-    }
-  };
-
-  // ============================================================
-  // Formatting
-  // ============================================================
   const formatNaira = (amount) => {
     if (!amount && amount !== 0) return "₦0.00";
     return new Intl.NumberFormat("en-NG", {
@@ -1000,11 +795,8 @@ const AdminSettings = () => {
     return `${months} month${months !== 1 ? "s" : ""}, ${remainingDays} day${remainingDays !== 1 ? "s" : ""}`;
   };
 
-  // ============================================================
-  // SAVE SETTINGS — branch-scoped, verified against the server
-  // ============================================================
   const handleSaveSettings = async () => {
-    const phoneErr = validatePhone(generalSettings.shop_phone, {
+    const phoneErr = validatePhone(settings.general.shop_phone, {
       required: false,
       label: "Shop phone number",
     });
@@ -1016,7 +808,6 @@ const AdminSettings = () => {
     }
     setGeneralPhoneError("");
 
-    // Items validation — stop before sending an empty plan / duration list
     if ((itemsSettings.durations || []).length === 0) {
       toast.error("Enable at least one duration (Items tab)");
       setActiveTab("items");
@@ -1028,61 +819,53 @@ const AdminSettings = () => {
       return;
     }
 
+    const { min_deposit, max_deposit } = settings.contribution;
+    if (min_deposit > max_deposit) {
+      toast.error("Minimum deposit cannot be greater than maximum deposit");
+      setActiveTab("contribution");
+      return;
+    }
+
     if (!hasBranch) {
       toast.error(
         "No active branch detected — pick a branch first so settings are saved to the right one.",
       );
       return;
     }
+    if (!settingsLoaded) {
+      toast.error("Settings haven't finished loading — please refresh first.");
+      return;
+    }
 
     setSaving(true);
     try {
       const itemsToSave = normalizeItems(itemsSettings);
-
       const body = {
         branch_id: activeBranchId,
-        general: generalSettings,
-        contribution: contributionSettings,
-        commission: commissionSettings,
-        payment: paymentSettings,
-        discount: discountSettings,
-        security: securitySettings,
-        suspension: suspensionSettings,
-        loan: loanSettings,
+        ...settings,
         items: itemsToSave,
       };
-
-      const response = await fetch(settingsUrl(activeBranchId), {
+      const { res, data } = await request(settingsUrl(activeBranchId), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
       });
-
-      const text = await response.text();
-      let data;
-      try {
-        data = text ? JSON.parse(text) : {};
-      } catch {
-        throw new Error(`Server returned non-JSON: ${text.slice(0, 200)}`);
-      }
-
-      if (!(response.ok && data.status)) {
+      if (!(res.ok && data.status)) {
         toast.error(data.error || data.message || "Failed to save settings", {
           duration: 8000,
         });
         return;
       }
-
-      // Re-read from the server and compare, so a "silent" failure is visible
       let verified = true;
       try {
-        const verifyRes = await fetch(settingsUrl(activeBranchId), {
-          cache: "no-store",
-          headers: { Accept: "application/json" },
-        });
-        const verifyData = await verifyRes.json();
+        const { data: verifyData } = await request(
+          settingsUrl(activeBranchId),
+          {
+            cache: "no-store",
+            headers: { Accept: "application/json" },
+          },
+        );
         const stored = verifyData?.data?.items;
-
         if (!sameItems(stored, itemsToSave)) {
           verified = false;
           console.error("[Settings] items mismatch", {
@@ -1090,21 +873,17 @@ const AdminSettings = () => {
             stored,
           });
           toast.error(
-            "⚠️ The server did not keep your plan/duration selection. " +
-              "Check the settings table's unique index (see api/error.log).",
+            "⚠️ The server did not keep your plan/duration selection. Check the settings table's unique index (see api/error.log).",
             { duration: 9000 },
           );
         }
       } catch (err) {
         console.warn("[Settings] Verify failed:", err);
       }
-
-      if (verified) {
+      if (verified)
         toast.success(
           `Settings saved for ${activeBranch?.name || "this branch"}`,
         );
-      }
-
       await fetchSettings();
     } catch (error) {
       console.error("Error saving settings:", error);
@@ -1114,9 +893,18 @@ const AdminSettings = () => {
     }
   };
 
-  // ============================================================
-  // Suspend / Reactivate
-  // ============================================================
+  const memberPutUrl = (id) =>
+    `${API_BASE_URL}/api/members.php/${id}${hasBranch ? `?branch_id=${activeBranchId}` : ""}`;
+
+  const basePayload = (m) => ({
+    name: m.name || m.full_name,
+    email: m.email,
+    phone: m.phone === "N/A" ? "" : m.phone || "",
+    balance: m.balance || 0,
+    role: m.role || "member",
+    ...(hasBranch ? { branch_id: activeBranchId } : {}),
+  });
+
   const handleSuspendAccount = (member) => {
     setSelectedMember(member);
     setSuspensionReason("");
@@ -1124,45 +912,33 @@ const AdminSettings = () => {
     setShowSuspendModal(true);
   };
 
-  const memberPutUrl = (id) =>
-    `${API_BASE_URL}/api/members.php/${id}${hasBranch ? `?branch_id=${activeBranchId}` : ""}`;
-
   const confirmSuspend = async () => {
     if (!suspensionReason.trim()) {
       toast.error("Please provide a reason for suspension");
       return;
     }
     try {
-      const payload = {
-        name: selectedMember.name || selectedMember.full_name,
-        email: selectedMember.email,
-        phone: selectedMember.phone || "",
-        balance: selectedMember.balance || 0,
-        role: selectedMember.role || "member",
-        status: "Suspended",
-        suspension_reason: suspensionReason,
-        suspension_duration: suspensionDuration,
-        suspended_date: new Date().toISOString().split("T")[0],
-        suspended_by: "Admin",
-        ...(hasBranch ? { branch_id: activeBranchId } : {}),
-      };
-
-      const response = await fetch(memberPutUrl(selectedMember.id), {
+      const { res, data } = await request(memberPutUrl(selectedMember.id), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...basePayload(selectedMember),
+          status: "Suspended",
+          suspension_reason: suspensionReason,
+          suspension_duration: suspensionDuration,
+          suspended_date: new Date().toISOString().split("T")[0],
+          suspended_by: user?.name || "Admin",
+        }),
       });
-      const data = await response.json();
 
-      if (response.ok) {
+      if (res.ok) {
         toast.success(`Account for ${selectedMember.name} has been suspended!`);
         setShowSuspendModal(false);
         setSelectedMember(null);
         setSuspensionReason("");
         await fetchMembers();
-        await fetchSuspendedAccounts();
       } else {
-        toast.error(data.message || "Failed to suspend account");
+        toast.error(data.message || data.error || "Failed to suspend account");
       }
     } catch (error) {
       console.error("Error suspending account:", error);
@@ -1177,37 +953,30 @@ const AdminSettings = () => {
 
   const confirmReactivate = async () => {
     try {
-      const payload = {
-        name: selectedMember.name || selectedMember.full_name,
-        email: selectedMember.email,
-        phone: selectedMember.phone || "",
-        balance: selectedMember.balance || 0,
-        role: selectedMember.role || "member",
-        status: "Active",
-        suspension_reason: null,
-        suspension_duration: null,
-        suspended_date: null,
-        suspended_by: null,
-        ...(hasBranch ? { branch_id: activeBranchId } : {}),
-      };
-
-      const response = await fetch(memberPutUrl(selectedMember.id), {
+      const { res, data } = await request(memberPutUrl(selectedMember.id), {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          ...basePayload(selectedMember),
+          status: "Active",
+          suspension_reason: null,
+          suspension_duration: null,
+          suspended_date: null,
+          suspended_by: null,
+        }),
       });
-      const data = await response.json();
 
-      if (response.ok) {
+      if (res.ok) {
         toast.success(
           `Account for ${selectedMember.name} has been reactivated!`,
         );
         setShowReactivateModal(false);
         setSelectedMember(null);
         await fetchMembers();
-        await fetchSuspendedAccounts();
       } else {
-        toast.error(data.message || "Failed to reactivate account");
+        toast.error(
+          data.message || data.error || "Failed to reactivate account",
+        );
       }
     } catch (error) {
       console.error("Error reactivating account:", error);
@@ -1215,15 +984,17 @@ const AdminSettings = () => {
     }
   };
 
-  const filteredSuspended = suspendedAccounts.filter((account) => {
+  const matchesSearch = (a) => {
     if (!searchTerm) return true;
     const term = searchTerm.toLowerCase();
     return (
-      (account.name || "").toLowerCase().includes(term) ||
-      (account.email || "").toLowerCase().includes(term) ||
-      (account.phone || "").includes(term)
+      (a.name || "").toLowerCase().includes(term) ||
+      (a.email || "").toLowerCase().includes(term) ||
+      (a.phone || "").includes(term)
     );
-  });
+  };
+  const filteredMembers = members.filter(matchesSearch);
+  const filteredSuspended = suspendedAccounts.filter(matchesSearch);
 
   const getBranchManagerName = (b) => {
     if (b.manager) return b.manager;
@@ -1235,18 +1006,6 @@ const AdminSettings = () => {
     }
     return "—";
   };
-
-  // Generic setters
-  const setGen = (k, v) => setGeneralSettings((p) => ({ ...p, [k]: v }));
-  const setItem = (k, v) => setItemsSettings((p) => ({ ...p, [k]: v }));
-  const toggleInList = (key, value, on) =>
-    setItemsSettings((p) => {
-      const cur = p[key] || [];
-      const next = on
-        ? [...new Set([...cur, value])]
-        : cur.filter((x) => x !== value);
-      return { ...p, [key]: next };
-    });
 
   const branchLabel = activeBranch?.name || "this branch";
 
@@ -1278,41 +1037,10 @@ const AdminSettings = () => {
     );
   }
 
-  const TABS = [
-    ["general", "⚙️ General"],
-    ["loan", "💰 Loan"],
-    ["contribution", "💰 Contribution"],
-    ["commission", "💸 Commission"],
-    ["payment", "💳 Payment"],
-    ["discount", "🏷️ Discount"],
-    ["security", "🔒 Security"],
-    ["suspension", "🚫 Suspension"],
-    ["items", "🧾 Items"],
-  ];
-
-  const METHOD_OPTIONS = (long) => [
-    {
-      value: "both",
-      title: "💵 + 📦 Both Cash & Item",
-      desc: long
-        ? "Members can choose between paying cash or saving for items."
-        : "Members can choose between cash or item.",
-    },
-    {
-      value: "cash",
-      title: "💵 Cash Only",
-      desc: long
-        ? "Members of this branch can only pay cash. Item selection is hidden."
-        : "Only cash savings. Item selection is hidden.",
-    },
-    {
-      value: "item",
-      title: "📦 Item Only",
-      desc: long
-        ? "Members of this branch can only save for items. Cash option is hidden."
-        : "Only item savings. Cash option is hidden.",
-    },
-  ];
+  const loan = settings.loan;
+  const commission = settings.commission;
+  const contribution = settings.contribution;
+  const suspension = settings.suspension;
 
   return (
     <div
@@ -1324,9 +1052,7 @@ const AdminSettings = () => {
       }}
     >
       <style>{css}</style>
-
       <div className="settings-container">
-        {/* BRANCH BANNER */}
         <div
           style={{
             display: "flex",
@@ -1367,7 +1093,7 @@ const AdminSettings = () => {
                 </strong>{" "}
                 members ·{" "}
                 <strong style={{ color: "var(--info)" }}>
-                  {isAdmin ? branches.length : visibleBranches.length}
+                  {visibleBranches.length}
                 </strong>{" "}
                 branches
               </div>
@@ -1390,7 +1116,6 @@ const AdminSettings = () => {
           </span>
         </div>
 
-        {/* Header */}
         <div className="settings-header">
           <div>
             <h2 style={{ fontSize: "24px", fontWeight: "bold" }}>
@@ -1416,7 +1141,6 @@ const AdminSettings = () => {
               <span className={refreshing ? "spinning" : ""}>🔄</span>
               {refreshing ? "Refreshing…" : "Refresh"}
             </button>
-
             {canViewBranches && (
               <button
                 className="btn-save"
@@ -1439,12 +1163,16 @@ const AdminSettings = () => {
                     : "My Branch"}
               </button>
             )}
-
             {activeTab !== "branches" && (
               <button
                 className="btn-save"
                 onClick={handleSaveSettings}
-                disabled={saving}
+                disabled={saving || !settingsLoaded}
+                title={
+                  settingsLoaded
+                    ? ""
+                    : "Settings for this branch haven't loaded yet"
+                }
               >
                 {saving ? "Saving..." : "💾 Save Settings"}
               </button>
@@ -1452,7 +1180,6 @@ const AdminSettings = () => {
           </div>
         </div>
 
-        {/* Tabs */}
         <div className="tabs-container">
           {TABS.map(([id, label]) => (
             <button
@@ -1465,9 +1192,7 @@ const AdminSettings = () => {
           ))}
           {canViewBranches && (
             <button
-              className={`tab-btn tab-btn-branches ${
-                activeTab === "branches" ? "active" : ""
-              }`}
+              className={`tab-btn tab-btn-branches ${activeTab === "branches" ? "active" : ""}`}
               onClick={() => setActiveTab("branches")}
             >
               🏢 {isAdmin ? "Branches" : "My Branch"}
@@ -1478,7 +1203,6 @@ const AdminSettings = () => {
           )}
         </div>
 
-        {/* GENERAL */}
         {activeTab === "general" && (
           <div className="settings-card">
             <div className="settings-card-title">
@@ -1491,7 +1215,7 @@ const AdminSettings = () => {
                 <input
                   type="text"
                   className="form-input"
-                  value={generalSettings.shop_name}
+                  value={settings.general.shop_name}
                   onChange={(e) => setGen("shop_name", e.target.value)}
                   placeholder="Enter shop name for this branch"
                 />
@@ -1501,84 +1225,43 @@ const AdminSettings = () => {
                 <input
                   type="email"
                   className="form-input"
-                  value={generalSettings.shop_email}
+                  value={settings.general.shop_email}
                   onChange={(e) => setGen("shop_email", e.target.value)}
                 />
               </div>
-              <div className="form-group">
-                <label className="form-label">
-                  Shop Phone{" "}
-                  <span style={{ color: "var(--text-dim)" }}>
-                    (exactly 11 digits)
-                  </span>
-                </label>
-                <input
-                  type="tel"
-                  className={`form-input ${generalPhoneError ? "input-error" : ""}`}
-                  value={generalSettings.shop_phone}
-                  onChange={(e) => {
-                    setGen("shop_phone", e.target.value);
-                    if (generalPhoneError) {
-                      setGeneralPhoneError(
-                        validatePhone(e.target.value, {
-                          required: false,
-                          label: "Shop phone number",
-                        }),
-                      );
-                    }
-                  }}
-                  onBlur={(e) =>
-                    setGeneralPhoneError(
-                      validatePhone(e.target.value, {
-                        required: false,
-                        label: "Shop phone number",
-                      }),
-                    )
-                  }
-                  placeholder="e.g. 08012345678"
-                  maxLength={15}
-                  inputMode="numeric"
-                />
-                {generalPhoneError && (
-                  <div className="field-error">
-                    <span>⚠️</span> {generalPhoneError}
-                  </div>
-                )}
-              </div>
-              <div className="form-group">
-                <label className="form-label">Currency</label>
-                <select
-                  className="form-select"
-                  value={generalSettings.currency}
-                  onChange={(e) => setGen("currency", e.target.value)}
-                >
-                  <option value="NGN">NGN (₦)</option>
-                  <option value="USD">USD ($)</option>
-                  <option value="EUR">EUR (€)</option>
-                  <option value="GBP">GBP (£)</option>
-                </select>
-              </div>
+              <PhoneField
+                label="Shop Phone"
+                errLabel="Shop phone number"
+                value={settings.general.shop_phone}
+                error={generalPhoneError}
+                onValue={(v) => setGen("shop_phone", v)}
+                onError={setGeneralPhoneError}
+              />
+              {sel("general", "currency", "Currency", [
+                ["NGN", "NGN (₦)"],
+                ["USD", "USD ($)"],
+                ["EUR", "EUR (€)"],
+                ["GBP", "GBP (£)"],
+              ])}
             </div>
             <div className="form-group">
               <label className="form-label">Shop Address</label>
               <input
                 type="text"
                 className="form-input"
-                value={generalSettings.shop_address}
+                value={settings.general.shop_address}
                 onChange={(e) => setGen("shop_address", e.target.value)}
               />
             </div>
           </div>
         )}
 
-        {/* ITEMS */}
         {activeTab === "items" && (
           <div className="settings-card">
             <div className="settings-card-title">
               🧾 Item & Duration Settings for{" "}
               <span style={{ color: "var(--accent)" }}>{branchLabel}</span>
             </div>
-
             <div className="info-box">
               <p>
                 💡 These options control what members see when they pick their
@@ -1587,8 +1270,6 @@ const AdminSettings = () => {
                 changes.
               </p>
             </div>
-
-            {/* Savings method */}
             <div
               style={{
                 marginBottom: 20,
@@ -1599,31 +1280,13 @@ const AdminSettings = () => {
               <label className="form-label" style={{ marginBottom: 10 }}>
                 Savings Method Members Can Use
               </label>
-              {METHOD_OPTIONS(true).map((opt) => {
-                const selected =
-                  (itemsSettings.savings_methods || "both") === opt.value;
-                return (
-                  <label
-                    key={opt.value}
-                    className={`radio-row ${selected ? "selected" : ""}`}
-                  >
-                    <input
-                      type="radio"
-                      name="savings_methods"
-                      value={opt.value}
-                      checked={selected}
-                      onChange={() => setItem("savings_methods", opt.value)}
-                    />
-                    <div className="radio-row-body">
-                      <div className="radio-row-title">{opt.title}</div>
-                      <div className="radio-row-desc">{opt.desc}</div>
-                    </div>
-                  </label>
-                );
-              })}
+              <MethodRadios
+                long
+                name="savings_methods"
+                value={itemsSettings.savings_methods}
+                onChange={(v) => setItem("savings_methods", v)}
+              />
             </div>
-
-            {/* Durations */}
             <div style={{ marginBottom: 20 }}>
               <label className="form-label" style={{ marginBottom: 10 }}>
                 Allowed Durations
@@ -1644,8 +1307,6 @@ const AdminSettings = () => {
                 </p>
               )}
             </div>
-
-            {/* Savings plans */}
             <div
               style={{
                 marginBottom: 20,
@@ -1672,50 +1333,44 @@ const AdminSettings = () => {
                 </p>
               )}
             </div>
-
-            {/* Item rules */}
             <div
               style={{ paddingTop: 16, borderTop: "1px solid var(--border)" }}
             >
               <label className="form-label" style={{ marginBottom: 10 }}>
                 Item Selection Rules
               </label>
-              <Check
-                label="Allow members to select multiple items"
-                checked={itemsSettings.allow_multi_item}
-                onChange={(v) => setItem("allow_multi_item", v)}
-              />
-              <Check
-                label="Require all selected items to have the same duration"
-                checked={itemsSettings.require_duration_match}
-                onChange={(v) => setItem("require_duration_match", v)}
-              />
-
-              <div className="form-group" style={{ marginTop: 12 }}>
-                <label className="form-label">
-                  Money Check — how should the total contribution be validated
-                  against selected items?
-                </label>
-                <select
-                  className="form-select"
-                  value={itemsSettings.money_check_mode || "strict"}
-                  onChange={(e) => setItem("money_check_mode", e.target.value)}
-                >
-                  <option value="strict">
-                    Strict — total must equal the sum of item values
-                  </option>
-                  <option value="min">
-                    Minimum — total must be at least the sum of item values
-                  </option>
-                  <option value="off">
-                    Disabled — no validation between total and items
-                  </option>
-                </select>
+              {chk(
+                "items",
+                "allow_multi_item",
+                "Allow members to select multiple items",
+              )}
+              {chk(
+                "items",
+                "require_duration_match",
+                "Require all selected items to have the same duration",
+              )}
+              <div style={{ marginTop: 12 }}>
+                {sel(
+                  "items",
+                  "money_check_mode",
+                  "Money Check — how should the total contribution be validated against selected items?",
+                  [
+                    [
+                      "strict",
+                      "Strict — total must equal the sum of item values",
+                    ],
+                    [
+                      "min",
+                      "Minimum — total must be at least the sum of item values",
+                    ],
+                    ["off", "Disabled — no validation between total and items"],
+                  ],
+                )}
                 <p
                   style={{
                     fontSize: 11,
                     color: "var(--text-dim)",
-                    marginTop: 4,
+                    marginTop: -8,
                   }}
                 >
                   This controls what members see on their profile form when they
@@ -1726,7 +1381,6 @@ const AdminSettings = () => {
           </div>
         )}
 
-        {/* BRANCHES TAB */}
         {activeTab === "branches" && canViewBranches && (
           <div>
             <div
@@ -1771,7 +1425,6 @@ const AdminSettings = () => {
                 )}
               </div>
             </div>
-
             {isAdmin && (
               <div
                 style={{
@@ -1801,7 +1454,6 @@ const AdminSettings = () => {
                 into that branch.
               </div>
             )}
-
             {isAdmin && (
               <div className="branch-summary">
                 <div className="branch-summary-card">
@@ -1822,7 +1474,6 @@ const AdminSettings = () => {
                 </div>
               </div>
             )}
-
             <div
               className="settings-card"
               style={{ padding: 0, overflow: "hidden" }}
@@ -1911,11 +1562,7 @@ const AdminSettings = () => {
                           </td>
                           <td>
                             <span
-                              className={`badge ${
-                                b.status === "active"
-                                  ? "badge-branch-active"
-                                  : "badge-branch-inactive"
-                              }`}
+                              className={`badge ${b.status === "active" ? "badge-branch-active" : "badge-branch-inactive"}`}
                             >
                               {b.status}
                             </span>
@@ -1962,11 +1609,7 @@ const AdminSettings = () => {
                               )}
                               {canToggleBranch && isAdmin && (
                                 <button
-                                  className={`btn-branch-action ${
-                                    b.status === "active"
-                                      ? "warning"
-                                      : "success"
-                                  }`}
+                                  className={`btn-branch-action ${b.status === "active" ? "warning" : "success"}`}
                                   onClick={() => handleToggleBranchStatus(b)}
                                   title={
                                     b.status === "active"
@@ -2000,19 +1643,19 @@ const AdminSettings = () => {
           </div>
         )}
 
-        {/* LOAN */}
         {activeTab === "loan" && (
           <div className="settings-card">
             <div className="settings-card-title">💰 Loan Settings</div>
-
             <div className="info-box">
               <p>
                 💡 Configure loan eligibility criteria, interest rates, and
                 borrowing limits. Members can borrow up to{" "}
-                <strong>50% of their total savings</strong>.
+                <strong>
+                  {loan.max_borrow_percentage}% of their total savings
+                </strong>
+                .
               </p>
             </div>
-
             <div
               style={{
                 marginBottom: "20px",
@@ -2029,7 +1672,6 @@ const AdminSettings = () => {
               >
                 📋 Eligibility Requirements
               </h4>
-
               <div className="form-group">
                 <label className="form-label">
                   Minimum Membership Days for Loan Eligibility
@@ -2039,12 +1681,13 @@ const AdminSettings = () => {
                     <input
                       type="number"
                       className="form-input"
-                      value={loanSettings.min_membership_days}
+                      value={loan.min_membership_days}
                       onChange={(e) =>
-                        setLoanSettings({
-                          ...loanSettings,
-                          min_membership_days: parseInt(e.target.value) || 0,
-                        })
+                        upd(
+                          "loan",
+                          "min_membership_days",
+                          parseInt(e.target.value) || 0,
+                        )
                       }
                       min="0"
                     />
@@ -2053,58 +1696,27 @@ const AdminSettings = () => {
                     <input
                       type="text"
                       className="form-input"
-                      value={getDaysToMonthsDisplay(
-                        loanSettings.min_membership_days,
-                      )}
+                      value={getDaysToMonthsDisplay(loan.min_membership_days)}
                       disabled
                       style={{ opacity: 0.6 }}
                     />
                   </div>
                 </div>
               </div>
-
-              <Check
-                label="Enable Loan Requests"
-                checked={loanSettings.enable_loan_requests}
-                onChange={(v) =>
-                  setLoanSettings({ ...loanSettings, enable_loan_requests: v })
-                }
-              />
-              <Check
-                label="Require Admin Approval for Loans"
-                checked={loanSettings.require_admin_approval}
-                onChange={(v) =>
-                  setLoanSettings({
-                    ...loanSettings,
-                    require_admin_approval: v,
-                  })
-                }
-              />
-              <Check
-                label="Auto-Approve Small Loans"
-                checked={loanSettings.auto_approve_small_loans}
-                onChange={(v) =>
-                  setLoanSettings({
-                    ...loanSettings,
-                    auto_approve_small_loans: v,
-                  })
-                }
-              />
-
-              {loanSettings.auto_approve_small_loans && (
-                <NumField
-                  label="Small Loan Threshold (₦)"
-                  value={loanSettings.small_loan_threshold}
-                  onChange={(v) =>
-                    setLoanSettings({
-                      ...loanSettings,
-                      small_loan_threshold: v,
-                    })
-                  }
-                />
+              {chk("loan", "enable_loan_requests", "Enable Loan Requests")}
+              {chk(
+                "loan",
+                "require_admin_approval",
+                "Require Admin Approval for Loans",
               )}
+              {chk(
+                "loan",
+                "auto_approve_small_loans",
+                "Auto-Approve Small Loans",
+              )}
+              {loan.auto_approve_small_loans &&
+                num("loan", "small_loan_threshold", "Small Loan Threshold (₦)")}
             </div>
-
             <div
               style={{
                 marginBottom: "20px",
@@ -2119,54 +1731,49 @@ const AdminSettings = () => {
                   marginBottom: "12px",
                 }}
               >
-                💰 Interest & Duration
+                💰 Interest, Amounts & Duration
               </h4>
               <div className="form-row">
-                <NumField
-                  label="Interest Rate (%)"
-                  value={loanSettings.interest_rate}
-                  parse={parseFloat}
-                  min="0"
-                  step="0.5"
-                  onChange={(v) =>
-                    setLoanSettings({ ...loanSettings, interest_rate: v })
-                  }
-                />
-                <NumField
-                  label="Maximum Loan Duration (Months)"
-                  value={loanSettings.max_duration_months}
-                  fallback={1}
-                  min="1"
-                  onChange={(v) =>
-                    setLoanSettings({ ...loanSettings, max_duration_months: v })
-                  }
-                />
+                {num("loan", "interest_rate", "Interest Rate (%)", {
+                  parse: parseFloat,
+                  min: "0",
+                  step: "0.5",
+                })}
+                {num(
+                  "loan",
+                  "max_duration_months",
+                  "Maximum Loan Duration (Months)",
+                  { fallback: 1, min: "1" },
+                )}
               </div>
               <div className="form-row">
-                <NumField
-                  label="Late Payment Penalty (%)"
-                  value={loanSettings.late_payment_penalty}
-                  parse={parseFloat}
-                  min="0"
-                  step="0.5"
-                  onChange={(v) =>
-                    setLoanSettings({
-                      ...loanSettings,
-                      late_payment_penalty: v,
-                    })
-                  }
-                />
-                <NumField
-                  label="Grace Period (Days)"
-                  value={loanSettings.grace_period_days}
-                  min="0"
-                  onChange={(v) =>
-                    setLoanSettings({ ...loanSettings, grace_period_days: v })
-                  }
-                />
+                {num("loan", "min_loan_amount", "Minimum Loan Amount (₦)", {
+                  min: "0",
+                })}
+                {num("loan", "max_loan_amount", "Maximum Loan Amount (₦)", {
+                  min: "0",
+                })}
+              </div>
+              <div className="form-row">
+                {num(
+                  "loan",
+                  "max_borrow_percentage",
+                  "Max Borrow (% of Savings)",
+                  { min: "0", max: "100" },
+                )}
+                {num(
+                  "loan",
+                  "late_payment_penalty",
+                  "Late Payment Penalty (%)",
+                  { parse: parseFloat, min: "0", step: "0.5" },
+                )}
+              </div>
+              <div className="form-row">
+                {num("loan", "grace_period_days", "Grace Period (Days)", {
+                  min: "0",
+                })}
               </div>
             </div>
-
             <div
               style={{
                 marginBottom: "20px",
@@ -2185,154 +1792,88 @@ const AdminSettings = () => {
               </h4>
               <div className="loan-restriction-box">
                 <div className="form-row">
-                  <NumField
-                    label="Maximum Loans Per Member"
-                    value={loanSettings.max_loans_per_member}
-                    fallback={1}
-                    min="1"
-                    onChange={(v) =>
-                      setLoanSettings({
-                        ...loanSettings,
-                        max_loans_per_member: v,
-                      })
-                    }
-                  />
-                  <NumField
-                    label="Loan Cooldown Period (Days)"
-                    value={loanSettings.loan_cooldown_days}
-                    min="0"
-                    onChange={(v) =>
-                      setLoanSettings({
-                        ...loanSettings,
-                        loan_cooldown_days: v,
-                      })
-                    }
-                  />
+                  {num(
+                    "loan",
+                    "max_loans_per_member",
+                    "Maximum Loans Per Member",
+                    { fallback: 1, min: "1" },
+                  )}
+                  {num(
+                    "loan",
+                    "loan_cooldown_days",
+                    "Loan Cooldown Period (Days)",
+                    { min: "0" },
+                  )}
                 </div>
               </div>
             </div>
-
             <div className="rule-box">
-              <h4>💰 Borrowing Rule: 50% of Savings</h4>
+              <h4>
+                💰 Borrowing Rule: {loan.max_borrow_percentage}% of Savings
+              </h4>
               <p>
-                Members can borrow <strong>50%</strong> of their total savings.
+                Members can borrow{" "}
+                <strong>{loan.max_borrow_percentage}%</strong> of their total
+                savings.
               </p>
             </div>
           </div>
         )}
 
-        {/* CONTRIBUTION */}
         {activeTab === "contribution" && (
           <div className="settings-card">
             <div className="settings-card-title">💰 Contribution Settings</div>
             <div className="form-row">
-              <NumField
-                label="Daily Contribution Limit"
-                value={contributionSettings.daily_limit}
-                onChange={(v) =>
-                  setContributionSettings({
-                    ...contributionSettings,
-                    daily_limit: v,
-                  })
-                }
-              />
-              <NumField
-                label="Minimum Deposit"
-                value={contributionSettings.min_deposit}
-                onChange={(v) =>
-                  setContributionSettings({
-                    ...contributionSettings,
-                    min_deposit: v,
-                  })
-                }
-              />
+              {num("contribution", "daily_limit", "Daily Contribution Limit")}
+              {num("contribution", "min_deposit", "Minimum Deposit")}
             </div>
             <div className="form-row">
-              <NumField
-                label="Maximum Deposit"
-                value={contributionSettings.max_deposit}
-                onChange={(v) =>
-                  setContributionSettings({
-                    ...contributionSettings,
-                    max_deposit: v,
-                  })
-                }
-              />
-              <NumField
-                label="Default Contribution Amount"
-                value={contributionSettings.default_contribution_amount}
-                onChange={(v) =>
-                  setContributionSettings({
-                    ...contributionSettings,
-                    default_contribution_amount: v,
-                  })
-                }
-              />
+              {num("contribution", "max_deposit", "Maximum Deposit")}
+              {num(
+                "contribution",
+                "default_contribution_amount",
+                "Default Contribution Amount",
+              )}
             </div>
             <div className="form-row">
-              <NumField
-                label="Max Daily Deposits"
-                value={contributionSettings.max_daily_deposits}
-                fallback={1}
-                onChange={(v) =>
-                  setContributionSettings({
-                    ...contributionSettings,
-                    max_daily_deposits: v,
-                  })
-                }
-              />
-              <div className="form-group">
-                <label className="form-label">Contribution Frequency</label>
-                <select
-                  className="form-select"
-                  value={contributionSettings.contribution_frequency}
-                  onChange={(e) =>
-                    setContributionSettings({
-                      ...contributionSettings,
-                      contribution_frequency: e.target.value,
-                    })
-                  }
-                >
-                  <option value="daily">Daily</option>
-                  <option value="weekly">Weekly</option>
-                  <option value="monthly">Monthly</option>
-                  <option value="custom">Custom</option>
-                </select>
-              </div>
+              {num("contribution", "max_daily_deposits", "Max Daily Deposits", {
+                fallback: 1,
+              })}
+              {sel(
+                "contribution",
+                "contribution_frequency",
+                "Contribution Frequency",
+                [
+                  ["daily", "Daily"],
+                  ["weekly", "Weekly"],
+                  ["monthly", "Monthly"],
+                  ["custom", "Custom"],
+                ],
+              )}
             </div>
-
-            <Check
-              label="Allow Multiple Deposits per Day"
-              checked={contributionSettings.allow_multiple_deposits}
-              onChange={(v) =>
-                setContributionSettings({
-                  ...contributionSettings,
-                  allow_multiple_deposits: v,
-                })
-              }
-            />
-            <Check
-              label="Enable Auto-Contribution"
-              checked={contributionSettings.enable_auto_contribution}
-              onChange={(v) =>
-                setContributionSettings({
-                  ...contributionSettings,
-                  enable_auto_contribution: v,
-                })
-              }
-            />
-            {contributionSettings.enable_auto_contribution && (
+            {chk(
+              "contribution",
+              "allow_multiple_deposits",
+              "Allow Multiple Deposits per Day",
+            )}
+            {chk(
+              "contribution",
+              "enable_auto_contribution",
+              "Enable Auto-Contribution",
+            )}
+            {contribution.enable_auto_contribution && (
               <div className="form-group">
                 <label className="form-label">Auto-Contribution Time</label>
                 <input
                   type="time"
                   className="form-input"
-                  value={contributionSettings.auto_contribution_time}
+                  value={contribution.auto_contribution_time}
                   onChange={(e) =>
-                    setContributionSettings({
-                      ...contributionSettings,
-                      auto_contribution_time: e.target.value,
-                    })
+                    upd(
+                      "contribution",
+                      "auto_contribution_time",
+                      e.target.value,
+                    )
                   }
                 />
               </div>
@@ -2340,390 +1881,193 @@ const AdminSettings = () => {
           </div>
         )}
 
-        {/* COMMISSION */}
         {activeTab === "commission" && (
           <div className="settings-card">
             <div className="settings-card-title">💸 Commission Settings</div>
-            <Check
-              label="Enable Commission"
-              checked={commissionSettings.enable_commission}
-              onChange={(v) =>
-                setCommissionSettings({
-                  ...commissionSettings,
-                  enable_commission: v,
-                })
-              }
-            />
-
-            {commissionSettings.enable_commission && (
+            {chk("commission", "enable_commission", "Enable Commission")}
+            {commission.enable_commission && (
               <>
                 <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Commission Type</label>
-                    <select
-                      className="form-select"
-                      value={commissionSettings.commission_type}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          commission_type: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="percentage">Percentage</option>
-                      <option value="fixed">Fixed Amount</option>
-                      <option value="both">Both</option>
-                    </select>
-                  </div>
-                  <NumField
-                    label="Commission Rate"
-                    value={commissionSettings.commission_rate}
-                    parse={parseFloat}
-                    onChange={(v) =>
-                      setCommissionSettings({
-                        ...commissionSettings,
-                        commission_rate: v,
-                      })
-                    }
-                  />
+                  {sel("commission", "commission_type", "Commission Type", [
+                    ["percentage", "Percentage"],
+                    ["fixed", "Fixed Amount"],
+                    ["both", "Both"],
+                  ])}
+                  {commission.commission_type !== "fixed" &&
+                    num(
+                      "commission",
+                      "commission_rate",
+                      "Commission Rate (%)",
+                      { parse: parseFloat, min: "0", step: "0.1" },
+                    )}
+                  {commission.commission_type !== "percentage" &&
+                    num(
+                      "commission",
+                      "commission_fixed_amount",
+                      "Fixed Commission Amount (₦)",
+                      { min: "0" },
+                    )}
                 </div>
-
                 <div className="form-row">
-                  <NumField
-                    label="Min Commission Amount"
-                    value={commissionSettings.min_commission_amount}
-                    onChange={(v) =>
-                      setCommissionSettings({
-                        ...commissionSettings,
-                        min_commission_amount: v,
-                      })
-                    }
-                  />
-                  <NumField
-                    label="Max Commission Amount"
-                    value={commissionSettings.max_commission_amount}
-                    onChange={(v) =>
-                      setCommissionSettings({
-                        ...commissionSettings,
-                        max_commission_amount: v,
-                      })
-                    }
-                  />
+                  {num(
+                    "commission",
+                    "min_commission_amount",
+                    "Min Commission Amount",
+                  )}
+                  {num(
+                    "commission",
+                    "max_commission_amount",
+                    "Max Commission Amount",
+                  )}
                 </div>
-
                 <div className="form-row">
-                  <div className="form-group">
-                    <label className="form-label">Commission Period</label>
-                    <select
-                      className="form-select"
-                      value={commissionSettings.commission_period}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          commission_period: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="daily">Daily</option>
-                      <option value="weekly">Weekly</option>
-                      <option value="monthly">Monthly</option>
-                      <option value="per_transaction">Per Transaction</option>
-                    </select>
-                  </div>
-                  <div className="form-group">
-                    <label className="form-label">Apply Commission On</label>
-                    <select
-                      className="form-select"
-                      value={commissionSettings.apply_commission_on}
-                      onChange={(e) =>
-                        setCommissionSettings({
-                          ...commissionSettings,
-                          apply_commission_on: e.target.value,
-                        })
-                      }
-                    >
-                      <option value="deposit">Deposits</option>
-                      <option value="withdrawal">Withdrawals</option>
-                      <option value="transfer">Transfers</option>
-                      <option value="all">All Transactions</option>
-                    </select>
-                  </div>
+                  {sel("commission", "commission_period", "Commission Period", [
+                    ["daily", "Daily"],
+                    ["weekly", "Weekly"],
+                    ["monthly", "Monthly"],
+                    ["per_transaction", "Per Transaction"],
+                  ])}
+                  {sel(
+                    "commission",
+                    "apply_commission_on",
+                    "Apply Commission On",
+                    [
+                      ["deposit", "Deposits"],
+                      ["withdrawal", "Withdrawals"],
+                      ["transfer", "Transfers"],
+                      ["all", "All Transactions"],
+                    ],
+                  )}
                 </div>
-
-                <div className="form-group">
-                  <label className="form-label">Commission Account</label>
-                  <select
-                    className="form-select"
-                    value={commissionSettings.commission_account}
-                    onChange={(e) =>
-                      setCommissionSettings({
-                        ...commissionSettings,
-                        commission_account: e.target.value,
-                      })
-                    }
-                  >
-                    <option value="admin">Admin Account</option>
-                    <option value="company">Company Account</option>
-                    <option value="branch">Branch Account</option>
-                  </select>
-                </div>
+                {sel("commission", "commission_account", "Commission Account", [
+                  ["admin", "Admin Account"],
+                  ["company", "Company Account"],
+                  ["branch", "Branch Account"],
+                ])}
               </>
             )}
           </div>
         )}
 
-        {/* PAYMENT */}
         {activeTab === "payment" && (
           <div className="settings-card">
             <div className="settings-card-title">💳 Payment Settings</div>
             <div className="form-row">
-              <NumField
-                label="Payment Percentage (%)"
-                value={paymentSettings.payment_percentage}
-                onChange={(v) =>
-                  setPaymentSettings({
-                    ...paymentSettings,
-                    payment_percentage: v,
-                  })
-                }
-              />
-              <NumField
-                label="Max Payment Count"
-                value={paymentSettings.max_payment_count}
-                fallback={1}
-                onChange={(v) =>
-                  setPaymentSettings({
-                    ...paymentSettings,
-                    max_payment_count: v,
-                  })
-                }
-              />
+              {num("payment", "payment_percentage", "Payment Percentage (%)", {
+                min: "0",
+                max: "100",
+              })}
+              {num("payment", "max_payment_count", "Max Payment Count", {
+                fallback: 1,
+                min: "1",
+              })}
             </div>
-            <Check
-              label="Allow Partial Payment"
-              checked={paymentSettings.allow_partial_payment}
-              onChange={(v) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  allow_partial_payment: v,
-                })
-              }
-            />
-            <Check
-              label="Enable Refunds"
-              checked={paymentSettings.enable_refunds}
-              onChange={(v) =>
-                setPaymentSettings({ ...paymentSettings, enable_refunds: v })
-              }
-            />
-            <Check
-              label="Require Admin Approval for Refunds"
-              checked={paymentSettings.require_admin_approval}
-              onChange={(v) =>
-                setPaymentSettings({
-                  ...paymentSettings,
-                  require_admin_approval: v,
-                })
-              }
-            />
+            {chk("payment", "allow_partial_payment", "Allow Partial Payment")}
+            {chk("payment", "enable_refunds", "Enable Refunds")}
+            {chk(
+              "payment",
+              "require_admin_approval",
+              "Require Admin Approval for Refunds",
+            )}
           </div>
         )}
 
-        {/* DISCOUNT */}
         {activeTab === "discount" && (
           <div className="settings-card">
             <div className="settings-card-title">🏷️ Discount Settings</div>
-            <Check
-              label="Enable Discounts"
-              checked={discountSettings.enable_discounts}
-              onChange={(v) =>
-                setDiscountSettings({
-                  ...discountSettings,
-                  enable_discounts: v,
-                })
-              }
-            />
+            {chk("discount", "enable_discounts", "Enable Discounts")}
             <div className="form-row">
-              <NumField
-                label="Default Discount (%)"
-                value={discountSettings.default_discount_percentage}
-                onChange={(v) =>
-                  setDiscountSettings({
-                    ...discountSettings,
-                    default_discount_percentage: v,
-                  })
-                }
-              />
-              <NumField
-                label="Max Discount (%)"
-                value={discountSettings.max_discount_percentage}
-                onChange={(v) =>
-                  setDiscountSettings({
-                    ...discountSettings,
-                    max_discount_percentage: v,
-                  })
-                }
-              />
+              {num(
+                "discount",
+                "default_discount_percentage",
+                "Default Discount (%)",
+                { min: "0", max: "100" },
+              )}
+              {num("discount", "max_discount_percentage", "Max Discount (%)", {
+                min: "0",
+                max: "100",
+              })}
             </div>
-            <Check
-              label="Enable Loyalty Discount"
-              checked={discountSettings.loyalty_discount_enabled}
-              onChange={(v) =>
-                setDiscountSettings({
-                  ...discountSettings,
-                  loyalty_discount_enabled: v,
-                })
-              }
-            />
-            <Check
-              label="Enable Bulk Discount"
-              checked={discountSettings.bulk_discount_enabled}
-              onChange={(v) =>
-                setDiscountSettings({
-                  ...discountSettings,
-                  bulk_discount_enabled: v,
-                })
-              }
-            />
+            {chk(
+              "discount",
+              "loyalty_discount_enabled",
+              "Enable Loyalty Discount",
+            )}
+            {chk("discount", "bulk_discount_enabled", "Enable Bulk Discount")}
           </div>
         )}
 
-        {/* SECURITY */}
         {activeTab === "security" && (
           <div className="settings-card">
             <div className="settings-card-title">🔒 Security Settings</div>
             <div className="form-row">
-              <NumField
-                label="Session Timeout (minutes)"
-                value={securitySettings.session_timeout}
-                fallback={10}
-                onChange={(v) =>
-                  setSecuritySettings({
-                    ...securitySettings,
-                    session_timeout: v,
-                  })
-                }
-              />
-              <NumField
-                label="Max Login Attempts"
-                value={securitySettings.max_login_attempts}
-                fallback={3}
-                onChange={(v) =>
-                  setSecuritySettings({
-                    ...securitySettings,
-                    max_login_attempts: v,
-                  })
-                }
-              />
+              {num("security", "session_timeout", "Session Timeout (minutes)", {
+                fallback: 10,
+                min: "1",
+              })}
+              {num("security", "max_login_attempts", "Max Login Attempts", {
+                fallback: 3,
+                min: "1",
+              })}
             </div>
-            <Check
-              label="Enable Two-Factor Authentication"
-              checked={securitySettings.two_factor_auth}
-              onChange={(v) =>
-                setSecuritySettings({ ...securitySettings, two_factor_auth: v })
-              }
-            />
-            <Check
-              label="Require Strong Password"
-              checked={securitySettings.require_strong_password}
-              onChange={(v) =>
-                setSecuritySettings({
-                  ...securitySettings,
-                  require_strong_password: v,
-                })
-              }
-            />
+            {chk(
+              "security",
+              "two_factor_auth",
+              "Enable Two-Factor Authentication",
+            )}
+            {chk(
+              "security",
+              "require_strong_password",
+              "Require Strong Password",
+            )}
           </div>
         )}
 
-        {/* SUSPENSION */}
         {activeTab === "suspension" && (
           <div>
             <div className="settings-card">
               <div className="settings-card-title">
                 🚫 Account Suspension Settings
               </div>
-
-              <Check
-                label="Auto-suspend inactive accounts"
-                checked={suspensionSettings.auto_suspend_inactive}
-                onChange={(v) =>
-                  setSuspensionSettings({
-                    ...suspensionSettings,
-                    auto_suspend_inactive: v,
-                  })
-                }
-              />
-              {suspensionSettings.auto_suspend_inactive && (
-                <NumField
-                  label="Inactive Days Before Suspension"
-                  value={suspensionSettings.inactive_days}
-                  fallback={30}
-                  onChange={(v) =>
-                    setSuspensionSettings({
-                      ...suspensionSettings,
-                      inactive_days: v,
-                    })
-                  }
-                />
+              {chk(
+                "suspension",
+                "auto_suspend_inactive",
+                "Auto-suspend inactive accounts",
               )}
-
-              <Check
-                label="Suspend accounts with negative balance"
-                checked={suspensionSettings.suspend_on_negative_balance}
-                onChange={(v) =>
-                  setSuspensionSettings({
-                    ...suspensionSettings,
-                    suspend_on_negative_balance: v,
-                  })
-                }
-              />
-              {suspensionSettings.suspend_on_negative_balance && (
-                <NumField
-                  label="Negative Balance Threshold"
-                  value={suspensionSettings.negative_balance_threshold}
-                  fallback={5000}
-                  onChange={(v) =>
-                    setSuspensionSettings({
-                      ...suspensionSettings,
-                      negative_balance_threshold: v,
-                    })
-                  }
-                />
+              {suspension.auto_suspend_inactive &&
+                num(
+                  "suspension",
+                  "inactive_days",
+                  "Inactive Days Before Suspension",
+                  { fallback: 30, min: "1" },
+                )}
+              {chk(
+                "suspension",
+                "suspend_on_negative_balance",
+                "Suspend accounts with negative balance",
               )}
-
-              <Check
-                label="Require Admin Approval for Reactivation"
-                checked={
-                  suspensionSettings.require_admin_approval_for_reactivation
-                }
-                onChange={(v) =>
-                  setSuspensionSettings({
-                    ...suspensionSettings,
-                    require_admin_approval_for_reactivation: v,
-                  })
-                }
-              />
-              <Check
-                label="Send Notification to Member on Suspension"
-                checked={suspensionSettings.send_notification_on_suspension}
-                onChange={(v) =>
-                  setSuspensionSettings({
-                    ...suspensionSettings,
-                    send_notification_on_suspension: v,
-                  })
-                }
-              />
-              <Check
-                label="Notify Admin on Suspension"
-                checked={suspensionSettings.notify_admin_on_suspension}
-                onChange={(v) =>
-                  setSuspensionSettings({
-                    ...suspensionSettings,
-                    notify_admin_on_suspension: v,
-                  })
-                }
-              />
+              {suspension.suspend_on_negative_balance &&
+                num(
+                  "suspension",
+                  "negative_balance_threshold",
+                  "Negative Balance Threshold",
+                  { fallback: 5000 },
+                )}
+              {chk(
+                "suspension",
+                "require_admin_approval_for_reactivation",
+                "Require Admin Approval for Reactivation",
+              )}
+              {chk(
+                "suspension",
+                "send_notification_on_suspension",
+                "Send Notification to Member on Suspension",
+              )}
+              {chk(
+                "suspension",
+                "notify_admin_on_suspension",
+                "Notify Admin on Suspension",
+              )}
             </div>
 
             <div className="settings-card">
@@ -2750,51 +2094,38 @@ const AdminSettings = () => {
                     </tr>
                   </thead>
                   <tbody>
-                    {members
-                      .filter((m) => {
-                        if (!searchTerm) return true;
-                        const term = searchTerm.toLowerCase();
-                        return (
-                          (m.name || "").toLowerCase().includes(term) ||
-                          (m.email || "").toLowerCase().includes(term) ||
-                          (m.phone && m.phone.includes(term))
-                        );
-                      })
-                      .map((member) => (
-                        <tr key={member.id}>
-                          <td style={{ fontWeight: "500" }}>{member.name}</td>
-                          <td style={{ color: "var(--text-muted)" }}>
-                            {member.email}
-                          </td>
-                          <td style={{ color: "var(--text-muted)" }}>
-                            {member.phone || "N/A"}
-                          </td>
-                          <td
-                            style={{
-                              color: "var(--credit)",
-                              fontWeight: "600",
-                            }}
+                    {filteredMembers.map((member) => (
+                      <tr key={member.id}>
+                        <td style={{ fontWeight: "500" }}>{member.name}</td>
+                        <td style={{ color: "var(--text-muted)" }}>
+                          {member.email}
+                        </td>
+                        <td style={{ color: "var(--text-muted)" }}>
+                          {member.phone || "N/A"}
+                        </td>
+                        <td
+                          style={{ color: "var(--credit)", fontWeight: "600" }}
+                        >
+                          {formatNaira(member.balance)}
+                        </td>
+                        <td>
+                          <span className="badge badge-active">
+                            {member.status || "Active"}
+                          </span>
+                        </td>
+                        <td style={{ textAlign: "center" }}>
+                          <button
+                            className="btn-suspend"
+                            onClick={() => handleSuspendAccount(member)}
                           >
-                            {formatNaira(member.balance)}
-                          </td>
-                          <td>
-                            <span className="badge badge-active">
-                              {member.status || "Active"}
-                            </span>
-                          </td>
-                          <td style={{ textAlign: "center" }}>
-                            <button
-                              className="btn-suspend"
-                              onClick={() => handleSuspendAccount(member)}
-                            >
-                              Suspend
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                            Suspend
+                          </button>
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
-                {members.length === 0 && (
+                {filteredMembers.length === 0 && (
                   <div
                     style={{
                       textAlign: "center",
@@ -2802,7 +2133,9 @@ const AdminSettings = () => {
                       color: "var(--text-muted)",
                     }}
                   >
-                    No active members found in {branchLabel}
+                    {members.length === 0
+                      ? `No active members found in ${branchLabel}`
+                      : "No members match your search"}
                   </div>
                 )}
               </div>
@@ -2849,11 +2182,7 @@ const AdminSettings = () => {
                         </td>
                         <td>
                           <span
-                            className={`badge ${
-                              account.duration === "permanent"
-                                ? "badge-permanent"
-                                : "badge-temporary"
-                            }`}
+                            className={`badge ${account.duration === "permanent" ? "badge-permanent" : "badge-temporary"}`}
                           >
                             {account.duration}
                           </span>
@@ -2887,7 +2216,6 @@ const AdminSettings = () => {
         )}
       </div>
 
-      {/* SUSPEND MODAL */}
       {showSuspendModal && selectedMember && (
         <div
           className="modal-overlay"
@@ -2949,7 +2277,6 @@ const AdminSettings = () => {
         </div>
       )}
 
-      {/* REACTIVATE MODAL */}
       {showReactivateModal && selectedMember && (
         <div
           className="modal-overlay"
@@ -2989,7 +2316,6 @@ const AdminSettings = () => {
         </div>
       )}
 
-      {/* BRANCH MODAL */}
       {showBranchModal && (
         <div className="modal-overlay" onClick={closeBranchModal}>
           <div className="modal-content" onClick={(e) => e.stopPropagation()}>
@@ -3075,33 +2401,13 @@ const AdminSettings = () => {
                 <label className="form-label">
                   What Can Members of This Branch Save With?
                 </label>
-                {METHOD_OPTIONS(false).map((opt) => {
-                  const selected =
-                    (branchForm.savings_methods || "both") === opt.value;
-                  return (
-                    <label
-                      key={opt.value}
-                      className={`radio-row ${selected ? "selected" : ""}`}
-                    >
-                      <input
-                        type="radio"
-                        name="branch_savings_methods"
-                        value={opt.value}
-                        checked={selected}
-                        onChange={() =>
-                          setBranchForm((prev) => ({
-                            ...prev,
-                            savings_methods: opt.value,
-                          }))
-                        }
-                      />
-                      <div className="radio-row-body">
-                        <div className="radio-row-title">{opt.title}</div>
-                        <div className="radio-row-desc">{opt.desc}</div>
-                      </div>
-                    </label>
-                  );
-                })}
+                <MethodRadios
+                  name="branch_savings_methods"
+                  value={branchForm.savings_methods}
+                  onChange={(v) =>
+                    setBranchForm((prev) => ({ ...prev, savings_methods: v }))
+                  }
+                />
               </div>
 
               {isAdmin && (
@@ -3123,7 +2429,6 @@ const AdminSettings = () => {
                     }}
                   >
                     <option value="">— No manager assigned —</option>
-
                     {branchForm.manager_id &&
                       !managers.some(
                         (m) => String(m.id) === String(branchForm.manager_id),
@@ -3133,7 +2438,6 @@ const AdminSettings = () => {
                           {branchForm.manager} (no longer a Manager)
                         </option>
                       )}
-
                     {managers.length === 0 ? (
                       <option value="" disabled>
                         No managers available — promote a member to Manager
@@ -3162,46 +2466,14 @@ const AdminSettings = () => {
               )}
 
               <div className="form-row">
-                <div className="form-group">
-                  <label className="form-label">
-                    Phone{" "}
-                    <span style={{ color: "var(--text-dim)" }}>
-                      (exactly 11 digits)
-                    </span>
-                  </label>
-                  <input
-                    type="tel"
-                    className={`form-input ${branchPhoneError ? "input-error" : ""}`}
-                    value={branchForm.phone}
-                    onChange={(e) => {
-                      setBranchForm({ ...branchForm, phone: e.target.value });
-                      if (branchPhoneError) {
-                        setBranchPhoneError(
-                          validatePhone(e.target.value, {
-                            required: false,
-                            label: "Branch phone number",
-                          }),
-                        );
-                      }
-                    }}
-                    onBlur={(e) =>
-                      setBranchPhoneError(
-                        validatePhone(e.target.value, {
-                          required: false,
-                          label: "Branch phone number",
-                        }),
-                      )
-                    }
-                    placeholder="e.g. 08012345678"
-                    maxLength={15}
-                    inputMode="numeric"
-                  />
-                  {branchPhoneError && (
-                    <div className="field-error">
-                      <span>⚠️</span> {branchPhoneError}
-                    </div>
-                  )}
-                </div>
+                <PhoneField
+                  label="Phone"
+                  errLabel="Branch phone number"
+                  value={branchForm.phone}
+                  error={branchPhoneError}
+                  onValue={(v) => setBranchForm((p) => ({ ...p, phone: v }))}
+                  onError={setBranchPhoneError}
+                />
                 <div className="form-group">
                   <label className="form-label">Email</label>
                   <input
@@ -3285,225 +2557,79 @@ const AdminSettings = () => {
 const css = `
   @keyframes spin { to { transform: rotate(360deg); } }
   .settings-container { max-width: 1200px; margin: 0 auto; }
-  .settings-header {
-    display: flex; justify-content: space-between; align-items: center;
-    margin-bottom: 24px; flex-wrap: wrap; gap: 12px;
-  }
-  .tabs-container {
-    display: flex; gap: 4px;
-    background-color: var(--bg-surface-2);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 4px;
-    margin-bottom: 24px; flex-wrap: wrap;
-  }
-  .tab-btn {
-    padding: 10px 16px; border-radius: 8px; border: none;
-    background: transparent; color: var(--text-muted);
-    cursor: pointer; font-size: 13px; font-weight: 500;
-    transition: all 0.2s; flex: 1; min-width: 80px;
-  }
+  .settings-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; flex-wrap: wrap; gap: 12px; }
+  .tabs-container { display: flex; gap: 4px; background-color: var(--bg-surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 4px; margin-bottom: 24px; flex-wrap: wrap; }
+  .tab-btn { padding: 10px 16px; border-radius: 8px; border: none; background: transparent; color: var(--text-muted); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; flex: 1; min-width: 80px; }
   .tab-btn:hover { color: var(--text); background: var(--bg-surface-3); }
   .tab-btn.active { background: var(--accent); color: #ffffff; }
-  .tab-btn-branches {
-    background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(59,130,246,0.18));
-    border: 1px solid var(--accent);
-    color: var(--accent-text, #10b981);
-    font-weight: 700; display: inline-flex;
-    align-items: center; justify-content: center; gap: 6px;
-  }
+  .tab-btn-branches { background: linear-gradient(135deg, rgba(16,185,129,0.18), rgba(59,130,246,0.18)); border: 1px solid var(--accent); color: var(--accent-text, #10b981); font-weight: 700; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
   .tab-btn-branches.active { background: var(--accent); color: #ffffff; border-color: var(--accent); }
-  .branch-tab-badge {
-    background: var(--accent); color: #ffffff;
-    font-size: 11px; font-weight: 700;
-    padding: 1px 7px; border-radius: 10px;
-    line-height: 1.4; min-width: 18px; text-align: center;
-  }
+  .branch-tab-badge { background: var(--accent); color: #ffffff; font-size: 11px; font-weight: 700; padding: 1px 7px; border-radius: 10px; line-height: 1.4; min-width: 18px; text-align: center; }
   .tab-btn-branches.active .branch-tab-badge { background: #ffffff; color: var(--accent); }
-  .settings-card {
-    background-color: var(--bg-surface);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 20px; margin-bottom: 20px;
-  }
-  .settings-card-title {
-    font-size: 16px; font-weight: 600; margin-bottom: 16px;
-    display: flex; align-items: center; gap: 8px; color: var(--text);
-  }
+  .settings-card { background-color: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; margin-bottom: 20px; }
+  .settings-card-title { font-size: 16px; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; color: var(--text); }
   .form-group { margin-bottom: 16px; }
-  .form-label {
-    display: block; font-size: 13px; font-weight: 500;
-    color: var(--text-muted); margin-bottom: 6px;
-  }
-  .form-input, .form-select {
-    width: 100%; padding: 10px 14px; border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-surface-2); color: var(--text);
-    font-size: 14px; outline: none;
-    transition: border-color 0.2s; box-sizing: border-box;
-  }
+  .form-label { display: block; font-size: 13px; font-weight: 500; color: var(--text-muted); margin-bottom: 6px; }
+  .form-input, .form-select { width: 100%; padding: 10px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); font-size: 14px; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
   .form-input:focus, .form-select:focus { border-color: var(--accent); }
   .form-input::placeholder { color: var(--text-dim); }
-  .form-input:disabled {
-    opacity: 0.55; cursor: not-allowed;
-    background: var(--bg-surface-3, rgba(0,0,0,0.05));
-  }
-  .form-input.input-error {
-    border-color: var(--debit);
-    box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15);
-  }
-  .field-error {
-    color: var(--debit); font-size: 11px; margin-top: 4px;
-    display: flex; align-items: center; gap: 4px; font-weight: 500;
-  }
+  .form-input:disabled { opacity: 0.55; cursor: not-allowed; background: var(--bg-surface-3, rgba(0,0,0,0.05)); }
+  .form-input.input-error { border-color: var(--debit); box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.15); }
+  .field-error { color: var(--debit); font-size: 11px; margin-top: 4px; display: flex; align-items: center; gap: 4px; font-weight: 500; }
   .form-select option { background: var(--bg-surface); color: var(--text); }
   .form-checkbox { margin-bottom: 10px; cursor: pointer; }
   .form-checkbox label { cursor: pointer; }
-  .form-checkbox input[type="checkbox"] {
-    width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer;
-  }
+  .form-checkbox input[type="checkbox"] { width: 18px; height: 18px; accent-color: var(--accent); cursor: pointer; }
   .form-checkbox-label { font-size: 14px; color: var(--text); }
   .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-  .btn-save {
-    padding: 10px 32px; border-radius: 8px; border: none;
-    background: var(--accent); color: #ffffff; cursor: pointer;
-    font-size: 14px; font-weight: 500; transition: all 0.2s;
-  }
+  .btn-save { padding: 10px 32px; border-radius: 8px; border: none; background: var(--accent); color: #ffffff; cursor: pointer; font-size: 14px; font-weight: 500; transition: all 0.2s; }
   .btn-save:hover { background: var(--accent-hover); }
   .btn-save:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-refresh-settings {
-    padding: 10px 20px; border-radius: 8px;
-    border: 1px solid var(--info); background: transparent;
-    color: var(--info); cursor: pointer;
-    font-size: 14px; font-weight: 600;
-    transition: all 0.2s; display: inline-flex;
-    align-items: center; gap: 8px;
-  }
+  .btn-refresh-settings { padding: 10px 20px; border-radius: 8px; border: 1px solid var(--info); background: transparent; color: var(--info); cursor: pointer; font-size: 14px; font-weight: 600; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
   .btn-refresh-settings:hover:not(:disabled) { background: var(--bg-surface-2); }
   .btn-refresh-settings:disabled { opacity: 0.6; cursor: not-allowed; }
   .btn-refresh-settings .spinning { display: inline-block; animation: spin 1s linear infinite; }
-  .btn-suspend {
-    padding: 6px 16px; border-radius: 6px; border: none;
-    background: var(--debit); color: #ffffff;
-    cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s;
-  }
+  .btn-suspend { padding: 6px 16px; border-radius: 6px; border: none; background: var(--debit); color: #ffffff; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; }
   .btn-suspend:hover { opacity: 0.85; }
-  .btn-reactivate {
-    padding: 6px 16px; border-radius: 6px; border: none;
-    background: var(--accent); color: #ffffff;
-    cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s;
-  }
+  .btn-reactivate { padding: 6px 16px; border-radius: 6px; border: none; background: var(--accent); color: #ffffff; cursor: pointer; font-size: 12px; font-weight: 500; transition: all 0.2s; }
   .btn-reactivate:hover { background: var(--accent-hover); }
   .suspended-table { width: 100%; border-collapse: collapse; }
-  .suspended-table th {
-    text-align: left; padding: 10px 12px;
-    font-size: 11px; font-weight: 600;
-    color: var(--text-muted); text-transform: uppercase;
-    letter-spacing: 0.05em; border-bottom: 1px solid var(--border);
-  }
-  .suspended-table td {
-    padding: 10px 12px; border-bottom: 1px solid var(--border);
-    font-size: 13px; color: var(--text);
-  }
+  .suspended-table th { text-align: left; padding: 10px 12px; font-size: 11px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
+  .suspended-table td { padding: 10px 12px; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text); }
   .suspended-table tr:hover { background-color: var(--bg-surface-2); }
-  .badge {
-    display: inline-block; padding: 3px 10px;
-    border-radius: 9999px; font-size: 11px; font-weight: 500;
-  }
+  .badge { display: inline-block; padding: 3px 10px; border-radius: 9999px; font-size: 11px; font-weight: 500; }
   .badge-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
   .badge-permanent { background-color: var(--rejected-bg); color: var(--debit); border: 1px solid var(--border); }
   .badge-temporary { background-color: var(--pending-bg); color: var(--warning); border: 1px solid var(--border); }
   .badge-branch-active { background-color: var(--approved-bg); color: var(--credit); border: 1px solid var(--border); }
   .badge-branch-inactive { background-color: var(--bg-surface-2); color: var(--text-muted); border: 1px solid var(--border); }
-  .search-input {
-    width: 100%; max-width: 300px;
-    padding: 8px 14px; border-radius: 8px;
-    border: 1px solid var(--border);
-    background: var(--bg-surface-2); color: var(--text);
-    font-size: 13px; outline: none;
-    transition: border-color 0.2s; box-sizing: border-box;
-  }
+  .search-input { width: 100%; max-width: 300px; padding: 8px 14px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); font-size: 13px; outline: none; transition: border-color 0.2s; box-sizing: border-box; }
   .search-input:focus { border-color: var(--accent); }
   .search-input::placeholder { color: var(--text-dim); }
-  .modal-overlay {
-    position: fixed; inset: 0;
-    background-color: var(--bg-overlay);
-    backdrop-filter: blur(4px);
-    display: flex; align-items: center; justify-content: center;
-    z-index: 999; padding: 16px;
-  }
-  .modal-content {
-    background-color: var(--bg-surface);
-    border-radius: 16px; padding: 24px;
-    max-width: 500px; width: 100%;
-    max-height: 90vh; overflow-y: auto;
-    border: 1px solid var(--border); color: var(--text);
-  }
-  .modal-header {
-    display: flex; justify-content: space-between;
-    align-items: center; margin-bottom: 16px;
-  }
+  .modal-overlay { position: fixed; inset: 0; background-color: var(--bg-overlay); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 999; padding: 16px; }
+  .modal-content { background-color: var(--bg-surface); border-radius: 16px; padding: 24px; max-width: 500px; width: 100%; max-height: 90vh; overflow-y: auto; border: 1px solid var(--border); color: var(--text); }
+  .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
   .modal-title { font-size: 18px; font-weight: bold; color: var(--text); }
-  .modal-close {
-    background: none; border: none;
-    color: var(--text-muted); cursor: pointer;
-    padding: 4px; font-size: 24px;
-  }
+  .modal-close { background: none; border: none; color: var(--text-muted); cursor: pointer; padding: 4px; font-size: 24px; }
   .modal-close:hover { color: var(--text); }
-  .btn-cancel {
-    flex: 1; padding: 10px; border-radius: 8px;
-    border: 1px solid var(--border);
-    background: transparent; color: var(--text);
-    cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s;
-  }
+  .btn-cancel { flex: 1; padding: 10px; border-radius: 8px; border: 1px solid var(--border); background: transparent; color: var(--text); cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
   .btn-cancel:hover { background: var(--bg-surface-2); }
-  .btn-confirm {
-    flex: 1; padding: 10px; border-radius: 8px;
-    border: none; cursor: pointer;
-    font-size: 13px; font-weight: 500; transition: all 0.2s;
-  }
+  .btn-confirm { flex: 1; padding: 10px; border-radius: 8px; border: none; cursor: pointer; font-size: 13px; font-weight: 500; transition: all 0.2s; }
   .btn-confirm-success { background: var(--accent); color: #ffffff; }
   .btn-confirm-success:hover { background: var(--accent-hover); }
-  .info-box {
-    background: var(--accent-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px; padding: 12px 16px; margin-bottom: 16px;
-  }
+  .info-box { background: var(--accent-bg); border: 1px solid var(--border); border-radius: 8px; padding: 12px 16px; margin-bottom: 16px; }
   .info-box p { margin: 0; font-size: 13px; color: var(--text); }
-  .rule-box {
-    background: var(--approved-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px; margin-top: 16px;
-  }
+  .rule-box { background: var(--approved-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 16px; }
   .rule-box h4 { font-size: 13px; color: var(--credit); margin: 0 0 8px 0; }
   .rule-box p { font-size: 12px; color: var(--text-muted); margin: 0; }
-  .loan-restriction-box {
-    background: var(--accent-bg);
-    border: 1px solid var(--border);
-    border-radius: 8px; padding: 16px; margin-top: 16px;
-  }
-  .branch-summary {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-    gap: 14px; margin-bottom: 20px;
-  }
-  .branch-summary-card {
-    background: var(--bg-surface-2);
-    border: 1px solid var(--border);
-    border-radius: 12px; padding: 16px;
-  }
-  .branch-summary-label {
-    font-size: 12px; color: var(--text-muted);
-    text-transform: uppercase; letter-spacing: 0.05em;
-  }
+  .loan-restriction-box { background: var(--accent-bg); border: 1px solid var(--border); border-radius: 8px; padding: 16px; margin-top: 16px; }
+  .branch-summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 14px; margin-bottom: 20px; }
+  .branch-summary-card { background: var(--bg-surface-2); border: 1px solid var(--border); border-radius: 12px; padding: 16px; }
+  .branch-summary-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
   .branch-summary-value { font-size: 22px; font-weight: 700; color: var(--text); margin-top: 4px; }
   .branch-summary-value.credit { color: var(--credit); }
   .branch-summary-value.muted { color: var(--text-muted); }
-  .btn-branch-action {
-    padding: 6px 12px; border-radius: 6px;
-    border: 1px solid var(--border);
-    background: transparent; color: var(--text);
-    font-size: 12px; font-weight: 500;
-    cursor: pointer; transition: all 0.2s;
-  }
+  .btn-branch-action { padding: 6px 12px; border-radius: 6px; border: 1px solid var(--border); background: transparent; color: var(--text); font-size: 12px; font-weight: 500; cursor: pointer; transition: all 0.2s; }
   .btn-branch-action:hover { background: var(--bg-surface-2); }
   .btn-branch-action.danger { color: var(--debit); border-color: var(--debit); }
   .btn-branch-action.danger:hover { background: var(--rejected-bg); }
@@ -3513,19 +2639,9 @@ const css = `
   .btn-branch-action.success:hover { background: var(--approved-bg); }
   .btn-branch-action.info { color: var(--info); border-color: var(--info); }
   .btn-branch-action.info:hover { background: rgba(59, 130, 246, 0.1); }
-  .radio-row {
-    display: flex; align-items: flex-start; gap: 10px;
-    padding: 12px 14px; border-radius: 10px;
-    border: 1px solid var(--border);
-    background: var(--bg-surface-2);
-    cursor: pointer; margin-bottom: 8px;
-    transition: border-color 0.15s, background 0.15s;
-  }
+  .radio-row { display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; border-radius: 10px; border: 1px solid var(--border); background: var(--bg-surface-2); cursor: pointer; margin-bottom: 8px; transition: border-color 0.15s, background 0.15s; }
   .radio-row:hover { border-color: var(--accent); }
-  .radio-row.selected {
-    border-color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-  }
+  .radio-row.selected { border-color: var(--accent); background: color-mix(in srgb, var(--accent) 8%, transparent); }
   .radio-row input[type="radio"] { margin-top: 3px; accent-color: var(--accent); cursor: pointer; }
   .radio-row-body { flex: 1; }
   .radio-row-title { font-size: 14px; font-weight: 600; color: var(--text); margin-bottom: 2px; }

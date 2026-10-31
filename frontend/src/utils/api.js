@@ -1,47 +1,53 @@
 // src/utils/api.js
 // ============================================================
-// ⚠️ Set this to the URL that ACTUALLY serves your PHP backend.
-// Verify in browser first (must return JSON, not 404):
-//   https://baleeg.onrender.com/api/login.php
+//  API client — single source of truth for backend calls.
+//  Backend base URL comes from Vite env (falls back to prod URL).
 // ============================================================
-const API_BASE_URL = "https://baleeg.onrender.com";
 
-const BRANCH_REQUIRED_PATHS = [
-    "/api/members.php",
-    "/api/transactions.php",
-    "/api/settings.php",
-];
+const envBase =
+    (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) ||
+    (typeof process !== "undefined" && process.env?.REACT_APP_API_BASE_URL) ||
+    "";
 
+const API_BASE_URL = (envBase || "https://baleeg.onrender.com").replace(/\/+$/, "");
+
+// Only truly unauthenticated endpoints belong here.
 const PUBLIC_PATHS = [
     "/api/login.php",
     "/api/register-member.php",
     "/api/register.php",
     "/api/forgot-password.php",
     "/api/reset-password.php",
-    "/api/get-branch.php",
-    "/api/branches.php",
     "/api/daily-marks.php",
 ];
 
-const isPublicPath = (path) => PUBLIC_PATHS.some((p) => path.startsWith(p));
-const requiresBranch = (path) =>
-    BRANCH_REQUIRED_PATHS.some((p) => path.startsWith(p));
+// Endpoints where we auto-attach ?branch_id= when missing.
+// (Only for collection routes, not single-resource routes like /members.php/123)
+const BRANCH_REQUIRED_PATHS = [
+    "/api/members.php",
+    "/api/transactions.php",
+    "/api/settings.php",
+];
+
+// Path-boundary match — prevents "/api/branches.phpX" matching "/api/branches.php".
+const matchesPath = (path, list) =>
+    list.some(
+        (p) => path === p || path.startsWith(p + "?") || path.startsWith(p + "/"),
+    );
+
+// Detect single-resource routes like /api/members.php/123 — do not append query.
+const isSingleResource = (path) => /^\/api\/[^/?#]+\.php\/\d+/.test(path);
 
 const resolveBranchId = () => {
     try {
         const stored = JSON.parse(localStorage.getItem("user") || "{}");
-        if (stored?.branch_id !== undefined && stored?.branch_id !== null) {
-            const n = Number(stored.branch_id);
-            if (Number.isFinite(n) && n > 0) return n;
-        }
-        if (stored?.branchId !== undefined && stored?.branchId !== null) {
-            const n = Number(stored.branchId);
+        for (const v of [stored?.branch_id, stored?.branchId]) {
+            const n = Number(v);
             if (Number.isFinite(n) && n > 0) return n;
         }
     } catch { }
     try {
-        const params = new URLSearchParams(window.location.search);
-        const raw = params.get("branch");
+        const raw = new URLSearchParams(window.location.search).get("branch");
         if (raw) {
             const n = Number(raw);
             if (Number.isFinite(n) && n > 0) return n;
@@ -67,10 +73,6 @@ const resolveUserId = () => {
     }
 };
 
-/**
- * apiFetch — returns a parsed JSON object (NOT a Response).
- * Throws Error with the server's message on non-2xx.
- */
 export const apiFetch = async (path, options = {}) => {
     let url = path.startsWith("http")
         ? path
@@ -82,14 +84,16 @@ export const apiFetch = async (path, options = {}) => {
     const branchId = resolveBranchId();
     const role = resolveRole();
     const userId = resolveUserId();
-    const isPublic = isPublicPath(path);
-    const needsBranch = requiresBranch(path);
+    const isPublic = matchesPath(path, PUBLIC_PATHS);
+    const needsBranch = matchesPath(path, BRANCH_REQUIRED_PATHS);
     const isAllQuery = /[?&]all=1(&|$)/.test(path);
 
+    // Only append branch_id for collection routes, not /members.php/123
     if (
         !isPublic &&
         needsBranch &&
         !isAllQuery &&
+        !isSingleResource(path) &&
         !path.includes("branch_id=") &&
         branchId !== null
     ) {
@@ -121,34 +125,56 @@ export const apiFetch = async (path, options = {}) => {
         }
     }
 
-    // Debug log — remove after diagnosis
-    console.log("🌐 apiFetch →", method, url);
-
     let res;
     try {
         res = await fetch(url, { ...options, headers });
     } catch (err) {
-        console.error("❌ Network error:", method, url, err);
+        // True network failure: DNS, offline, CORS preflight fail, etc.
         throw new Error(
-            `Cannot reach server at ${url}. Check that PHP is running on ${API_BASE_URL} and the path is correct.`,
+            `Cannot reach ${API_BASE_URL} (${method} ${path}). ` +
+            `Check that the backend is running. [${err.message}]`,
         );
     }
 
     const text = await res.text();
+    const contentType = res.headers.get("content-type") || "";
+    const looksJson = contentType.includes("json");
+
     let data = null;
-    try {
-        data = text ? JSON.parse(text) : null;
-    } catch {
-        throw new Error(
-            `Server returned non-JSON (HTTP ${res.status}): ${text.slice(0, 200)}`,
-        );
+    if (text) {
+        try {
+            data = JSON.parse(text);
+        } catch {
+            // Not JSON — likely an HTML error page from PHP
+            const snippet = text.replace(/\s+/g, " ").slice(0, 160);
+            const isHtml = /<(!doctype|html|br|b>)/i.test(text);
+            const isPdoError = /PDOException|getaddrinfo|SQLSTATE/.test(text);
+
+            if (isPdoError) {
+                throw new Error(
+                    `Backend reached the server but the database is unreachable. ` +
+                    `(HTTP ${res.status}) ${snippet}`,
+                );
+            }
+            if (isHtml) {
+                throw new Error(
+                    `Server returned HTML instead of JSON (HTTP ${res.status}). ` +
+                    `Likely an API error page: ${snippet}`,
+                );
+            }
+            throw new Error(
+                `Server returned non-JSON (HTTP ${res.status}): ${snippet}`,
+            );
+        }
     }
 
     if (!res.ok) {
-        throw new Error(data?.error || data?.message || `HTTP ${res.status}`);
+        throw new Error(
+            data?.error || data?.message || `HTTP ${res.status} ${res.statusText}`,
+        );
     }
 
-    return data;
+    return data ?? {};
 };
 
 export { resolveBranchId, API_BASE_URL };

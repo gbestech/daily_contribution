@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import { useBranch } from "../../context/BranchContext"; // 🆕
+import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const TABS = [
   { value: "pending", label: "⏳ Pending" },
@@ -15,7 +17,7 @@ const TABS = [
 
 const PasswordResets = () => {
   const { user } = useAuth();
-  const { activeBranch, activeBranchId } = useBranch(); // 🆕
+  const { activeBranch, activeBranchId } = useBranch();
 
   const [activeTab, setActiveTab] = useState("pending");
   const [requests, setRequests] = useState([]);
@@ -33,16 +35,36 @@ const PasswordResets = () => {
 
   const fetchRequests = useCallback(
     async (status = activeTab) => {
+      if (activeBranchId == null || activeBranchId === "") {
+        setRequests([]);
+        setLoading(false);
+        return;
+      }
       setLoading(true);
       try {
-        const url = activeBranchId
-          ? `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}&branch_id=${activeBranchId}`
-          : `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}`;
+        const url = `${API_BASE_URL}/api/get-password-reset-requests.php?status=${status}&branch_id=${activeBranchId}`;
 
         const res = await fetch(url, {
-          headers: { Accept: "application/json" },
+          headers: {
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
         });
-        const data = await res.json();
+
+        const text = await res.text();
+        let data;
+        try {
+          data = text ? JSON.parse(text) : {};
+        } catch {
+          console.error(
+            "[PasswordResets] Non-JSON response:",
+            text.slice(0, 300),
+          );
+          throw new Error(
+            `Server returned non-JSON (HTTP ${res.status}). The endpoint may be missing.`,
+          );
+        }
+
         if (res.ok && data.status) {
           setRequests(Array.isArray(data.requests) ? data.requests : []);
           setCounts(data.counts || { pending: 0, completed: 0, rejected: 0 });
@@ -52,7 +74,7 @@ const PasswordResets = () => {
         }
       } catch (err) {
         console.error(err);
-        toast.error("Failed to load requests");
+        toast.error(err.message || "Failed to load requests");
         setRequests([]);
       } finally {
         setLoading(false);
@@ -73,17 +95,21 @@ const PasswordResets = () => {
     )
       return;
 
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
+
     setBusyId(request.id);
     try {
-      const url = activeBranchId
-        ? `${API_BASE_URL}/api/approve-password-reset.php?branch_id=${activeBranchId}`
-        : `${API_BASE_URL}/api/approve-password-reset.php`;
+      const url = `${API_BASE_URL}/api/approve-password-reset.php?branch_id=${activeBranchId}`;
 
       const res = await fetch(url, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Accept: "application/json",
+          "X-User-Branch-Id": String(activeBranchId),
         },
         body: JSON.stringify({
           request_id: request.id,
@@ -340,7 +366,6 @@ For security reasons, do not share this password with anyone.`;
         .pr-modal-btn-cancel:hover { background: var(--bg-surface-3); }
       `}</style>
 
-      {/* ===== 🆕 BRANCH BANNER ===== */}
       <div
         style={{
           display: "flex",
@@ -400,7 +425,6 @@ For security reasons, do not share this password with anyone.`;
         </span>
       </div>
 
-      {/* Header */}
       <div
         style={{
           display: "flex",
@@ -442,7 +466,6 @@ For security reasons, do not share this password with anyone.`;
         </button>
       </div>
 
-      {/* Tabs */}
       <div className="pr-tabs">
         {TABS.map((t) => {
           const count =
@@ -462,7 +485,6 @@ For security reasons, do not share this password with anyone.`;
         })}
       </div>
 
-      {/* Table */}
       <div className="pr-table-wrap">
         <table className="pr-table">
           <thead>
@@ -575,7 +597,6 @@ For security reasons, do not share this password with anyone.`;
         </table>
       </div>
 
-      {/* Temp Password Modal */}
       {showModal && generatedPassword && (
         <div className="pr-modal-overlay" onClick={closeModal}>
           <div className="pr-modal" onClick={(e) => e.stopPropagation()}>

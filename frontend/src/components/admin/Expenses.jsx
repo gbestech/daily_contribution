@@ -2,9 +2,11 @@
 import React, { useState, useEffect, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
-import { useBranch } from "../../context/BranchContext"; // 🆕
+import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const CATEGORIES = [
   { value: "Rent", icon: "🏠" },
@@ -31,7 +33,7 @@ const STATUS_TABS = [
 
 const Expenses = () => {
   const { user } = useAuth();
-  const { activeBranch, activeBranchId } = useBranch(); // 🆕
+  const { activeBranch, activeBranchId } = useBranch();
   const isAdmin = user?.role === "admin" || user?.role === "administrator";
 
   const [expenses, setExpenses] = useState([]);
@@ -57,7 +59,6 @@ const Expenses = () => {
   };
   const [form, setForm] = useState(emptyForm);
 
-  // 🆕 refetch when branch changes; reset filters so we don't hide everything
   useEffect(() => {
     setSearch("");
     setFilterCategory("all");
@@ -68,16 +69,31 @@ const Expenses = () => {
   }, [activeBranchId]);
 
   const fetchExpenses = async () => {
+    if (activeBranchId == null || activeBranchId === "") {
+      setExpenses([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
-      // 🆕 If your backend does NOT scope by session, change this to:
-      //   `${API_BASE_URL}/api/expenses.php?branch_id=${activeBranchId}`
-      const res = await fetch(`${API_BASE_URL}/api/expenses.php`);
+      const res = await fetch(
+        `${API_BASE_URL}/api/expenses.php?branch_id=${activeBranchId}`,
+        {
+          headers: {
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
+        },
+      );
+      if (!res.ok) {
+        const e = await res.json().catch(() => ({}));
+        throw new Error(e.error || `HTTP ${res.status}`);
+      }
       const data = await res.json();
       setExpenses(Array.isArray(data.expenses) ? data.expenses : []);
     } catch (err) {
       console.error(err);
-      toast.error("Failed to load expenses");
+      toast.error(err.message || "Failed to load expenses");
       setExpenses([]);
     } finally {
       setLoading(false);
@@ -110,6 +126,7 @@ const Expenses = () => {
     if (!form.category) return toast.error("Category is required");
     if (!amount || amount <= 0) return toast.error("Enter a valid amount");
     if (!form.expense_date) return toast.error("Date is required");
+    if (activeBranchId == null) return toast.error("No active branch selected");
 
     setSaving(true);
     try {
@@ -119,18 +136,22 @@ const Expenses = () => {
         recorded_by: user?.full_name || user?.name || user?.username || "User",
         recorded_by_role: user?.role || "member",
         auto_approve: isAdmin,
-        // 🆕 branch scoping
-        ...(activeBranchId ? { branch_id: activeBranchId } : {}),
+        branch_id: activeBranchId,
       };
 
+      const qs = `?branch_id=${activeBranchId}`;
       const url = editing
-        ? `${API_BASE_URL}/api/expenses.php/${editing.id}`
-        : `${API_BASE_URL}/api/expenses.php`;
+        ? `${API_BASE_URL}/api/expenses.php/${editing.id}${qs}`
+        : `${API_BASE_URL}/api/expenses.php${qs}`;
       const method = editing ? "PUT" : "POST";
 
       const res = await fetch(url, {
         method,
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-User-Branch-Id": String(activeBranchId),
+        },
         body: JSON.stringify(payload),
       });
       const data = await res.json();
@@ -156,10 +177,18 @@ const Expenses = () => {
 
   const handleDelete = async (id) => {
     if (!window.confirm("Delete this expense?")) return;
+    if (activeBranchId == null) return toast.error("No active branch selected");
     try {
-      const res = await fetch(`${API_BASE_URL}/api/expenses.php/${id}`, {
-        method: "DELETE",
-      });
+      const res = await fetch(
+        `${API_BASE_URL}/api/expenses.php/${id}?branch_id=${activeBranchId}`,
+        {
+          method: "DELETE",
+          headers: {
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
+        },
+      );
       const data = await res.json();
       if (res.ok && data.status) {
         toast.success("Expense deleted");
@@ -170,8 +199,6 @@ const Expenses = () => {
     }
   };
 
-  // 🆕 merge server response into existing row instead of replacing with
-  // data.expense (which may be undefined if the API returns { status: true })
   const mergeExpense = (updated) => {
     if (!updated || !updated.id) return;
     setExpenses((prev) =>
@@ -181,6 +208,7 @@ const Expenses = () => {
 
   const handleApprove = async (expense) => {
     if (!isAdmin) return toast.error("Only admins can approve");
+    if (activeBranchId == null) return toast.error("No active branch selected");
     if (
       !window.confirm(
         `Approve ₦${Number(expense.amount).toLocaleString()} expense?`,
@@ -191,12 +219,17 @@ const Expenses = () => {
     setBusyId(expense.id);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/expenses.php/${expense.id}`,
+        `${API_BASE_URL}/api/expenses.php/${expense.id}?branch_id=${activeBranchId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
           body: JSON.stringify({
             status: "approved",
+            branch_id: activeBranchId,
             approved_by: user?.full_name || user?.name || "Admin",
           }),
         },
@@ -204,7 +237,6 @@ const Expenses = () => {
       const data = await res.json();
       if (res.ok && data.status) {
         toast.success("✅ Expense approved");
-        // optimistic update; then refetch to stay in sync
         setExpenses((prev) =>
           prev.map((e) =>
             e.id === expense.id
@@ -224,6 +256,7 @@ const Expenses = () => {
 
   const handleReject = async (expense) => {
     if (!isAdmin) return toast.error("Only admins can reject");
+    if (activeBranchId == null) return toast.error("No active branch selected");
     const reason = window.prompt(
       `Reason for rejecting this ₦${Number(expense.amount).toLocaleString()} expense?`,
       "",
@@ -233,12 +266,17 @@ const Expenses = () => {
     setBusyId(expense.id);
     try {
       const res = await fetch(
-        `${API_BASE_URL}/api/expenses.php/${expense.id}`,
+        `${API_BASE_URL}/api/expenses.php/${expense.id}?branch_id=${activeBranchId}`,
         {
           method: "PUT",
-          headers: { "Content-Type": "application/json" },
+          headers: {
+            "Content-Type": "application/json",
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
           body: JSON.stringify({
             status: "rejected",
+            branch_id: activeBranchId,
             rejection_reason: reason || "No reason provided",
             approved_by: user?.full_name || user?.name || "Admin",
           }),
@@ -388,153 +426,62 @@ const Expenses = () => {
         .exp-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
         .exp-header h2 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text); }
         .exp-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
-
         .exp-btn { padding: 10px 20px; border-radius: 8px; border: none; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s; display: inline-flex; align-items: center; gap: 8px; }
         .exp-btn-primary { background: var(--accent); color: white; }
         .exp-btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
         .exp-btn-secondary { background: var(--bg-surface-2); color: var(--text); }
         .exp-btn-secondary:hover { background: var(--bg-surface-3); }
-
-        /* ===== TABS — no container background ===== */
         .exp-tabs { display: flex; gap: 8px; padding: 0; margin-bottom: 20px; flex-wrap: wrap; }
         .exp-tab { padding: 8px 16px; border: none; border-radius: 8px; background: transparent; color: var(--text-muted); font-size: 13px; font-weight: 600; cursor: pointer; transition: all 0.2s; }
         .exp-tab:hover { background: var(--bg-surface-2); color: var(--text); }
         .exp-tab.active { background: var(--approved-bg); color: var(--badge-text); }
         .exp-tab .count { margin-left: 6px; background: rgba(0,0,0,0.15); padding: 1px 6px; border-radius: 8px; font-size: 10px; }
-
-        /* ===== STAT CARDS — no background, no border ===== */
         .exp-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-bottom: 20px; }
         .exp-stat { background: transparent; border: none; padding: 4px 0; }
         .exp-stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
         .exp-stat-value { font-size: 22px; font-weight: 700; margin-top: 6px; color: var(--text); }
-
-        /* ===== FILTERS — no background, no border ===== */
         .exp-filters { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px; margin-bottom: 20px; }
-        .exp-input, .exp-select {
-          background: var(--bg-surface-2);
-          color: var(--text);
-          padding: 10px 14px;
-          border-radius: 8px;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          width: 100%;
-          box-sizing: border-box;
-          transition: box-shadow 0.2s;
-        }
+        .exp-input, .exp-select { background: var(--bg-surface-2); color: var(--text); padding: 10px 14px; border-radius: 8px; border: none; outline: none; font-size: 14px; width: 100%; box-sizing: border-box; transition: box-shadow 0.2s; }
         .exp-input:focus, .exp-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
         .exp-select option { background: var(--bg-surface); color: var(--text); }
         .exp-input::placeholder { color: var(--text-dim); }
         .exp-input::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
-
-        /* ===== TABLE — no borders, no background ===== */
         .exp-table-wrap { background: transparent; border: none; border-radius: 0; overflow: auto; }
         table { width: 100%; border-collapse: collapse; background: transparent; }
         thead { background: transparent; }
-        th {
-          background: transparent;
-          color: var(--text-muted);
-          font-size: 11px;
-          font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 12px 16px;
-          text-align: left;
-          white-space: nowrap;
-          border: none;
-        }
-        td {
-          padding: 12px 16px;
-          border: none;
-          color: var(--text);
-          font-size: 13px;
-          vertical-align: middle;
-          background: transparent;
-        }
-        tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
+        th { background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border: none; }
+        td { padding: 12px 16px; border: none; color: var(--text); font-size: 13px; vertical-align: middle; background: transparent; }
+        tbody tr { border: none; background: transparent; transition: background-color 0.15s ease; }
         tbody tr:hover td { background: var(--bg-surface-2); }
-
         .exp-amount { color: var(--debit); font-weight: 600; white-space: nowrap; }
         .exp-cat { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 12px; font-size: 11px; font-weight: 600; background: var(--bg-surface-2); color: var(--text); }
-
         .exp-actions { display: flex; gap: 4px; }
-        .exp-icon-btn {
-          background: transparent;
-          border: none;
-          cursor: pointer;
-          font-size: 15px;
-          padding: 6px;
-          border-radius: 6px;
-          transition: background 0.15s;
-        }
+        .exp-icon-btn { background: transparent; border: none; cursor: pointer; font-size: 15px; padding: 6px; border-radius: 6px; transition: background 0.15s; }
         .exp-icon-btn:hover { background: var(--bg-surface-2); }
         .exp-icon-btn:disabled { opacity: 0.4; cursor: not-allowed; }
-
         .exp-empty { text-align: center; padding: 60px 20px; color: var(--text-muted); }
         .exp-empty-icon { font-size: 48px; margin-bottom: 10px; }
-
-        /* ===== MODAL ===== */
-        .modal-overlay {
-          position: fixed;
-          inset: 0;
-          background: var(--bg-overlay);
-          backdrop-filter: blur(4px);
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          z-index: 1000;
-          padding: 16px;
-        }
-        .modal-content {
-          background: var(--bg-surface);
-          border-radius: 14px;
-          padding: 28px;
-          max-width: 520px;
-          width: 100%;
-          max-height: 90vh;
-          overflow-y: auto;
-          border: none;
-          color: var(--text);
-          box-shadow: var(--shadow-lg);
-        }
+        .modal-overlay { position: fixed; inset: 0; background: var(--bg-overlay); backdrop-filter: blur(4px); display: flex; align-items: center; justify-content: center; z-index: 1000; padding: 16px; }
+        .modal-content { background: var(--bg-surface); border-radius: 14px; padding: 28px; max-width: 520px; width: 100%; max-height: 90vh; overflow-y: auto; border: none; color: var(--text); box-shadow: var(--shadow-lg); }
         .modal-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
         .modal-title { font-size: 18px; font-weight: 700; margin: 0; color: var(--text); }
         .modal-close { background: none; border: none; color: var(--text-muted); font-size: 26px; cursor: pointer; padding: 0 6px; }
         .modal-close:hover { color: var(--text); }
-
         .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
         .form-group { margin-bottom: 14px; }
         .form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text); margin-bottom: 6px; text-transform: uppercase; letter-spacing: 0.3px; }
-        .form-input, .form-select {
-          width: 100%;
-          padding: 11px 14px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 14px;
-          outline: none;
-          box-sizing: border-box;
-          transition: box-shadow 0.2s;
-        }
+        .form-input, .form-select { width: 100%; padding: 11px 14px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); font-size: 14px; outline: none; box-sizing: border-box; transition: box-shadow 0.2s; }
         .form-input:focus, .form-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
         .form-select option { background: var(--bg-surface); color: var(--text); }
         .form-input::placeholder { color: var(--text-dim); }
         .form-input::-webkit-calendar-picker-indicator { filter: invert(0.5); cursor: pointer; }
-
         .modal-btns { display: flex; gap: 10px; margin-top: 8px; }
         .modal-btns button { flex: 1; }
-
         @media (max-width: 600px) {
           .form-row { grid-template-columns: 1fr; }
         }
       `}</style>
 
-      {/* ===== 🆕 BRANCH BANNER ===== */}
       <div
         style={{
           display: "flex",
@@ -612,7 +559,6 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Tabs */}
       <div className="exp-tabs">
         {STATUS_TABS.map((t) => {
           const count =
@@ -632,7 +578,6 @@ const Expenses = () => {
         })}
       </div>
 
-      {/* Stats */}
       <div className="exp-stats">
         <div className="exp-stat">
           <div className="exp-stat-label">💰 Approved Total</div>
@@ -658,11 +603,7 @@ const Expenses = () => {
             {stats.count}
             {stats.pendingCount > 0 && (
               <span
-                style={{
-                  fontSize: 12,
-                  color: "var(--warning)",
-                  marginLeft: 8,
-                }}
+                style={{ fontSize: 12, color: "var(--warning)", marginLeft: 8 }}
               >
                 + {stats.pendingCount} pending
               </span>
@@ -671,7 +612,6 @@ const Expenses = () => {
         </div>
       </div>
 
-      {/* Filters */}
       <div className="exp-filters">
         <input
           type="text"
@@ -700,7 +640,6 @@ const Expenses = () => {
         />
       </div>
 
-      {/* Table */}
       <div className="exp-table-wrap">
         <table>
           <thead>
@@ -825,7 +764,6 @@ const Expenses = () => {
         </table>
       </div>
 
-      {/* Modal */}
       {showModal && (
         <div
           className="modal-overlay"
@@ -844,7 +782,6 @@ const Expenses = () => {
               </button>
             </div>
 
-            {/* 🆕 branch note */}
             <div
               style={{
                 background: "var(--accent-bg)",

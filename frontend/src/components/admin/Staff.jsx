@@ -9,7 +9,9 @@ import React, {
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const ROLES = [
   {
@@ -49,7 +51,6 @@ const Staff = () => {
   const [updatingId, setUpdatingId] = useState(null);
   const [currentUser, setCurrentUser] = useState(null);
 
-  // 🆕 Prevent the initial effect + branch-change effect from both firing
   const didInitRef = useRef(false);
   const lastBranchIdRef = useRef(null);
 
@@ -64,20 +65,34 @@ const Staff = () => {
     }
   }, []);
 
-  // Unified fetch — called by both initial mount and branch change
   const fetchMembers = useCallback(
     async (opts = {}) => {
       const { silent = false, showEmptyToast = false } = opts;
+
+      if (activeBranchId == null || activeBranchId === "") {
+        setMembers([]);
+        if (silent) setRefreshing(false);
+        else setLoading(false);
+        return;
+      }
 
       if (silent) setRefreshing(true);
       else setLoading(true);
 
       try {
-        const url = activeBranchId
-          ? `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`
-          : `${API_BASE_URL}/api/members.php`;
+        const url = `${API_BASE_URL}/api/members.php?branch_id=${activeBranchId}`;
+        const res = await fetch(url, {
+          headers: {
+            Accept: "application/json",
+            "X-User-Branch-Id": String(activeBranchId),
+          },
+        });
 
-        const res = await fetch(url);
+        if (!res.ok) {
+          const errBody = await res.json().catch(() => ({}));
+          throw new Error(errBody.error || `HTTP ${res.status}`);
+        }
+
         const data = await res.json();
 
         let rawList = [];
@@ -118,7 +133,7 @@ const Staff = () => {
         setMembers(mapped);
       } catch (e) {
         console.error("[Staff] fetch error:", e);
-        toast.error("Failed to load members");
+        toast.error(e.message || "Failed to load members");
         setMembers([]);
       } finally {
         if (silent) setRefreshing(false);
@@ -128,7 +143,6 @@ const Staff = () => {
     [activeBranchId, activeBranch?.name],
   );
 
-  // Initial mount + branch change — guard against double fire
   useEffect(() => {
     const isFirstRun = !didInitRef.current;
     const branchChanged =
@@ -145,7 +159,6 @@ const Staff = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeBranchId]);
 
-  // Manual refresh handler — single toast, spinner on button
   const handleRefresh = async () => {
     await fetchMembers({ silent: true });
     toast.success("🔄 Staff list refreshed");
@@ -171,15 +184,22 @@ const Staff = () => {
       return;
     }
 
+    if (activeBranchId == null) {
+      toast.error("No active branch selected");
+      return;
+    }
+
     setUpdatingId(member.id);
     try {
-      const putUrl = activeBranchId
-        ? `${API_BASE_URL}/api/members.php/${member.id}?branch_id=${activeBranchId}`
-        : `${API_BASE_URL}/api/members.php/${member.id}`;
+      const putUrl = `${API_BASE_URL}/api/members.php/${member.id}?branch_id=${activeBranchId}`;
 
       const res = await fetch(putUrl, {
         method: "PUT",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+          "X-User-Branch-Id": String(activeBranchId),
+        },
         body: JSON.stringify({
           name: member.name,
           email: member.email,
@@ -272,170 +292,39 @@ const Staff = () => {
     >
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
-        .staff-header {
-          display: flex; justify-content: space-between;
-          align-items: flex-start; flex-wrap: wrap;
-          gap: 16px; margin-bottom: 24px;
-        }
-        .staff-header h2 {
-          font-size: 24px; font-weight: 700; margin: 0;
-          color: var(--text);
-        }
-        .staff-header p {
-          color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px;
-        }
-        .refresh-btn {
-          padding: 10px 18px;
-          border-radius: 8px;
-          border: 1px solid var(--border);
-          background: var(--bg-surface-2);
-          color: var(--text);
-          cursor: pointer;
-          font-size: 13px;
-          font-weight: 600;
-          display: inline-flex;
-          align-items: center;
-          gap: 8px;
-          transition: background 0.15s, opacity 0.15s;
-        }
+        .staff-header { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; margin-bottom: 24px; }
+        .staff-header h2 { font-size: 24px; font-weight: 700; margin: 0; color: var(--text); }
+        .staff-header p { color: var(--text-muted); margin: 4px 0 0 0; font-size: 14px; }
+        .refresh-btn { padding: 10px 18px; border-radius: 8px; border: 1px solid var(--border); background: var(--bg-surface-2); color: var(--text); cursor: pointer; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px; transition: background 0.15s, opacity 0.15s; }
         .refresh-btn:hover:not(:disabled) { background: var(--bg-surface-3); }
         .refresh-btn:disabled { opacity: 0.6; cursor: not-allowed; }
         .refresh-btn .spin { display: inline-block; animation: spin 1s linear infinite; }
-
-        .stats-row {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-          gap: 16px; margin-bottom: 20px;
-        }
-        .stat-card {
-          background: transparent;
-          border: none;
-          padding: 4px 0;
-          display: flex; flex-direction: column; gap: 6px;
-        }
-        .stat-label {
-          font-size: 12px; color: var(--text-muted);
-          text-transform: uppercase;
-          letter-spacing: 0.5px; font-weight: 600;
-        }
-        .stat-value {
-          font-size: 22px; font-weight: 700;
-        }
-
-        .filter-bar {
-          display: flex; gap: 10px; flex-wrap: wrap;
-          margin-bottom: 20px;
-        }
-        .filter-input, .filter-select {
-          background: var(--bg-surface-2);
-          color: var(--text);
-          padding: 10px 14px;
-          border-radius: 8px;
-          border: none;
-          outline: none;
-          font-size: 14px;
-          transition: box-shadow 0.2s;
-        }
+        .stats-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 16px; margin-bottom: 20px; }
+        .stat-card { background: transparent; border: none; padding: 4px 0; display: flex; flex-direction: column; gap: 6px; }
+        .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+        .stat-value { font-size: 22px; font-weight: 700; }
+        .filter-bar { display: flex; gap: 10px; flex-wrap: wrap; margin-bottom: 20px; }
+        .filter-input, .filter-select { background: var(--bg-surface-2); color: var(--text); padding: 10px 14px; border-radius: 8px; border: none; outline: none; font-size: 14px; transition: box-shadow 0.2s; }
         .filter-input { flex: 1; min-width: 220px; }
         .filter-input::placeholder { color: var(--text-dim); }
-        .filter-input:focus, .filter-select:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-        .filter-select option {
-          background: var(--bg-surface); color: var(--text);
-        }
-
-        .table-wrap {
-          background: transparent;
-          border: none;
-          border-radius: 0;
-          overflow: auto;
-        }
+        .filter-input:focus, .filter-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .filter-select option { background: var(--bg-surface); color: var(--text); }
+        .table-wrap { background: transparent; border: none; border-radius: 0; overflow: auto; }
         table { width: 100%; border-collapse: collapse; background: transparent; }
         thead { background: transparent; }
-        th {
-          background: transparent;
-          color: var(--text-muted);
-          font-size: 11px; font-weight: 600;
-          text-transform: uppercase;
-          letter-spacing: 0.5px;
-          padding: 12px 16px;
-          text-align: left;
-          white-space: nowrap;
-          border: none;
-        }
-        td {
-          padding: 12px 16px;
-          border: none;
-          color: var(--text); font-size: 13px;
-          vertical-align: middle;
-          background: transparent;
-        }
-        tbody tr {
-          border: none;
-          background: transparent;
-          transition: background-color 0.15s ease;
-        }
-        tbody tr:hover td {
-          background: var(--bg-surface-2);
-        }
-
-        .member-cell {
-          display: flex; align-items: center; gap: 10px;
-        }
-        .avatar {
-          width: 36px; height: 36px;
-          border-radius: 50%;
-          background: var(--approved-bg);
-          color: var(--badge-text);
-          display: flex; align-items: center;
-          justify-content: center;
-          font-weight: bold;
-          flex-shrink: 0;
-          overflow: hidden;
-        }
-        .avatar img {
-          width: 100%; height: 100%; object-fit: cover;
-        }
-
-        .role-select {
-          padding: 6px 10px;
-          border-radius: 8px;
-          border: none;
-          background: var(--bg-surface-2);
-          color: var(--text);
-          font-size: 13px;
-          font-weight: 600;
-          cursor: pointer;
-          outline: none;
-          min-width: 130px;
-          transition: box-shadow 0.2s;
-        }
-        .role-select:focus {
-          box-shadow: 0 0 0 2px var(--accent-bg);
-        }
-        .role-select option {
-          background: var(--bg-surface); color: var(--text);
-        }
-        .role-select:disabled {
-          opacity: 0.5; cursor: not-allowed;
-        }
-
-        .badge {
-          display: inline-flex;
-          align-items: center; gap: 5px;
-          padding: 3px 10px;
-          border-radius: 20px;
-          font-size: 11px;
-          font-weight: 600;
-          color: var(--badge-text);
-        }
-
-        .empty {
-          text-align: center;
-          padding: 50px 20px !important;
-          color: var(--text-muted);
-        }
+        th { background: transparent; color: var(--text-muted); font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; text-align: left; white-space: nowrap; border: none; }
+        td { padding: 12px 16px; border: none; color: var(--text); font-size: 13px; vertical-align: middle; background: transparent; }
+        tbody tr { border: none; background: transparent; transition: background-color 0.15s ease; }
+        tbody tr:hover td { background: var(--bg-surface-2); }
+        .member-cell { display: flex; align-items: center; gap: 10px; }
+        .avatar { width: 36px; height: 36px; border-radius: 50%; background: var(--approved-bg); color: var(--badge-text); display: flex; align-items: center; justify-content: center; font-weight: bold; flex-shrink: 0; overflow: hidden; }
+        .avatar img { width: 100%; height: 100%; object-fit: cover; }
+        .role-select { padding: 6px 10px; border-radius: 8px; border: none; background: var(--bg-surface-2); color: var(--text); font-size: 13px; font-weight: 600; cursor: pointer; outline: none; min-width: 130px; transition: box-shadow 0.2s; }
+        .role-select:focus { box-shadow: 0 0 0 2px var(--accent-bg); }
+        .role-select option { background: var(--bg-surface); color: var(--text); }
+        .role-select:disabled { opacity: 0.5; cursor: not-allowed; }
+        .badge { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 20px; font-size: 11px; font-weight: 600; color: var(--badge-text); }
+        .empty { text-align: center; padding: 50px 20px !important; color: var(--text-muted); }
         .empty-icon { font-size: 48px; margin-bottom: 8px; }
       `}</style>
 

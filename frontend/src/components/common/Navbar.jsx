@@ -7,100 +7,34 @@ import { useBranch } from "../../context/BranchContext";
 import BranchSwitcher from "./BranchSwitcher";
 import NotificationBell from "./NotificationBell";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const ADMIN_VOICE_ROUTES = [
-  {
-    keywords: ["dashboard", "home", "main", "admin"],
-    path: "/admin",
-    label: "Dashboard",
-  },
+  { keywords: ["dashboard", "home", "main", "admin"], path: "/admin", label: "Dashboard" },
   { keywords: ["member", "members"], path: "/admin/members", label: "Members" },
-  {
-    keywords: ["transaction", "transactions"],
-    path: "/admin/transactions",
-    label: "Transactions",
-  },
-  {
-    keywords: ["pending", "approvals", "pending approvals"],
-    path: "/admin/pending",
-    label: "Pending Approvals",
-  },
-  {
-    keywords: ["report", "reports", "analytics"],
-    path: "/admin/reports",
-    label: "Reports & Analytics",
-  },
-  {
-    keywords: ["user", "users"],
-    path: "/admin/users",
-    label: "User Management",
-  },
-  {
-    keywords: ["staff", "staff role", "staff roles", "role", "roles"],
-    path: "/admin/staff-roles",
-    label: "Staff Roles",
-  },
-  {
-    keywords: ["settings", "setting", "config"],
-    path: "/admin/settings",
-    label: "Settings",
-  },
-  {
-    keywords: ["profile", "account", "my profile"],
-    path: "/admin/profile",
-    label: "Profile",
-  },
-  {
-    keywords: ["broadsheet", "ledger", "broad"],
-    path: "/admin/broadsheet",
-    label: "Broadsheet",
-  },
+  { keywords: ["transaction", "transactions"], path: "/admin/transactions", label: "Transactions" },
+  { keywords: ["pending", "approvals", "pending approvals"], path: "/admin/pending", label: "Pending Approvals" },
+  { keywords: ["report", "reports", "analytics"], path: "/admin/reports", label: "Reports & Analytics" },
+  { keywords: ["user", "users"], path: "/admin/users", label: "User Management" },
+  { keywords: ["staff", "staff role", "staff roles", "role", "roles"], path: "/admin/staff-roles", label: "Staff Roles" },
+  { keywords: ["settings", "setting", "config"], path: "/admin/settings", label: "Settings" },
+  { keywords: ["profile", "account", "my profile"], path: "/admin/profile", label: "Profile" },
+  { keywords: ["broadsheet", "ledger", "broad"], path: "/admin/broadsheet", label: "Broadsheet" },
   { keywords: ["loan", "loans"], path: "/admin/loans", label: "Loans" },
-  {
-    keywords: ["expense", "expenses"],
-    path: "/admin/expenses",
-    label: "Expenses",
-  },
+  { keywords: ["expense", "expenses"], path: "/admin/expenses", label: "Expenses" },
 ];
 
 const MEMBER_VOICE_ROUTES = [
-  {
-    keywords: ["dashboard", "home", "main"],
-    path: "/member",
-    label: "Dashboard",
-  },
-  {
-    keywords: ["deposit", "add money", "top up"],
-    path: "/member/deposit",
-    label: "Deposit",
-  },
-  {
-    keywords: ["withdraw", "withdrawal"],
-    path: "/member/withdraw",
-    label: "Withdraw",
-  },
-  {
-    keywords: ["transfer", "send money"],
-    path: "/member/transfer",
-    label: "Transfer",
-  },
-  {
-    keywords: ["history", "transactions"],
-    path: "/member/history",
-    label: "Transaction History",
-  },
+  { keywords: ["dashboard", "home", "main"], path: "/member", label: "Dashboard" },
+  { keywords: ["deposit", "add money", "top up"], path: "/member/deposit", label: "Deposit" },
+  { keywords: ["withdraw", "withdrawal"], path: "/member/withdraw", label: "Withdraw" },
+  { keywords: ["transfer", "send money"], path: "/member/transfer", label: "Transfer" },
+  { keywords: ["history", "transactions"], path: "/member/history", label: "Transaction History" },
   { keywords: ["loan", "loans"], path: "/member/loans", label: "Loans" },
-  {
-    keywords: ["profile", "account"],
-    path: "/member/profile",
-    label: "Profile",
-  },
-  {
-    keywords: ["broadsheet", "ledger"],
-    path: "/member/broadsheet",
-    label: "Broadsheet",
-  },
+  { keywords: ["profile", "account"], path: "/member/profile", label: "Profile" },
+  { keywords: ["broadsheet", "ledger"], path: "/member/broadsheet", label: "Broadsheet" },
 ];
 
 const Navbar = ({
@@ -112,8 +46,6 @@ const Navbar = ({
   const { user, logout } = useAuth();
   const { themeKey, setTheme, availableThemes } = useTheme();
   const { activeBranch, activeBranchId } = useBranch();
-
-  const branchId = activeBranchId || user?.branch_id || null;
 
   const location = useLocation();
   const navigate = useNavigate();
@@ -168,18 +100,23 @@ const Navbar = ({
       .charAt(0)
       .toUpperCase();
 
-  // Shop name
+  // ✅ Shop name: only fires when BranchContext has a verified activeBranchId.
+  // Never falls back to a stale user.branch_id (which caused "Branch not found").
   useEffect(() => {
     let cancelled = false;
 
+    if (activeBranchId == null || activeBranchId === "") {
+      setShopName(activeBranch?.name || "Savings Hub");
+      return () => {
+        cancelled = true;
+      };
+    }
+
     const fetchShopName = async () => {
-      if (!branchId) {
-        setShopName(activeBranch?.name || "Savings Hub");
-        return;
-      }
       try {
         const response = await fetch(
-          `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branchId)}`,
+          `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(activeBranchId)}`,
+          { headers: { Accept: "application/json" } },
         );
         const data = await response.json();
         if (cancelled) return;
@@ -204,7 +141,7 @@ const Navbar = ({
       window.removeEventListener("settings:updated", fetchShopName);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [branchId, activeBranch?.name]);
+  }, [activeBranchId, activeBranch?.name]);
 
   useEffect(() => {
     const handleScroll = () => setScrolled(window.scrollY > 10);
@@ -238,7 +175,6 @@ const Navbar = ({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  // Voice assistant
   const speak = useCallback((text) => {
     if (!("speechSynthesis" in window)) return;
     try {
@@ -571,7 +507,6 @@ const Navbar = ({
       >
         Choose Theme
       </div>
-
       {availableThemes.map((t) => {
         const isActive = t.key === themeKey;
         return (
@@ -764,8 +699,6 @@ const Navbar = ({
 
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           {isAdmin && <BranchSwitcher />}
-
-          {/* 🔔 Notification Bell */}
           <NotificationBell />
 
           {!isMobile && voiceSupported && (
@@ -1078,6 +1011,10 @@ const Navbar = ({
                     borderRadius: "8px",
                     transition: "background-color 0.2s",
                     fontSize: "13px",
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor =
+                      "var(--bg-surface-2)";
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor =

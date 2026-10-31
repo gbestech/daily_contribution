@@ -3,7 +3,9 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
+  "https://baleeg.onrender.com";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -22,7 +24,9 @@ const ForgotPassword = () => {
 
   const fetchAppSettings = async () => {
     try {
-      const response = await fetch(`${API_BASE_URL}/api/settings.php`);
+      const response = await fetch(`${API_BASE_URL}/api/settings.php`, {
+        headers: { Accept: "application/json" },
+      });
       if (response.ok) {
         const result = await response.json();
         if (result.status === true && result.data?.general) {
@@ -32,13 +36,14 @@ const ForgotPassword = () => {
               general.shop_name || general.app_name || "Osittech Contribution",
             logo: general.logo || "🏦",
           });
-        } else {
-          setAppSettings({
-            appName: "Osittech Contribution",
-            logo: "🏦",
-          });
+          return;
         }
       }
+      // Any non-200 or non-{status:true} response → defaults
+      setAppSettings({
+        appName: "Osittech Contribution",
+        logo: "🏦",
+      });
     } catch {
       setAppSettings({
         appName: "Osittech Contribution",
