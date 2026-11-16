@@ -1,9 +1,9 @@
-// src/components/member/Profile.jsx
+﻿// src/components/member/Profile.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const MemberProfile = () => {
   const { user, login } = useAuth();
@@ -40,7 +40,7 @@ const MemberProfile = () => {
   });
 
   // ============================================================
-  // Fetch fresh profile — does NOT call login() to avoid
+  // Fetch fresh profile â€” does NOT call login() to avoid
   // triggering the useEffect loop that was freezing inputs.
   // ============================================================
   const fetchFreshProfile = async (showToastFlag = false) => {
@@ -85,11 +85,11 @@ const MemberProfile = () => {
 
         setShowCompletion(m.profile_completed !== 1);
 
-        // Sync to localStorage silently — no context update here
+        // Sync to localStorage silently â€” no context update here
         const updatedUser = { ...user, ...m };
         localStorage.setItem("user", JSON.stringify(updatedUser));
 
-        if (showToastFlag) toast.success("✅ Refreshed");
+        if (showToastFlag) toast.success("âœ… Refreshed");
       }
     } catch (e) {
       console.error("Fetch profile error:", e);
@@ -199,12 +199,12 @@ const MemberProfile = () => {
       const data = await res.json();
 
       if (res.ok) {
-        // Now it's safe to update context — this is a one-time action
+        // Now it's safe to update context â€” this is a one-time action
         const freshUser = { ...user, ...(data.member || payload) };
         localStorage.setItem("user", JSON.stringify(freshUser));
         login(freshUser, localStorage.getItem("token"));
 
-        toast.success("🎉 Profile completed!");
+        toast.success("ðŸŽ‰ Profile completed!");
         setPassportFile(null);
         setShowCompletion(false);
       } else {
@@ -249,7 +249,7 @@ const MemberProfile = () => {
         localStorage.setItem("user", JSON.stringify(freshUser));
         login(freshUser, localStorage.getItem("token"));
 
-        toast.success("✅ Profile updated!");
+        toast.success("âœ… Profile updated!");
         setEditMode(false);
         // Refresh silently
         await fetchFreshProfile(false);
@@ -264,7 +264,7 @@ const MemberProfile = () => {
   };
 
   const formatCurrency = (a) => {
-    if (!a && a !== 0) return "₦0.00";
+    if (!a && a !== 0) return "â‚¦0.00";
     return new Intl.NumberFormat("en-NG", {
       style: "currency",
       currency: "NGN",
@@ -365,7 +365,7 @@ const MemberProfile = () => {
             }}
           >
             <h2 style={{ margin: "0 0 6px 0", fontSize: "20px" }}>
-              📝 Complete Your Profile
+              ðŸ“ Complete Your Profile
             </h2>
             <p style={{ margin: 0, color: "#93c5fd", fontSize: "14px" }}>
               Your account number is{" "}
@@ -415,7 +415,7 @@ const MemberProfile = () => {
                       color: "var(--text)",
                     }}
                   >
-                    📷
+                    ðŸ“·
                   </div>
                 )}
               </div>
@@ -534,7 +534,7 @@ const MemberProfile = () => {
                   color: "var(--purple)",
                 }}
               >
-                👥 Next of Kin
+                ðŸ‘¥ Next of Kin
               </h4>
               <div className="info-grid">
                 <div>
@@ -605,7 +605,7 @@ const MemberProfile = () => {
                   color: "var(--info)",
                 }}
               >
-                🏦 Bank Details (Optional)
+                ðŸ¦ Bank Details (Optional)
               </h4>
               <div className="info-grid">
                 <div>
@@ -645,7 +645,7 @@ const MemberProfile = () => {
               disabled={loading}
               style={{ width: "100%" }}
             >
-              {loading ? "Saving..." : "✅ Complete Profile"}
+              {loading ? "Saving..." : "âœ… Complete Profile"}
             </button>
           </form>
         </div>
@@ -664,7 +664,7 @@ const MemberProfile = () => {
           >
             <div>
               <h2 style={{ fontSize: "22px", fontWeight: "bold", margin: 0 }}>
-                👤 My Profile
+                ðŸ‘¤ My Profile
               </h2>
               <p
                 style={{
@@ -673,7 +673,7 @@ const MemberProfile = () => {
                   fontSize: "13px",
                 }}
               >
-                {formData.accountNumber} • {formData.email}
+                {formData.accountNumber} â€¢ {formData.email}
               </p>
             </div>
             <div style={{ display: "flex", gap: "10px" }}>
@@ -690,7 +690,7 @@ const MemberProfile = () => {
                   fontSize: "13px",
                 }}
               >
-                {syncing ? "⏳" : "🔄"} Sync
+                {syncing ? "â³" : "ðŸ”„"} Sync
               </button>
               <button
                 onClick={() => setEditMode(!editMode)}
@@ -706,7 +706,7 @@ const MemberProfile = () => {
                   fontSize: "13px",
                 }}
               >
-                {editMode ? "✕ Cancel" : "✏️ Edit"}
+                {editMode ? "âœ• Cancel" : "âœï¸ Edit"}
               </button>
             </div>
           </div>
@@ -757,7 +757,7 @@ const MemberProfile = () => {
               <div
                 style={{ fontSize: "13px", color: "var(--text-muted)", marginTop: "2px" }}
               >
-                {formData.savings_plan} Saver • {formData.membershipType} Member
+                {formData.savings_plan} Saver â€¢ {formData.membershipType} Member
               </div>
             </div>
             <div style={{ textAlign: "right" }}>
@@ -972,7 +972,7 @@ const MemberProfile = () => {
                   className="btn-primary"
                   disabled={loading}
                 >
-                  {loading ? "Saving..." : "💾 Save Changes"}
+                  {loading ? "Saving..." : "ðŸ’¾ Save Changes"}
                 </button>
                 <button
                   type="button"

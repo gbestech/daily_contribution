@@ -1,4 +1,4 @@
-// src/components/common/Layout.jsx
+﻿// src/components/common/Layout.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -6,7 +6,8 @@ import { usePermission } from "../../context/PermissionsContext";
 import { useBranch } from "../../context/BranchContext";
 import Navbar from "./Navbar";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const Layout = ({ children }) => {
   const { user, logout } = useAuth();
@@ -80,10 +81,10 @@ const Layout = ({ children }) => {
     const fetchShopName = async () => {
       setShopNameLoading(true);
 
-      // 🔑 Reset BEFORE fetch — no stale name during the in-flight request
+      // Reset BEFORE fetch — no stale name during the in-flight request
       setShopName("");
 
-      // No branch id → no shop name. Keep blank.
+      // No branch id -> no shop name. Keep blank.
       if (branchId === null || branchId === undefined) {
         setShopNameLoading(false);
         return;
@@ -95,7 +96,7 @@ const Layout = ({ children }) => {
         )}`;
 
         const response = await fetch(url, {
-          cache: "no-store", // 🔑 never serve a cached response
+          cache: "no-store", // never serve a cached response
           headers: { Accept: "application/json" },
         });
 
@@ -112,7 +113,7 @@ const Layout = ({ children }) => {
         const rawName = data?.data?.general?.shop_name;
         const name = typeof rawName === "string" ? rawName.trim() : "";
 
-        // 🔑 Only accept a non-empty string. Empty → stay blank.
+        // Only accept a non-empty string. Empty -> stay blank.
         setShopName(name);
       } catch (err) {
         if (!cancelled) {
@@ -207,7 +208,6 @@ const Layout = ({ children }) => {
       icon: "📈",
       permission: "view_reports",
     },
-
     {
       path: "/admin/expenses",
       label: "Expenses",
@@ -235,7 +235,7 @@ const Layout = ({ children }) => {
     {
       path: "/admin/password-resets",
       label: "Password Resets",
-      icon: "🔐",
+      icon: "🔑",
       permission: "manage_settings",
     },
     {
@@ -422,7 +422,7 @@ const Layout = ({ children }) => {
                     </p>
                   </>
                 ) : (
-                  // No name in DB → show ONLY the panel label, no placeholder
+                  // No name in DB -> show ONLY the panel label, no placeholder
                   <p
                     style={{
                       color: "var(--text-muted)",

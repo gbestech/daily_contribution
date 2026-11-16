@@ -3,8 +3,7 @@ import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 import useBranchBranding from "../../hooks/useBranchBranding";
-
-const API_BASE_URL = "https://baleeg.onrender.com";
+import { apiFetch } from "../../utils/api";
 
 const capitalizeWords = (str) =>
   str
@@ -20,9 +19,6 @@ const PublicRegister = () => {
   const [showCredentialsModal, setShowCredentialsModal] = useState(false);
   const [createdCredentials, setCreatedCredentials] = useState(null);
 
-  // Branch resolved from ?branch= (or ?branch_id=) in the link.
-  // Registration REQUIRES the link, so the "remembered branch" fallback is off.
-  // Same hook the sign-in page uses → both pages always show the same name.
   const {
     branch,
     name: brandName,
@@ -30,6 +26,7 @@ const PublicRegister = () => {
     hasParam,
     notFound,
     failed,
+    isActive,
   } = useBranchBranding({ allowSaved: false });
 
   const branchError = !hasParam
@@ -38,7 +35,9 @@ const PublicRegister = () => {
       ? "This registration link is invalid or expired."
       : failed
         ? "Could not load branch details. Please check your connection and try again."
-        : "";
+        : branch && !isActive
+          ? "This branch is currently inactive and not accepting registrations."
+          : "";
 
   const [newMember, setNewMember] = useState({
     firstName: "",
@@ -73,7 +72,6 @@ const PublicRegister = () => {
   const handleSubmit = async (e) => {
     e.preventDefault();
 
-    // Block if branch hasn't resolved
     if (!branch?.id) {
       toast.error(
         branchError || "Cannot register: no valid branch in this link.",
@@ -98,28 +96,22 @@ const PublicRegister = () => {
       const accountNumber = generateAccountNumber();
 
       const payload = {
-        accountNumber,
         account_number: accountNumber,
         name: fullName,
-        full_name: fullName,
         email: newMember.email,
-        phone: "",
         password: newMember.password,
+        phone: "",
         role: "member",
         status: "Active",
         membership_type: "Standard",
         join_date: new Date().toISOString().split("T")[0],
         balance: 0,
         profile_completed: 0,
-        // Also send in body (harmless, future-proof)
         branch_id: branch.id,
       };
 
-      // members.php reads $_GET['branch_id'] — it ignores the JSON body.
-      // Without this, every registration falls back to the "first active
-      // branch" regardless of which link was used.
-      const res = await fetch(
-        `${API_BASE_URL}/api/members.php?branch_id=${encodeURIComponent(branch.id)}`,
+      await apiFetch(
+        `/api/members.php?branch_id=${encodeURIComponent(branch.id)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -127,23 +119,17 @@ const PublicRegister = () => {
         },
       );
 
-      const data = await res.json();
-
-      if (res.ok) {
-        setCreatedCredentials({
-          name: fullName,
-          email: newMember.email,
-          password: newMember.password,
-          accountNumber,
-          branchName: branch.name,
-        });
-        setShowCredentialsModal(true);
-      } else {
-        toast.error(data.message || data.error || "Registration failed");
-      }
+      setCreatedCredentials({
+        name: fullName,
+        email: newMember.email,
+        password: newMember.password,
+        accountNumber,
+        branchName: branch.name,
+      });
+      setShowCredentialsModal(true);
     } catch (err) {
       console.error(err);
-      toast.error("Registration failed. Please try again.");
+      toast.error(err?.message || "Registration failed. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -180,7 +166,6 @@ Please log in and complete your profile.`;
     };
     setShowCredentialsModal(false);
     setCreatedCredentials(null);
-    // Carry the branch to the sign-in page so it shows the SAME branch
     navigate(branch?.id ? `/login?branch=${branch.id}` : "/login", {
       state: creds,
     });
@@ -207,7 +192,6 @@ Please log in and complete your profile.`;
           </p>
         </div>
 
-        {/* Branch banner — shows which branch this link is for */}
         {branchLoading ? (
           <div className="reg-branch reg-branch-loading">
             <span className="reg-branch-icon">⏳</span>
@@ -507,7 +491,6 @@ const css = `
     margin: 0;
   }
 
-  /* Branch banner */
   .reg-branch {
     display: flex;
     align-items: center;

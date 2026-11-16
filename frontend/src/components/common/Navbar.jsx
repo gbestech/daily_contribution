@@ -1,4 +1,4 @@
-// src/components/common/Navbar.jsx
+﻿// src/components/common/Navbar.jsx
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
@@ -9,32 +9,101 @@ import NotificationBell from "./NotificationBell";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const ADMIN_VOICE_ROUTES = [
-  { keywords: ["dashboard", "home", "main", "admin"], path: "/admin", label: "Dashboard" },
+  {
+    keywords: ["dashboard", "home", "main", "admin"],
+    path: "/admin",
+    label: "Dashboard",
+  },
   { keywords: ["member", "members"], path: "/admin/members", label: "Members" },
-  { keywords: ["transaction", "transactions"], path: "/admin/transactions", label: "Transactions" },
-  { keywords: ["pending", "approvals", "pending approvals"], path: "/admin/pending", label: "Pending Approvals" },
-  { keywords: ["report", "reports", "analytics"], path: "/admin/reports", label: "Reports & Analytics" },
-  { keywords: ["user", "users"], path: "/admin/users", label: "User Management" },
-  { keywords: ["staff", "staff role", "staff roles", "role", "roles"], path: "/admin/staff-roles", label: "Staff Roles" },
-  { keywords: ["settings", "setting", "config"], path: "/admin/settings", label: "Settings" },
-  { keywords: ["profile", "account", "my profile"], path: "/admin/profile", label: "Profile" },
-  { keywords: ["broadsheet", "ledger", "broad"], path: "/admin/broadsheet", label: "Broadsheet" },
+  {
+    keywords: ["transaction", "transactions"],
+    path: "/admin/transactions",
+    label: "Transactions",
+  },
+  {
+    keywords: ["pending", "approvals", "pending approvals"],
+    path: "/admin/pending",
+    label: "Pending Approvals",
+  },
+  {
+    keywords: ["report", "reports", "analytics"],
+    path: "/admin/reports",
+    label: "Reports & Analytics",
+  },
+  {
+    keywords: ["user", "users"],
+    path: "/admin/users",
+    label: "User Management",
+  },
+  {
+    keywords: ["staff", "staff role", "staff roles", "role", "roles"],
+    path: "/admin/staff-roles",
+    label: "Staff Roles",
+  },
+  {
+    keywords: ["settings", "setting", "config"],
+    path: "/admin/settings",
+    label: "Settings",
+  },
+  {
+    keywords: ["profile", "account", "my profile"],
+    path: "/admin/profile",
+    label: "Profile",
+  },
+  {
+    keywords: ["broadsheet", "ledger", "broad"],
+    path: "/admin/broadsheet",
+    label: "Broadsheet",
+  },
   { keywords: ["loan", "loans"], path: "/admin/loans", label: "Loans" },
-  { keywords: ["expense", "expenses"], path: "/admin/expenses", label: "Expenses" },
+  {
+    keywords: ["expense", "expenses"],
+    path: "/admin/expenses",
+    label: "Expenses",
+  },
 ];
 
 const MEMBER_VOICE_ROUTES = [
-  { keywords: ["dashboard", "home", "main"], path: "/member", label: "Dashboard" },
-  { keywords: ["deposit", "add money", "top up"], path: "/member/deposit", label: "Deposit" },
-  { keywords: ["withdraw", "withdrawal"], path: "/member/withdraw", label: "Withdraw" },
-  { keywords: ["transfer", "send money"], path: "/member/transfer", label: "Transfer" },
-  { keywords: ["history", "transactions"], path: "/member/history", label: "Transaction History" },
+  {
+    keywords: ["dashboard", "home", "main"],
+    path: "/member",
+    label: "Dashboard",
+  },
+  {
+    keywords: ["deposit", "add money", "top up"],
+    path: "/member/deposit",
+    label: "Deposit",
+  },
+  {
+    keywords: ["withdraw", "withdrawal"],
+    path: "/member/withdraw",
+    label: "Withdraw",
+  },
+  {
+    keywords: ["transfer", "send money"],
+    path: "/member/transfer",
+    label: "Transfer",
+  },
+  {
+    keywords: ["history", "transactions"],
+    path: "/member/history",
+    label: "Transaction History",
+  },
   { keywords: ["loan", "loans"], path: "/member/loans", label: "Loans" },
-  { keywords: ["profile", "account"], path: "/member/profile", label: "Profile" },
-  { keywords: ["broadsheet", "ledger"], path: "/member/broadsheet", label: "Broadsheet" },
+  {
+    keywords: ["profile", "account"],
+    path: "/member/profile",
+    label: "Profile",
+  },
+  {
+    keywords: ["broadsheet", "ledger"],
+    path: "/member/broadsheet",
+    label: "Broadsheet",
+  },
 ];
 
 const Navbar = ({
@@ -1011,10 +1080,6 @@ const Navbar = ({
                     borderRadius: "8px",
                     transition: "background-color 0.2s",
                     fontSize: "13px",
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor =
-                      "var(--bg-surface-2)";
                   }}
                   onMouseEnter={(e) => {
                     e.currentTarget.style.backgroundColor =

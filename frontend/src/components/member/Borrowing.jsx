@@ -1,8 +1,8 @@
-// src/components/member/Borrowing.jsx
+﻿// src/components/member/Borrowing.jsx
 import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 // ============================================================
 // Detect the current theme (light / dark)
@@ -61,7 +61,7 @@ const Borrowing = () => {
   const [borrowAmount, setBorrowAmount] = useState("");
   const [userData, setUserData] = useState(null);
 
-  // 🆕 Theme tracking
+  // ðŸ†• Theme tracking
   const [theme, setTheme] = useState(() => detectTheme());
 
   const [loanSettings, setLoanSettings] = useState({
@@ -95,7 +95,7 @@ const Borrowing = () => {
   const hasFetched = useRef(false);
 
   // ============================================================
-  // 🆕 Watch for theme changes
+  // ðŸ†• Watch for theme changes
   // ============================================================
   useEffect(() => {
     const update = () => setTheme(detectTheme());
@@ -124,7 +124,7 @@ const Borrowing = () => {
   }, []);
 
   // ============================================================
-  // 🆕 Theme-aware color palette
+  // ðŸ†• Theme-aware color palette
   // ============================================================
   const isLight = theme === "light";
 
@@ -133,7 +133,7 @@ const Borrowing = () => {
   const textMuted = isLight ? "#475569" : "#94a3b8";
   const textDim = isLight ? "#64748b" : "#64748b";
 
-  // Input fields — explicit background + text pairing
+  // Input fields â€” explicit background + text pairing
   const fieldBg = isLight ? "#ffffff" : "#0f172a";
   const fieldText = isLight ? "#0f172a" : "#f1f5f9";
   const fieldPlaceholder = isLight ? "#94a3b8" : "#64748b";
@@ -181,9 +181,9 @@ const Borrowing = () => {
   }, [borrowAmount, userData, loanSettings]);
 
   const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return "₦0.00";
+    if (!amount && amount !== 0) return "â‚¦0.00";
     const num = parseFloat(amount) || 0;
-    return "₦" + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+    return "â‚¦" + num.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
   };
 
   const formatNumber = (amount) => {
@@ -432,7 +432,7 @@ const Borrowing = () => {
 
       if (data.success) {
         toast.success(
-          `✅ Payment of ${formatCurrency(amount)} submitted successfully!`,
+          `âœ… Payment of ${formatCurrency(amount)} submitted successfully!`,
         );
         setShowPaymentModal(false);
         setPaymentAmount("");
@@ -523,7 +523,7 @@ const Borrowing = () => {
       }
 
       if (data.success) {
-        toast.success("✅ Loan request submitted successfully!");
+        toast.success("âœ… Loan request submitted successfully!");
         setShowBorrowModal(false);
         setBorrowAmount("");
         fetchLoanHistory();
@@ -592,7 +592,7 @@ const Borrowing = () => {
     const totalPaid = parseFloat(loan.total_paid) || 0;
     const remaining = parseFloat(loan.total_payable) - totalPaid;
     if (remaining <= 0) {
-      toast("This loan is already fully paid!", { icon: "ℹ️" });
+      toast("This loan is already fully paid!", { icon: "â„¹ï¸" });
       return;
     }
     setSelectedLoan(loan);
@@ -656,7 +656,7 @@ const Borrowing = () => {
       }}
     >
       {/* ============================================================ */}
-      {/* 🆕 THEME-AWARE STYLES */}
+      {/* ðŸ†• THEME-AWARE STYLES */}
       {/* ============================================================ */}
       <style>{`
         @keyframes spin { to { transform: rotate(360deg); } }
@@ -1011,7 +1011,7 @@ const Borrowing = () => {
               color: textColor,
             }}
           >
-            💰 Loan Management
+            ðŸ’° Loan Management
           </h2>
           <p style={{ color: textMuted, margin: "4px 0 0 0" }}>
             Request and manage your loans
@@ -1023,7 +1023,7 @@ const Borrowing = () => {
             onClick={handleRefresh}
             disabled={refreshing}
           >
-            <span className={refreshing ? "spinning" : ""}>🔄</span>
+            <span className={refreshing ? "spinning" : ""}>ðŸ”„</span>
             {refreshing ? "Refreshing..." : "Refresh"}
           </button>
           <button
@@ -1031,7 +1031,7 @@ const Borrowing = () => {
             onClick={() => setShowBorrowModal(true)}
             disabled={!loanSettings.enable_loan_requests}
           >
-            ➕ Request Loan
+            âž• Request Loan
           </button>
         </div>
       </div>
@@ -1072,7 +1072,7 @@ const Borrowing = () => {
             <span
               className={`eligibility-badge ${loanDetails.isEligible ? "eligible" : "not-eligible"}`}
             >
-              {loanDetails.isEligible ? "✅ Eligible" : "❌ Not Eligible"}
+              {loanDetails.isEligible ? "âœ… Eligible" : "âŒ Not Eligible"}
             </span>
             {!loanDetails.isEligible && (
               <div
@@ -1108,7 +1108,7 @@ const Borrowing = () => {
           }}
         >
           <h3 style={{ margin: 0, fontSize: "16px", color: textColor }}>
-            📋 Loan History
+            ðŸ“‹ Loan History
           </h3>
           <span style={{ fontSize: "13px", color: textMuted }}>
             {loans.length} loan{loans.length !== 1 ? "s" : ""}
@@ -1215,7 +1215,7 @@ const Borrowing = () => {
                             color: creditColor,
                           }}
                         >
-                          ✅ Paid
+                          âœ… Paid
                         </span>
                       )}
                     </td>
@@ -1237,24 +1237,24 @@ const Borrowing = () => {
                           className="btn-pay"
                           onClick={() => openPaymentModal(loan)}
                         >
-                          💳 Pay
+                          ðŸ’³ Pay
                         </button>
                       )}
                       {isFullyPaid && (
                         <span style={{ fontSize: "12px", color: creditColor }}>
-                          ✅ Completed
+                          âœ… Completed
                         </span>
                       )}
                       {!canPay && !isFullyPaid && loan.status === "pending" && (
                         <span style={{ fontSize: "12px", color: warningColor }}>
-                          ⏳ Pending
+                          â³ Pending
                         </span>
                       )}
                       {!canPay &&
                         !isFullyPaid &&
                         loan.status === "rejected" && (
                           <span style={{ fontSize: "12px", color: debitColor }}>
-                            ❌ Rejected
+                            âŒ Rejected
                           </span>
                         )}
                     </td>
@@ -1292,7 +1292,7 @@ const Borrowing = () => {
                 onClick={prevPage}
                 disabled={currentPage === 1}
               >
-                ◀
+                â—€
               </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNumber;
@@ -1322,7 +1322,7 @@ const Borrowing = () => {
                 onClick={nextPage}
                 disabled={currentPage === totalPages}
               >
-                ▶
+                â–¶
               </button>
             </div>
           </div>
@@ -1334,7 +1334,7 @@ const Borrowing = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3 className="modal-title">💰 Request Loan</h3>
+              <h3 className="modal-title">ðŸ’° Request Loan</h3>
               <button
                 className="modal-close"
                 onClick={() => {
@@ -1342,7 +1342,7 @@ const Borrowing = () => {
                   setBorrowAmount("");
                 }}
               >
-                ✕
+                âœ•
               </button>
             </div>
 
@@ -1375,7 +1375,7 @@ const Borrowing = () => {
                   style={{ display: "flex", alignItems: "center", gap: "8px" }}
                 >
                   <span style={{ fontSize: "20px" }}>
-                    {loanDetails.isEligible ? "✅" : "❌"}
+                    {loanDetails.isEligible ? "âœ…" : "âŒ"}
                   </span>
                   <div>
                     <div
@@ -1401,7 +1401,7 @@ const Borrowing = () => {
               {/* Max Borrow Info */}
               <div className="max-borrow-info">
                 <p>
-                  💰 You can borrow up to <strong>50%</strong> of your savings
+                  ðŸ’° You can borrow up to <strong>50%</strong> of your savings
                   balance
                 </p>
                 <p style={{ marginTop: "4px", color: creditColor }}>
@@ -1526,7 +1526,7 @@ const Borrowing = () => {
                       style={{ borderBottom: "none", padding: "4px 0" }}
                     >
                       <span className="loan-detail-label">
-                        💰 Total Amount Payable Over{" "}
+                        ðŸ’° Total Amount Payable Over{" "}
                         {loanDetails.durationMonths} Months
                       </span>
                       <span
@@ -1585,7 +1585,7 @@ const Borrowing = () => {
         <div className="modal-overlay">
           <div className="modal-content">
             <div className="modal-header">
-              <h3 className="modal-title">💳 Make Payment</h3>
+              <h3 className="modal-title">ðŸ’³ Make Payment</h3>
               <button
                 className="modal-close"
                 onClick={() => {
@@ -1594,7 +1594,7 @@ const Borrowing = () => {
                   setPaymentAmount("");
                 }}
               >
-                ✕
+                âœ•
               </button>
             </div>
 

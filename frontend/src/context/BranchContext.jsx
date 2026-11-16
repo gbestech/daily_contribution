@@ -1,4 +1,4 @@
-// src/context/BranchContext.jsx
+﻿// src/context/BranchContext.jsx
 import React, {
   createContext,
   useContext,
@@ -9,7 +9,7 @@ import React, {
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const BranchContext = createContext(null);
 
@@ -170,7 +170,7 @@ export const BranchProvider = ({ children }) => {
         console.warn(
           "[BranchContext] cached branch id",
           cached.id,
-          "no longer exists — clearing",
+          "no longer exists â€” clearing",
         );
         persistBranch(null);
       }

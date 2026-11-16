@@ -1,11 +1,11 @@
-// src/pages/auth/ForgotPassword.jsx
+﻿// src/pages/auth/ForgotPassword.jsx
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const ForgotPassword = () => {
   const navigate = useNavigate();
@@ -14,7 +14,7 @@ const ForgotPassword = () => {
   const [email, setEmail] = useState("");
   const [appSettings, setAppSettings] = useState({
     appName: "Loading...",
-    logo: "🏦",
+    logo: "ðŸ¦",
   });
 
   useEffect(() => {
@@ -34,20 +34,20 @@ const ForgotPassword = () => {
           setAppSettings({
             appName:
               general.shop_name || general.app_name || "Osittech Contribution",
-            logo: general.logo || "🏦",
+            logo: general.logo || "ðŸ¦",
           });
           return;
         }
       }
-      // Any non-200 or non-{status:true} response → defaults
+      // Any non-200 or non-{status:true} response â†’ defaults
       setAppSettings({
         appName: "Osittech Contribution",
-        logo: "🏦",
+        logo: "ðŸ¦",
       });
     } catch {
       setAppSettings({
         appName: "Osittech Contribution",
-        logo: "🏦",
+        logo: "ðŸ¦",
       });
     }
   };
@@ -290,7 +290,7 @@ const ForgotPassword = () => {
               <div className="fp-field-group">
                 <label className="fp-field-label">Email Address</label>
                 <div className="fp-field-wrap">
-                  <span className="fp-field-icon">📧</span>
+                  <span className="fp-field-icon">ðŸ“§</span>
                   <input
                     type="email"
                     className="fp-field-input"
@@ -314,17 +314,17 @@ const ForgotPassword = () => {
             </form>
 
             <Link to="/login" className="fp-back-link">
-              ← Back to Sign In
+              â† Back to Sign In
             </Link>
 
             <div className="fp-footer-note">
-              © {new Date().getFullYear()} {appSettings.appName}. All rights
+              Â© {new Date().getFullYear()} {appSettings.appName}. All rights
               reserved.
             </div>
           </>
         ) : (
           <>
-            <div className="fp-success-icon">📨</div>
+            <div className="fp-success-icon">ðŸ“¨</div>
             <h2 className="fp-success-title">Request Submitted</h2>
             <p className="fp-success-msg">
               Your password reset request for{" "}
@@ -349,7 +349,7 @@ const ForgotPassword = () => {
             </button>
 
             <div className="fp-footer-note">
-              © {new Date().getFullYear()} {appSettings.appName}. All rights
+              Â© {new Date().getFullYear()} {appSettings.appName}. All rights
               reserved.
             </div>
           </>

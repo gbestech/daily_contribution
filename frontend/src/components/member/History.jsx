@@ -1,8 +1,9 @@
-// src/components/member/MemberHistory.jsx
+﻿// src/components/member/MemberHistory.jsx
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 // ------------------------------------------------------------
 // Resolve branch id: saved selection → user → URL ?branch=

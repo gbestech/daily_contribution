@@ -1,27 +1,14 @@
 // src/hooks/useBranchBranding.js
-//
-// Resolves WHICH branch a pre-login page (sign-in, register) belongs to, and
-// the name to show for it — using the SAME lookup the registration form uses
-// (api/get-branch.php), so the two pages can never disagree.
-//
-// Branch comes from, in order:
-//   1) ?branch=<id or code>  (or ?branch_id=) in the URL
-//   2) the branch remembered on this device (only when allowSaved = true)
-//
-// If no branch can be determined, name is null — the page should then show a
-// neutral title. (Previously the sign-in page called settings.php with no
-// branch_id, and the backend answered with the FIRST active branch, which is
-// why everybody saw the wrong name.)
 import { useEffect, useState } from "react";
+import { apiFetch } from "../utils/api";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
 const STORAGE_KEY = "last_branch_id";
 
 export const rememberBranch = (branchId) => {
   try {
     if (branchId) localStorage.setItem(STORAGE_KEY, String(branchId));
   } catch {
-    /* storage unavailable — ignore */
+    /* ignore */
   }
 };
 
@@ -43,25 +30,35 @@ const useBranchBranding = ({ allowSaved = true } = {}) => {
   const [state, setState] = useState({
     loading: !!raw,
     branch: null,
-    name: null, // saved shop name for the branch, else the branch name
-    notFound: false, // link points to a branch that doesn't exist
-    failed: false, // network / server problem
+    name: null,
+    notFound: false,
+    failed: false,
+    isActive: true,
   });
 
   useEffect(() => {
-    if (!raw) return;
+    if (!raw) {
+      setState({
+        loading: false,
+        branch: null,
+        name: null,
+        notFound: false,
+        failed: false,
+        isActive: true,
+      });
+      return;
+    }
+
     let cancelled = false;
 
     (async () => {
       try {
-        // 1) the branch itself (same endpoint the registration form used)
         const isNumeric = /^\d+$/.test(raw);
-        const url = isNumeric
-          ? `${API_BASE_URL}/api/get-branch.php?id=${raw}`
-          : `${API_BASE_URL}/api/get-branch.php?code=${encodeURIComponent(raw)}`;
+        const query = isNumeric
+          ? `?id=${encodeURIComponent(raw)}`
+          : `?code=${encodeURIComponent(raw)}`;
 
-        const res = await fetch(url);
-        const data = await res.json();
+        const data = await apiFetch(`/api/get-branch.php${query}`);
 
         if (!(data.status && data.branch)) {
           if (!cancelled) {
@@ -71,23 +68,27 @@ const useBranchBranding = ({ allowSaved = true } = {}) => {
               name: null,
               notFound: true,
               failed: false,
+              isActive: true,
             });
           }
           return;
         }
 
         const branch = data.branch;
+        const isActive =
+          typeof data.is_active === "boolean"
+            ? data.is_active
+            : String(branch.status || "active").toLowerCase() === "active";
 
-        // 2) the shop name the admin saved for THIS branch (optional)
         let shopName = null;
         try {
-          const sRes = await fetch(
-            `${API_BASE_URL}/api/settings.php?branch_id=${encodeURIComponent(branch.id)}`,
+          const sData = await apiFetch(
+            `/api/settings.php?branch_id=${encodeURIComponent(branch.id)}`,
           );
-          const sData = await sRes.json();
-          shopName = (sData?.status && sData?.data?.general?.shop_name) || null;
+          shopName =
+            (sData?.status && sData?.data?.general?.shop_name) || null;
         } catch {
-          /* fall back to the branch name */
+          /* settings not critical */
         }
 
         if (cancelled) return;
@@ -98,16 +99,30 @@ const useBranchBranding = ({ allowSaved = true } = {}) => {
           name: shopName || branch.name || null,
           notFound: false,
           failed: false,
+          isActive,
         });
       } catch (err) {
-        console.error("[useBranchBranding] failed:", err);
-        if (!cancelled) {
+        if (cancelled) return;
+        const msg = String(err?.message || "");
+        const is404 = /404|not found/i.test(msg);
+        if (is404) {
+          setState({
+            loading: false,
+            branch: null,
+            name: null,
+            notFound: true,
+            failed: false,
+            isActive: true,
+          });
+        } else {
+          console.error("[useBranchBranding] failed:", err);
           setState({
             loading: false,
             branch: null,
             name: null,
             notFound: false,
             failed: true,
+            isActive: true,
           });
         }
       }

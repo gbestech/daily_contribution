@@ -1,9 +1,9 @@
-// src/components/member/Profile.jsx
+﻿// src/components/member/Profile.jsx
 import React, { useState, useEffect, useRef } from "react";
 import { useAuth } from "../../context/AuthContext";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const MemberProfile = () => {
   const { user, login } = useAuth();
@@ -155,7 +155,7 @@ const MemberProfile = () => {
           localStorage.setItem("user", JSON.stringify(updatedUser));
           login(updatedUser, localStorage.getItem("token"));
 
-          toast.success("✅ Profile updated successfully!");
+          toast.success("âœ… Profile updated successfully!");
           setEditMode(false);
           setFormData({
             ...formData,
@@ -191,7 +191,7 @@ const MemberProfile = () => {
           localStorage.setItem("user", JSON.stringify(updatedUser));
           login(updatedUser, localStorage.getItem("token"));
 
-          toast.success("✅ Profile updated successfully!");
+          toast.success("âœ… Profile updated successfully!");
           setEditMode(false);
           setFormData({
             ...formData,
@@ -211,7 +211,7 @@ const MemberProfile = () => {
   };
 
   const formatCurrency = (amount) => {
-    if (!amount && amount !== 0) return "₦0.00";
+    if (!amount && amount !== 0) return "â‚¦0.00";
     return new Intl.NumberFormat("en-NG", {
       style: "currency",
       currency: "NGN",
@@ -547,7 +547,7 @@ const MemberProfile = () => {
           {editMode && (
             <>
               <div className="avatar-upload-overlay">
-                <span>📷</span>
+                <span>ðŸ“·</span>
                 <input
                   type="file"
                   ref={fileInputRef}
@@ -562,7 +562,7 @@ const MemberProfile = () => {
                   onClick={removeImage}
                   title="Remove image"
                 >
-                  ✕
+                  âœ•
                 </button>
               )}
             </>
@@ -604,7 +604,7 @@ const MemberProfile = () => {
         <div style={{ display: "flex", gap: "8px" }}>
           {!editMode ? (
             <button className="btn-edit" onClick={() => setEditMode(true)}>
-              ✏️ Edit Profile
+              âœï¸ Edit Profile
             </button>
           ) : (
             <>
@@ -630,7 +630,7 @@ const MemberProfile = () => {
                 onClick={handleUpdateProfile}
                 disabled={loading}
               >
-                {loading ? "Saving..." : "💾 Save Changes"}
+                {loading ? "Saving..." : "ðŸ’¾ Save Changes"}
               </button>
             </>
           )}
@@ -641,19 +641,19 @@ const MemberProfile = () => {
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-value">{formatCurrency(formData.balance)}</div>
-          <div className="stat-label">💰 Balance</div>
+          <div className="stat-label">ðŸ’° Balance</div>
         </div>
         <div className="stat-card">
           <div className="stat-value" style={{ color: "var(--info)" }}>
             {formData.accountNumber}
           </div>
-          <div className="stat-label">🏦 Account Number</div>
+          <div className="stat-label">ðŸ¦ Account Number</div>
         </div>
         <div className="stat-card">
           <div className="stat-value" style={{ color: "var(--purple)" }}>
             {formatDate(formData.joinDate)}
           </div>
-          <div className="stat-label">📅 Joined</div>
+          <div className="stat-label">ðŸ“… Joined</div>
         </div>
       </div>
 
@@ -662,7 +662,7 @@ const MemberProfile = () => {
         <h3
           style={{ fontSize: "18px", fontWeight: "600", margin: "0 0 16px 0" }}
         >
-          📋 Personal Information
+          ðŸ“‹ Personal Information
         </h3>
 
         {!editMode ? (

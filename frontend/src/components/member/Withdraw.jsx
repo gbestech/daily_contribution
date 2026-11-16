@@ -1,7 +1,9 @@
+﻿// src/components/member/Withdraw.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const MemberWithdraw = () => {
   const [members, setMembers] = useState([]);

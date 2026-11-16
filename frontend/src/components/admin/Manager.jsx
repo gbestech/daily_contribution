@@ -1,4 +1,4 @@
-// src/components/admin/Manager.jsx
+﻿// src/components/admin/Manager.jsx
 import React, {
   useState,
   useEffect,
@@ -11,7 +11,8 @@ import { useBranch } from "../../context/BranchContext";
 import { useAuth } from "../../context/AuthContext";
 import { apiFetch } from "../../utils/api";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 /* ------------------------------------------------------------------ */
 /*  Safe fetch wrapper — never throws, always returns { ok, data, err } */
@@ -62,7 +63,7 @@ async function safeApiFetch(path, options = {}) {
         data: null,
         error:
           netErr.message ||
-          "Network error — server unreachable (check https://baleeg.onrender.com is awake)",
+          "Network error — server unreachable (check http://localhost/baleeg is awake)",
         url,
       };
     }

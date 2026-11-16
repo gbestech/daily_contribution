@@ -1,7 +1,7 @@
 // src/utils/api.js
 // ============================================================
 //  API client — single source of truth for backend calls.
-//  Backend base URL comes from Vite env (falls back to prod URL).
+//  Backend base URL comes from Vite env (falls back to localhost).
 // ============================================================
 
 const envBase =
@@ -9,7 +9,7 @@ const envBase =
     (typeof process !== "undefined" && process.env?.REACT_APP_API_BASE_URL) ||
     "";
 
-const API_BASE_URL = (envBase || "https://baleeg.onrender.com").replace(/\/+$/, "");
+const API_BASE_URL = (envBase || "http://localhost/baleeg").replace(/\/+$/, "");
 
 // Warn once at module load if we're pointing at a port that's often misconfigured.
 if (typeof console !== "undefined" && /localhost:\d+/.test(API_BASE_URL)) {
@@ -35,7 +35,6 @@ const PUBLIC_PATHS = [
 ];
 
 // Endpoints where we auto-attach ?branch_id= when missing.
-// (Only for collection routes, not single-resource routes like /members.php/123)
 const BRANCH_REQUIRED_PATHS = [
     "/api/members.php",
     "/api/transactions.php",
@@ -114,7 +113,6 @@ export const apiFetch = async (path, options = {}) => {
     const needsBranch = matchesPath(path, BRANCH_REQUIRED_PATHS);
     const isAllQuery = /[?&]all=1(&|$)/.test(path);
 
-    // Only append branch_id for collection routes, not /members.php/123
     if (
         !isPublic &&
         needsBranch &&
@@ -151,7 +149,6 @@ export const apiFetch = async (path, options = {}) => {
         }
     }
 
-    // Debug log — only in dev
     if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
         console.debug(`[api.js] ${method} ${url}`);
     }
@@ -160,7 +157,6 @@ export const apiFetch = async (path, options = {}) => {
     try {
         res = await fetch(url, { ...options, headers });
     } catch (err) {
-        // True network failure: DNS, offline, CORS preflight fail, etc.
         const isLocal = /localhost|127\.0\.0\.1/.test(API_BASE_URL);
         const hint = isLocal
             ? ` — is Apache (XAMPP) running on the port in ${API_BASE_URL}? ` +
@@ -173,14 +169,12 @@ export const apiFetch = async (path, options = {}) => {
 
     const text = await res.text();
     const contentType = res.headers.get("content-type") || "";
-    const looksJson = contentType.includes("json");
 
     let data = null;
     if (text) {
         try {
             data = JSON.parse(text);
         } catch {
-            // Not JSON — likely an HTML error page from PHP
             const snippet = text.replace(/\s+/g, " ").slice(0, 160);
             const isHtml = /<(!doctype|html|br|b>)/i.test(text);
             const isPdoError = /PDOException|getaddrinfo|SQLSTATE/.test(text);

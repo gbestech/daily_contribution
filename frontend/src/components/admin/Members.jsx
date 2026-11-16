@@ -1,11 +1,11 @@
-// src/components/admin/AdminMembers.jsx
+﻿// src/components/admin/AdminMembers.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 // ============================================================
 // Helpers
@@ -21,7 +21,7 @@ const formatCurrency = (amount) => {
 };
 
 const formatDate = (dateString) => {
-  if (!dateString) return "—";
+  if (!dateString) return "â€”";
   try {
     return new Date(dateString).toLocaleDateString("en-NG", {
       day: "2-digit",
@@ -42,7 +42,7 @@ const resolveMemberBranchId = (member, fallbackBranchId) => {
 };
 
 // ============================================================
-// Member details modal — fully branch-scoped
+// Member details modal â€” fully branch-scoped
 // ============================================================
 const MemberDetailsModal = ({ member, branchId, onClose }) => {
   const [loading, setLoading] = useState(true);
@@ -88,7 +88,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
         console.warn("[MemberDetails] branch fetch failed:", e);
       }
 
-      // 2. Profile — try single-member endpoint first, then list
+      // 2. Profile â€” try single-member endpoint first, then list
       let prof = null;
       try {
         const res = await apiFetch(
@@ -99,7 +99,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
           prof = data?.member || data?.data?.member || data?.data || null;
         }
       } catch {
-        /* endpoint may not exist — fall through */
+        /* endpoint may not exist â€” fall through */
       }
 
       if (!prof) {
@@ -127,7 +127,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
 
       setProfile(prof);
 
-      // 3. Transactions — scoped to member's branch, filtered by member id
+      // 3. Transactions â€” scoped to member's branch, filtered by member id
       try {
         const txRes = await apiFetch(
           `/api/transactions.php?branch_id=${encodeURIComponent(memberBranchId)}&limit=500`,
@@ -149,7 +149,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
         console.warn("[MemberDetails] transactions fetch failed:", e);
       }
 
-      // 4. Loans (optional — skip if endpoint is missing)
+      // 4. Loans (optional â€” skip if endpoint is missing)
       try {
         const loanRes = await apiFetch(
           `/api/loans.php?branch_id=${encodeURIComponent(memberBranchId)}&member_id=${encodeURIComponent(member.id)}`,
@@ -242,7 +242,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
       branchInfo?.name || profile?.branch_name || member?.branch_name;
     const code =
       branchInfo?.code || profile?.branch_code || member?.branch_code;
-    if (name && code) return `${name} · ${code}`;
+    if (name && code) return `${name} Â· ${code}`;
     if (name) return name;
     if (code) return code;
     if (memberBranchId) return `Branch #${memberBranchId}`;
@@ -258,7 +258,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
     profile?.account_number ||
     member?.accountNumber ||
     member?.account_number ||
-    "—";
+    "â€”";
   const displayMembership =
     profile?.membershipType ||
     profile?.membership_type ||
@@ -370,7 +370,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   border: "1px solid rgba(16,185,129,0.35)",
                 }}
               >
-                🏢 {branchLabel}
+                ðŸ¢ {branchLabel}
               </span>
               <span
                 style={{
@@ -388,7 +388,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   border: "1px solid rgba(16,185,129,0.35)",
                 }}
               >
-                ● {displayStatus}
+                â— {displayStatus}
               </span>
               <span>{displayMembership} Member</span>
             </div>
@@ -407,7 +407,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
               borderRadius: 8,
             }}
           >
-            ✕
+            âœ•
           </button>
         </div>
 
@@ -435,7 +435,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
               }}
             />
             <style>{`@keyframes mdspin { to { transform: rotate(360deg); } }`}</style>
-            Loading member details…
+            Loading member detailsâ€¦
           </div>
         )}
 
@@ -452,7 +452,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
               lineHeight: 1.5,
             }}
           >
-            ⚠️ {loadError}
+            âš ï¸ {loadError}
           </div>
         )}
 
@@ -477,7 +477,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                     margin: "0 0 12px 0",
                   }}
                 >
-                  💼 Savings Plan
+                  ðŸ’¼ Savings Plan
                 </h3>
                 <div
                   style={{
@@ -493,14 +493,14 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                     fontSize: 13,
                   }}
                 >
-                  <span style={{ fontSize: 18 }}>📋</span>
+                  <span style={{ fontSize: 18 }}>ðŸ“‹</span>
                   <div>
                     <strong style={{ color: "#f1f5f9" }}>{plan.name}</strong>
-                    {plan.duration && <> · {plan.duration}</>}
+                    {plan.duration && <> Â· {plan.duration}</>}
                     {plan.method && (
                       <>
                         {" "}
-                        · {plan.method}
+                        Â· {plan.method}
                         {plan.itemName ? ` (${plan.itemName})` : ""}
                       </>
                     )}
@@ -579,7 +579,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                           wordBreak: "break-word",
                         }}
                       >
-                        {c.value || "—"}
+                        {c.value || "â€”"}
                       </div>
                     </div>
                   ))}
@@ -638,7 +638,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
               </div>
             )}
 
-            {/* Personal info — with branch */}
+            {/* Personal info â€” with branch */}
             <div
               style={{
                 borderTop: "1px solid rgba(255,255,255,0.08)",
@@ -656,7 +656,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   margin: "0 0 12px 0",
                 }}
               >
-                📋 Personal Information
+                ðŸ“‹ Personal Information
               </h3>
               <div
                 style={{
@@ -708,12 +708,12 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                         fontFamily: c.mono ? "monospace" : undefined,
                       }}
                     >
-                      {c.value || "—"}
+                      {c.value || "â€”"}
                     </div>
                   </div>
                 ))}
 
-                {/* Branch cell — highlighted */}
+                {/* Branch cell â€” highlighted */}
                 <div
                   style={{
                     padding: "10px 12px",
@@ -766,7 +766,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   margin: "0 0 12px 0",
                 }}
               >
-                💰 Savings & Balance
+                ðŸ’° Savings & Balance
               </h3>
               <div
                 style={{
@@ -803,7 +803,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   },
                   {
                     label:
-                      "Net Savings (Deposits − Withdrawals − Transfers − Charges)",
+                      "Net Savings (Deposits âˆ’ Withdrawals âˆ’ Transfers âˆ’ Charges)",
                     value: formatCurrency(stats.net),
                     color: "#34d399",
                     big: true,
@@ -862,7 +862,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   margin: "0 0 12px 0",
                 }}
               >
-                🏦 Loan Summary
+                ðŸ¦ Loan Summary
               </h3>
               {loans.length === 0 ? (
                 <div
@@ -899,7 +899,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                             color: "#f1f5f9",
                           }}
                         >
-                          Loan #{l.id} · {l.type || "Standard"}
+                          Loan #{l.id} Â· {l.type || "Standard"}
                         </div>
                         <div
                           style={{
@@ -908,7 +908,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                             marginTop: 2,
                           }}
                         >
-                          {l.description || "—"}
+                          {l.description || "â€”"}
                         </div>
                         <div
                           style={{
@@ -954,7 +954,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
                   margin: "0 0 12px 0",
                 }}
               >
-                📊 Transaction History ({transactions.length})
+                ðŸ“Š Transaction History ({transactions.length})
               </h3>
               {transactions.length === 0 ? (
                 <div
@@ -1073,7 +1073,7 @@ const MemberDetailsModal = ({ member, branchId, onClose }) => {
 };
 
 // ============================================================
-// AdminMembers — parent page
+// AdminMembers â€” parent page
 // ============================================================
 const AdminMembers = () => {
   const { activeBranchId, activeBranch } = useBranch();
@@ -1085,7 +1085,7 @@ const AdminMembers = () => {
   const [selectedMember, setSelectedMember] = useState(null);
 
   // ============================================================
-  // Resolve branch id — context → user → localStorage
+  // Resolve branch id â€” context â†’ user â†’ localStorage
   // ============================================================
   const resolvedBranchId = useMemo(() => {
     const candidates = [activeBranchId, user?.branch_id, user?.branchId];
@@ -1103,13 +1103,13 @@ const AdminMembers = () => {
   }, [activeBranchId, user?.branch_id, user?.branchId]);
 
   // ============================================================
-  // Fetch members — always with ?branch_id=
+  // Fetch members â€” always with ?branch_id=
   // ============================================================
   const fetchMembers = useCallback(async () => {
     if (!resolvedBranchId) {
-      // No branch — refuse to fetch, show empty list
+      // No branch â€” refuse to fetch, show empty list
       console.warn(
-        "[AdminMembers] No branch id resolved — skipping fetch. Login must return branch_id.",
+        "[AdminMembers] No branch id resolved â€” skipping fetch. Login must return branch_id.",
       );
       setMembers([]);
       setLoading(false);
@@ -1176,7 +1176,7 @@ const AdminMembers = () => {
       }}
     >
       <div style={{ marginBottom: 20 }}>
-        <h1 style={{ margin: 0, fontSize: 24 }}>👥 Manage Members</h1>
+        <h1 style={{ margin: 0, fontSize: 24 }}>ðŸ‘¥ Manage Members</h1>
         <p style={{ color: "#94a3b8", margin: "6px 0 0 0", fontSize: 14 }}>
           {activeBranch?.name
             ? `Showing members of ${activeBranch.name}${
@@ -1192,7 +1192,7 @@ const AdminMembers = () => {
         type="text"
         value={searchTerm}
         onChange={(e) => setSearchTerm(e.target.value)}
-        placeholder="Search by name, email, phone, account number…"
+        placeholder="Search by name, email, phone, account numberâ€¦"
         style={{
           width: "100%",
           maxWidth: 400,
@@ -1249,7 +1249,7 @@ const AdminMembers = () => {
                     color: "#94a3b8",
                   }}
                 >
-                  Loading members…
+                  Loading membersâ€¦
                 </td>
               </tr>
             ) : filtered.length === 0 ? (
@@ -1266,7 +1266,7 @@ const AdminMembers = () => {
                     ? searchTerm
                       ? "No members match your search"
                       : "No members in this branch yet"
-                    : "No branch selected — login must return branch_id"}
+                    : "No branch selected â€” login must return branch_id"}
                 </td>
               </tr>
             ) : (
@@ -1276,7 +1276,7 @@ const AdminMembers = () => {
                   style={{ borderBottom: "1px solid rgba(255,255,255,0.05)" }}
                 >
                   <td style={{ padding: "12px", fontWeight: 600 }}>
-                    {m.name || m.full_name || "—"}
+                    {m.name || m.full_name || "â€”"}
                   </td>
                   <td
                     style={{
@@ -1285,13 +1285,13 @@ const AdminMembers = () => {
                       fontFamily: "monospace",
                     }}
                   >
-                    {m.accountNumber || m.account_number || "—"}
+                    {m.accountNumber || m.account_number || "â€”"}
                   </td>
                   <td style={{ padding: "12px", color: "#94a3b8" }}>
-                    {m.email || "—"}
+                    {m.email || "â€”"}
                   </td>
                   <td style={{ padding: "12px", color: "#94a3b8" }}>
-                    {m.phone || "—"}
+                    {m.phone || "â€”"}
                   </td>
                   <td style={{ padding: "12px" }}>
                     <span

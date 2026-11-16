@@ -1,4 +1,4 @@
-// src/components/member/Dashboard.jsx
+﻿// src/components/member/Dashboard.jsx
 import React, {
   useState,
   useEffect,
@@ -12,7 +12,8 @@ import toast from "react-hot-toast";
 import { apiFetch } from "../../utils/api";
 import { useBranch } from "../../context/BranchContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 const CYCLE_DAYS = 30;
 
 // ────────────────────────────────────────────────────────────
@@ -1459,7 +1460,7 @@ const Dashboard = () => {
             >
               {refreshing ? (
                 <>
-                  <span className="refresh-spinner">⟳</span> Refreshing...
+                  <span className="refresh-spinner">⏳</span> Refreshing...
                 </>
               ) : (
                 "🔄 Refresh"
@@ -1611,7 +1612,7 @@ const Dashboard = () => {
                     disabled={branchRefreshing}
                     title="Refresh branch info"
                   >
-                    <span className={branchRefreshing ? "spin" : ""}>⟳</span>
+                    <span className={branchRefreshing ? "spin" : ""}>⏳</span>
                   </button>
                 </div>
                 <p
@@ -1973,7 +1974,7 @@ const Dashboard = () => {
                 {marksLoading && (
                   <>
                     <span className="sep">•</span>
-                    <span>⟳</span>
+                    <span>⏳</span>
                   </>
                 )}
               </div>
@@ -2551,7 +2552,7 @@ const Dashboard = () => {
                 opacity: refreshing ? 0.5 : 1,
               }}
             >
-              {refreshing ? "⟳ Refreshing..." : "🔄 Refresh"}
+              {refreshing ? "⏳ Refreshing..." : "🔄 Refresh"}
             </button>
           </div>
           {transactions.length > 0 ? (
@@ -2903,7 +2904,7 @@ const Dashboard = () => {
                         Select a member
                       </span>
                     )}
-                    <span className="caret">▼</span>
+                    <span className="caret">▾</span>
                   </button>
                   {recipientOpen && (
                     <div className="recipient-menu">

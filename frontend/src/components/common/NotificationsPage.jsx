@@ -1,35 +1,35 @@
-// src/components/common/NotificationsPage.jsx
+﻿// src/components/common/NotificationsPage.jsx
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "../../context/AuthContext";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 const PAGE_SIZE = 20;
 
 const iconForType = (type) => {
   switch ((type || "").toLowerCase()) {
     case "deposit":
-      return "💰";
+      return "ðŸ’°";
     case "withdrawal":
-      return "💸";
+      return "ðŸ’¸";
     case "transfer":
-      return "🔄";
+      return "ðŸ”„";
     case "loan":
-      return "🏦";
+      return "ðŸ¦";
     case "approval":
-      return "✅";
+      return "âœ…";
     case "rejection":
-      return "❌";
+      return "âŒ";
     case "pending":
-      return "⏳";
+      return "â³";
     case "member":
-      return "👥";
+      return "ðŸ‘¥";
     case "system":
-      return "⚙️";
+      return "âš™ï¸";
     case "warning":
-      return "⚠️";
+      return "âš ï¸";
     default:
-      return "🔔";
+      return "ðŸ””";
   }
 };
 
@@ -229,7 +229,7 @@ const NotificationsPage = () => {
               gap: "10px",
             }}
           >
-            🔔 Notifications
+            ðŸ”” Notifications
             {unreadCount > 0 && (
               <span
                 style={{
@@ -270,7 +270,7 @@ const NotificationsPage = () => {
                 cursor: "pointer",
               }}
             >
-              ✓ Mark all read
+              âœ“ Mark all read
             </button>
           )}
         </div>
@@ -291,7 +291,7 @@ const NotificationsPage = () => {
       >
         <input
           type="text"
-          placeholder="🔍 Search notifications…"
+          placeholder="ðŸ” Search notificationsâ€¦"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           style={{
@@ -355,7 +355,7 @@ const NotificationsPage = () => {
             cursor: "pointer",
           }}
         >
-          ↻ Refresh
+          â†» Refresh
         </button>
       </div>
 
@@ -376,7 +376,7 @@ const NotificationsPage = () => {
               color: "var(--text-muted)",
             }}
           >
-            Loading notifications…
+            Loading notificationsâ€¦
           </div>
         )}
 
@@ -400,7 +400,7 @@ const NotificationsPage = () => {
               color: "var(--text-muted)",
             }}
           >
-            <div style={{ fontSize: "42px", marginBottom: "12px" }}>🔕</div>
+            <div style={{ fontSize: "42px", marginBottom: "12px" }}>ðŸ”•</div>
             <div style={{ fontSize: "15px", fontWeight: "600" }}>
               {filter === "unread"
                 ? "No unread notifications"
@@ -546,7 +546,7 @@ const NotificationsPage = () => {
                       padding: "4px 6px",
                     }}
                   >
-                    ✓
+                    âœ“
                   </button>
                 )}
                 <button
@@ -564,7 +564,7 @@ const NotificationsPage = () => {
                     padding: "4px 6px",
                   }}
                 >
-                  ✕
+                  âœ•
                 </button>
               </div>
             </div>
@@ -596,10 +596,10 @@ const NotificationsPage = () => {
               cursor: currentPage === 1 ? "not-allowed" : "pointer",
             }}
           >
-            ← Prev
+            â† Prev
           </button>
           <span style={{ fontSize: "13px", color: "var(--text-muted)" }}>
-            Page {currentPage} of {totalPages} · {filtered.length} total
+            Page {currentPage} of {totalPages} Â· {filtered.length} total
           </span>
           <button
             onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
@@ -615,7 +615,7 @@ const NotificationsPage = () => {
               cursor: currentPage === totalPages ? "not-allowed" : "pointer",
             }}
           >
-            Next →
+            Next â†’
           </button>
         </div>
       )}
@@ -633,7 +633,7 @@ const NotificationsPage = () => {
             cursor: "pointer",
           }}
         >
-          ← Back to Dashboard
+          â† Back to Dashboard
         </button>
       </div>
     </div>

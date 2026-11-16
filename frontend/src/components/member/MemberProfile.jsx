@@ -1,11 +1,16 @@
-// src/components/member/MemberProfile.jsx
+﻿// src/components/member/MemberProfile.jsx
 import React, { useState, useEffect, useRef, useMemo } from "react";
 import { useAuth } from "../../context/AuthContext";
 import { useBranch } from "../../context/BranchContext";
 import { useNavigate } from "react-router-dom";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+// ✅ Environment-driven API base — no more hardcoded Render URL.
+//    Local dev:  VITE_API_BASE_URL=http://localhost/baleeg
+//    Production: VITE_API_BASE_URL=http://localhost/baleeg
+const API_BASE_URL = (
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg"
+).replace(/\/+$/, "");
 
 // ================================================================
 // Duration normalization
@@ -631,7 +636,6 @@ const MemberProfile = () => {
     return months * perMonth;
   }, [formData.duration, formData.savings_plan, DURATION_MONTHS]);
 
-  // 💰 Per-period amount — ROUND UP to 2 dp so Σ perPeriod × periods ≥ itemsTotal
   const autoAmountPerPeriod = useMemo(() => {
     if (formData.savings_method !== "Item") return null;
     if (!periodsForSelection || periodsForSelection <= 0) return null;
@@ -642,7 +646,6 @@ const MemberProfile = () => {
     return perPeriod;
   }, [formData.savings_method, periodsForSelection, selectedItemsTotal]);
 
-  // 🧮 Last payment absorbs the rounding so Σ payments = itemsTotal EXACTLY
   const lastPaymentAmount = useMemo(() => {
     if (formData.savings_method !== "Item") return null;
     if (autoAmountPerPeriod == null) return null;
@@ -686,7 +689,6 @@ const MemberProfile = () => {
 
     const totalPeriods = months * perMonth;
 
-    // Item mode: total is EXACTLY the items total (last payment absorbs rounding)
     const totalIsItemExact =
       formData.savings_method === "Item" && selectedItemsTotal > 0;
 
@@ -736,8 +738,6 @@ const MemberProfile = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [autoAmountPerPeriod, formData.savings_method]);
 
-  // In Item mode, totals are guaranteed exact (last payment absorbs rounding),
-  // so no mismatch is ever possible.
   const moneyMismatch = useMemo(() => {
     if (!showSavingsSection) return null;
     if (formData.savings_method !== "Item") return null;
@@ -788,9 +788,6 @@ const MemberProfile = () => {
       );
       const data = await res.json();
 
-      console.log("🔍 SETTINGS RESPONSE:", data);
-
-      // Your API returns: { status, branch_id, data: { items: { durations, ... } } }
       const s =
         data?.data?.items ||
         data?.items ||
@@ -801,18 +798,10 @@ const MemberProfile = () => {
         data?.data ||
         null;
 
-      if (!s) {
-        console.warn("❌ No settings object found in response");
-        return null;
-      }
-
-      console.log("🎯 RESOLVED SETTINGS:", s);
+      if (!s) return null;
 
       const rawDurations = s.durations ?? s.duration ?? null;
-      console.log("🎯 RAW DURATIONS:", rawDurations);
-
       const normalizedDurations = normalizeDurationList(rawDurations);
-      console.log("🎯 NORMALIZED DURATIONS:", normalizedDurations);
 
       setItemsSettings((prev) => ({
         durations: normalizedDurations,
@@ -1478,14 +1467,12 @@ const MemberProfile = () => {
         payload.savings_method = finalMethod;
         payload.duration = canonicalDuration(formData.duration);
         payload.amount = finalAmount;
-        // ✅ Store the EXACT items total as the total amount
         payload.total_amount =
           finalMethod === "Item" && selectedItemsTotal > 0
             ? selectedItemsTotal
             : calculation
               ? calculation.total
               : 0;
-        // ✅ Also persist the last payment so backend can charge correctly
         if (finalMethod === "Item" && lastPaymentAmount != null) {
           payload.last_payment_amount = lastPaymentAmount;
         }

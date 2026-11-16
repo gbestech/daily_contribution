@@ -1,11 +1,12 @@
-// src/components/admin/AdminPending.jsx
+﻿// src/components/admin/AdminPending.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const AdminPending = () => {
   const { activeBranch, activeBranchId } = useBranch();
@@ -97,7 +98,9 @@ const AdminPending = () => {
 
       const totalAmount = formatted.reduce((sum, r) => sum + r.amount, 0);
       const deposits = formatted.filter((r) => r.type === "deposit").length;
-      const withdrawals = formatted.filter((r) => r.type === "withdrawal").length;
+      const withdrawals = formatted.filter(
+        (r) => r.type === "withdrawal",
+      ).length;
       const transfers = formatted.filter((r) => r.type === "transfer").length;
       const today = formatted.filter((r) => {
         const todayDate = new Date().toDateString();
@@ -209,7 +212,9 @@ const AdminPending = () => {
         setPendingRequests((prev) => prev.filter((r) => r.id !== request.id));
         fetchPendingTransactions();
       } else {
-        toast.error(data.message || data.error || "Failed to approve transaction");
+        toast.error(
+          data.message || data.error || "Failed to approve transaction",
+        );
       }
     } catch (error) {
       console.error("Error approving transaction:", error);
@@ -255,7 +260,9 @@ const AdminPending = () => {
         setShowRejectModal(false);
         fetchPendingTransactions();
       } else {
-        toast.error(data.message || data.error || "Failed to reject transaction");
+        toast.error(
+          data.message || data.error || "Failed to reject transaction",
+        );
       }
     } catch (error) {
       console.error("Error rejecting transaction:", error);
@@ -353,10 +360,22 @@ const AdminPending = () => {
           <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
             <span style={{ fontSize: "26px" }}>🏢</span>
             <div>
-              <div style={{ color: "var(--text)", fontSize: "15px", fontWeight: "700" }}>
+              <div
+                style={{
+                  color: "var(--text)",
+                  fontSize: "15px",
+                  fontWeight: "700",
+                }}
+              >
                 {activeBranch?.name || "Branch"}
               </div>
-              <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "2px" }}>
+              <div
+                style={{
+                  color: "var(--text-muted)",
+                  fontSize: "12px",
+                  marginTop: "2px",
+                }}
+              >
                 {activeBranch?.code || "—"} · Pending approvals for this branch
               </div>
             </div>
@@ -378,16 +397,27 @@ const AdminPending = () => {
           </span>
         </div>
 
-        <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}>
+        <h2
+          style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}
+        >
           ⏳ Pending Approvals
         </h2>
 
-        <div style={{ textAlign: "center", color: "var(--text-muted)", padding: "48px 20px" }}>
+        <div
+          style={{
+            textAlign: "center",
+            color: "var(--text-muted)",
+            padding: "48px 20px",
+          }}
+        >
           <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
           <p>
-            No pending approvals in <strong>{activeBranch?.name || "this branch"}</strong>
+            No pending approvals in{" "}
+            <strong>{activeBranch?.name || "this branch"}</strong>
           </p>
-          <p style={{ fontSize: "14px" }}>All transactions have been processed</p>
+          <p style={{ fontSize: "14px" }}>
+            All transactions have been processed
+          </p>
         </div>
       </div>
     );
@@ -479,12 +509,26 @@ const AdminPending = () => {
         <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
           <span style={{ fontSize: "26px" }}>🏢</span>
           <div>
-            <div style={{ color: "var(--text)", fontSize: "15px", fontWeight: "700" }}>
+            <div
+              style={{
+                color: "var(--text)",
+                fontSize: "15px",
+                fontWeight: "700",
+              }}
+            >
               {activeBranch?.name || "Branch"}
             </div>
-            <div style={{ color: "var(--text-muted)", fontSize: "12px", marginTop: "2px" }}>
+            <div
+              style={{
+                color: "var(--text-muted)",
+                fontSize: "12px",
+                marginTop: "2px",
+              }}
+            >
               {activeBranch?.code || "—"} · Pending approvals for this branch ·{" "}
-              <strong style={{ color: "var(--warning)" }}>{pendingRequests.length}</strong>{" "}
+              <strong style={{ color: "var(--warning)" }}>
+                {pendingRequests.length}
+              </strong>{" "}
               waiting
             </div>
           </div>
@@ -506,34 +550,48 @@ const AdminPending = () => {
         </span>
       </div>
 
-      <h2 style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}>
+      <h2
+        style={{ fontSize: "24px", fontWeight: "bold", marginBottom: "24px" }}
+      >
         ⏳ Pending Approvals
       </h2>
 
       <div className="stats-grid">
         <div className="stat-card">
           <div className="stat-label">Total Pending</div>
-          <div className="stat-value" style={{ color: "var(--warning)" }}>{stats.total}</div>
+          <div className="stat-value" style={{ color: "var(--warning)" }}>
+            {stats.total}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Total Amount</div>
-          <div className="stat-value" style={{ color: "var(--credit)" }}>{formatNaira(stats.total_amount)}</div>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
+            {formatNaira(stats.total_amount)}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Deposits</div>
-          <div className="stat-value" style={{ color: "var(--credit)" }}>{stats.deposits}</div>
+          <div className="stat-value" style={{ color: "var(--credit)" }}>
+            {stats.deposits}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Withdrawals</div>
-          <div className="stat-value" style={{ color: "var(--debit)" }}>{stats.withdrawals}</div>
+          <div className="stat-value" style={{ color: "var(--debit)" }}>
+            {stats.withdrawals}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Transfers</div>
-          <div className="stat-value" style={{ color: "var(--info)" }}>{stats.transfers}</div>
+          <div className="stat-value" style={{ color: "var(--info)" }}>
+            {stats.transfers}
+          </div>
         </div>
         <div className="stat-card">
           <div className="stat-label">Today</div>
-          <div className="stat-value" style={{ color: "var(--text)" }}>{stats.today}</div>
+          <div className="stat-value" style={{ color: "var(--text)" }}>
+            {stats.today}
+          </div>
         </div>
       </div>
 
@@ -546,9 +604,17 @@ const AdminPending = () => {
       />
 
       {searchTerm && (
-        <div style={{ fontSize: "13px", color: "var(--text-muted)", marginBottom: "12px" }}>
+        <div
+          style={{
+            fontSize: "13px",
+            color: "var(--text-muted)",
+            marginBottom: "12px",
+          }}
+        >
           Found{" "}
-          <span style={{ color: "var(--warning)", fontWeight: "600" }}>{filteredRequests().length}</span>{" "}
+          <span style={{ color: "var(--warning)", fontWeight: "600" }}>
+            {filteredRequests().length}
+          </span>{" "}
           pending request{filteredRequests().length !== 1 ? "s" : ""}
         </div>
       )}
@@ -571,49 +637,114 @@ const AdminPending = () => {
               {filteredRequests().length > 0 ? (
                 filteredRequests().map((request) => {
                   const typeColors = getTypeColors(request.type);
-                  const payColors = getPaymentMethodColors(request.payment_method);
+                  const payColors = getPaymentMethodColors(
+                    request.payment_method,
+                  );
                   return (
                     <tr key={request.id}>
                       <td>
-                        <div style={{ display: "flex", alignItems: "center", gap: "8px" }}>
-                          <span style={{ fontSize: "20px" }}>{getTypeIcon(request.type)}</span>
-                          <span className="badge" style={{ background: typeColors.bg, color: typeColors.color }}>
+                        <div
+                          style={{
+                            display: "flex",
+                            alignItems: "center",
+                            gap: "8px",
+                          }}
+                        >
+                          <span style={{ fontSize: "20px" }}>
+                            {getTypeIcon(request.type)}
+                          </span>
+                          <span
+                            className="badge"
+                            style={{
+                              background: typeColors.bg,
+                              color: typeColors.color,
+                            }}
+                          >
                             {request.type}
                           </span>
                         </div>
                       </td>
                       <td>
                         <div>
-                          <div style={{ fontSize: "14px", fontWeight: "500" }}>{request.customer}</div>
-                          <div style={{ fontSize: "12px", color: "var(--text-muted)" }}>{request.phone}</div>
+                          <div style={{ fontSize: "14px", fontWeight: "500" }}>
+                            {request.customer}
+                          </div>
+                          <div
+                            style={{
+                              fontSize: "12px",
+                              color: "var(--text-muted)",
+                            }}
+                          >
+                            {request.phone}
+                          </div>
                         </div>
                       </td>
                       <td>
-                        <div style={{ fontSize: "14px", fontWeight: "600", color: "var(--credit)" }}>
+                        <div
+                          style={{
+                            fontSize: "14px",
+                            fontWeight: "600",
+                            color: "var(--credit)",
+                          }}
+                        >
                           {formatNaira(request.amount)}
                         </div>
                       </td>
                       <td>
-                        <span className="badge" style={{ background: payColors.bg, color: payColors.color }}>
+                        <span
+                          className="badge"
+                          style={{
+                            background: payColors.bg,
+                            color: payColors.color,
+                          }}
+                        >
                           {request.payment_method.replace("_", " ")}
                         </span>
                       </td>
                       <td>
-                        <div style={{ fontSize: "13px", color: "var(--text-muted)" }}>{formatDate(request.date)}</div>
+                        <div
+                          style={{
+                            fontSize: "13px",
+                            color: "var(--text-muted)",
+                          }}
+                        >
+                          {formatDate(request.date)}
+                        </div>
                       </td>
-                      <td><span className="badge badge-pending">Pending</span></td>
+                      <td>
+                        <span className="badge badge-pending">Pending</span>
+                      </td>
                       <td style={{ textAlign: "center" }}>
-                        <div style={{ display: "flex", justifyContent: "center", gap: "4px", flexWrap: "wrap" }}>
-                          <button className="btn-view" onClick={() => viewDetails(request)}>View</button>
+                        <div
+                          style={{
+                            display: "flex",
+                            justifyContent: "center",
+                            gap: "4px",
+                            flexWrap: "wrap",
+                          }}
+                        >
+                          <button
+                            className="btn-view"
+                            onClick={() => viewDetails(request)}
+                          >
+                            View
+                          </button>
                           <button
                             className="btn-approve"
-                            onClick={() => { setSelectedRequest(request); setShowApproveModal(true); }}
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setShowApproveModal(true);
+                            }}
                           >
                             Approve
                           </button>
                           <button
                             className="btn-reject"
-                            onClick={() => { setSelectedRequest(request); setRejectReason(""); setShowRejectModal(true); }}
+                            onClick={() => {
+                              setSelectedRequest(request);
+                              setRejectReason("");
+                              setShowRejectModal(true);
+                            }}
                           >
                             Reject
                           </button>
@@ -625,11 +756,29 @@ const AdminPending = () => {
               ) : (
                 <tr>
                   <td colSpan="7">
-                    <div style={{ textAlign: "center", padding: "48px 20px", color: "var(--text-muted)" }}>
-                      <div style={{ fontSize: "48px", marginBottom: "8px" }}>🔍</div>
-                      <p style={{ fontSize: "16px", fontWeight: "500" }}>No pending requests found</p>
-                      <p style={{ fontSize: "14px", color: "var(--text-dim)", marginTop: "4px" }}>
-                        {searchTerm ? `No requests matching "${searchTerm}"` : "All requests have been processed"}
+                    <div
+                      style={{
+                        textAlign: "center",
+                        padding: "48px 20px",
+                        color: "var(--text-muted)",
+                      }}
+                    >
+                      <div style={{ fontSize: "48px", marginBottom: "8px" }}>
+                        🔍
+                      </div>
+                      <p style={{ fontSize: "16px", fontWeight: "500" }}>
+                        No pending requests found
+                      </p>
+                      <p
+                        style={{
+                          fontSize: "14px",
+                          color: "var(--text-dim)",
+                          marginTop: "4px",
+                        }}
+                      >
+                        {searchTerm
+                          ? `No requests matching "${searchTerm}"`
+                          : "All requests have been processed"}
                       </p>
                     </div>
                   </td>
@@ -642,16 +791,27 @@ const AdminPending = () => {
         {pendingRequests.length > 0 && (
           <div className="pagination">
             <div className="pagination-info">
-              Showing {indexOfFirstItem + 1} to {Math.min(indexOfLastItem, pendingRequests.length)} of{" "}
-              <span style={{ fontWeight: "600", color: "var(--text)" }}>{pendingRequests.length}</span> requests
+              Showing {indexOfFirstItem + 1} to{" "}
+              {Math.min(indexOfLastItem, pendingRequests.length)} of{" "}
+              <span style={{ fontWeight: "600", color: "var(--text)" }}>
+                {pendingRequests.length}
+              </span>{" "}
+              requests
             </div>
             <div className="pagination-buttons">
-              <button className="page-btn" onClick={prevPage} disabled={currentPage === 1}>◀</button>
+              <button
+                className="page-btn"
+                onClick={prevPage}
+                disabled={currentPage === 1}
+              >
+                ◀
+              </button>
               {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
                 let pageNumber;
                 if (totalPages <= 5) pageNumber = i + 1;
                 else if (currentPage <= 3) pageNumber = i + 1;
-                else if (currentPage >= totalPages - 2) pageNumber = totalPages - 4 + i;
+                else if (currentPage >= totalPages - 2)
+                  pageNumber = totalPages - 4 + i;
                 else pageNumber = currentPage - 2 + i;
                 return (
                   <button
@@ -663,7 +823,13 @@ const AdminPending = () => {
                   </button>
                 );
               })}
-              <button className="page-btn" onClick={nextPage} disabled={currentPage === totalPages}>▶</button>
+              <button
+                className="page-btn"
+                onClick={nextPage}
+                disabled={currentPage === totalPages}
+              >
+                ▶
+              </button>
             </div>
           </div>
         )}
@@ -674,19 +840,47 @@ const AdminPending = () => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Request Details</h3>
-              <button className="modal-close" onClick={() => { setShowDetailsModal(false); setSelectedRequest(null); }}>✕</button>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setSelectedRequest(null);
+                }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{ display: "flex", alignItems: "center", gap: "12px", paddingBottom: "16px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
-              <span style={{ fontSize: "32px" }}>{getTypeIcon(selectedRequest.type)}</span>
+            <div
+              style={{
+                display: "flex",
+                alignItems: "center",
+                gap: "12px",
+                paddingBottom: "16px",
+                borderBottom: "1px solid var(--border)",
+                marginBottom: "16px",
+              }}
+            >
+              <span style={{ fontSize: "32px" }}>
+                {getTypeIcon(selectedRequest.type)}
+              </span>
               <div>
-                <div style={{ fontSize: "20px", fontWeight: "bold", color: "var(--credit)" }}>
+                <div
+                  style={{
+                    fontSize: "20px",
+                    fontWeight: "bold",
+                    color: "var(--credit)",
+                  }}
+                >
                   {formatNaira(selectedRequest.amount)}
                 </div>
                 <div style={{ display: "flex", gap: "6px", marginTop: "4px" }}>
                   <span
                     className="badge"
-                    style={{ background: getTypeColors(selectedRequest.type).bg, color: getTypeColors(selectedRequest.type).color }}
+                    style={{
+                      background: getTypeColors(selectedRequest.type).bg,
+                      color: getTypeColors(selectedRequest.type).color,
+                    }}
                   >
                     {selectedRequest.type}
                   </span>
@@ -696,27 +890,55 @@ const AdminPending = () => {
             </div>
 
             <div className="detail-row">
-              <div><div className="detail-label">Request ID</div><div className="detail-value">#{selectedRequest.id}</div></div>
-              <div><div className="detail-label">Date</div><div className="detail-value">{formatDate(selectedRequest.date)}</div></div>
-              <div><div className="detail-label">Customer</div><div className="detail-value">{selectedRequest.customer}</div></div>
-              <div><div className="detail-label">Phone</div><div className="detail-value">{selectedRequest.phone}</div></div>
-              <div><div className="detail-label">Email</div><div className="detail-value">{selectedRequest.email}</div></div>
-              <div><div className="detail-label">Branch</div><div className="detail-value">{selectedRequest.branch}</div></div>
+              <div>
+                <div className="detail-label">Request ID</div>
+                <div className="detail-value">#{selectedRequest.id}</div>
+              </div>
+              <div>
+                <div className="detail-label">Date</div>
+                <div className="detail-value">
+                  {formatDate(selectedRequest.date)}
+                </div>
+              </div>
+              <div>
+                <div className="detail-label">Customer</div>
+                <div className="detail-value">{selectedRequest.customer}</div>
+              </div>
+              <div>
+                <div className="detail-label">Phone</div>
+                <div className="detail-value">{selectedRequest.phone}</div>
+              </div>
+              <div>
+                <div className="detail-label">Email</div>
+                <div className="detail-value">{selectedRequest.email}</div>
+              </div>
+              <div>
+                <div className="detail-label">Branch</div>
+                <div className="detail-value">{selectedRequest.branch}</div>
+              </div>
               <div>
                 <div className="detail-label">Payment Method</div>
-                <div className="detail-value" style={{ textTransform: "capitalize" }}>
+                <div
+                  className="detail-value"
+                  style={{ textTransform: "capitalize" }}
+                >
                   {selectedRequest.payment_method.replace("_", " ")}
                 </div>
               </div>
               <div>
                 <div className="detail-label">Reference</div>
-                <div className="detail-value" style={{ fontFamily: "monospace", fontSize: "13px" }}>
+                <div
+                  className="detail-value"
+                  style={{ fontFamily: "monospace", fontSize: "13px" }}
+                >
                   {selectedRequest.reference}
                 </div>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Description</div>
-                <div className="detail-value">{selectedRequest.description}</div>
+                <div className="detail-value">
+                  {selectedRequest.description}
+                </div>
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Notes</div>
@@ -724,14 +946,49 @@ const AdminPending = () => {
               </div>
               <div style={{ gridColumn: "1 / -1" }}>
                 <div className="detail-label">Submitted By</div>
-                <div className="detail-value">{selectedRequest.submitted_by}</div>
+                <div className="detail-value">
+                  {selectedRequest.submitted_by}
+                </div>
               </div>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
-              <button className="btn-close-modal" onClick={() => { setShowDetailsModal(false); setSelectedRequest(null); }}>Close</button>
-              <button className="btn-confirm btn-confirm-approve" onClick={() => { setShowDetailsModal(false); handleApprove(selectedRequest); }}>Approve</button>
-              <button className="btn-confirm btn-confirm-reject" onClick={() => { setShowDetailsModal(false); setRejectReason(""); setShowRejectModal(true); }}>Reject</button>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <button
+                className="btn-close-modal"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setSelectedRequest(null);
+                }}
+              >
+                Close
+              </button>
+              <button
+                className="btn-confirm btn-confirm-approve"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  handleApprove(selectedRequest);
+                }}
+              >
+                Approve
+              </button>
+              <button
+                className="btn-confirm btn-confirm-reject"
+                onClick={() => {
+                  setShowDetailsModal(false);
+                  setRejectReason("");
+                  setShowRejectModal(true);
+                }}
+              >
+                Reject
+              </button>
             </div>
           </div>
         </div>
@@ -742,29 +999,73 @@ const AdminPending = () => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Confirm Approval</h3>
-              <button className="modal-close" onClick={() => { setShowApproveModal(false); setSelectedRequest(null); }}>✕</button>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setSelectedRequest(null);
+                }}
+              >
+                ✕
+              </button>
             </div>
 
             <div style={{ textAlign: "center", padding: "20px 0" }}>
               <div style={{ fontSize: "48px", marginBottom: "8px" }}>✅</div>
-              <p style={{ fontSize: "16px", fontWeight: "500" }}>Approve {selectedRequest.type} request?</p>
-        
-                      <p style={{ fontSize: "14px", color: "var(--text-muted)", marginTop: "4px" }}>
+              <p style={{ fontSize: "16px", fontWeight: "500" }}>
+                Approve {selectedRequest.type} request?
+              </p>
+              <p
+                style={{
+                  fontSize: "14px",
+                  color: "var(--text-muted)",
+                  marginTop: "4px",
+                }}
+              >
                 Customer: <strong>{selectedRequest.customer}</strong>
               </p>
               <p style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Amount: <strong style={{ color: "var(--credit)" }}>{formatNaira(selectedRequest.amount)}</strong>
+                Amount:{" "}
+                <strong style={{ color: "var(--credit)" }}>
+                  {formatNaira(selectedRequest.amount)}
+                </strong>
               </p>
-              <p style={{ fontSize: "12px", color: "var(--text-dim)", marginTop: "8px" }}>
+              <p
+                style={{
+                  fontSize: "12px",
+                  color: "var(--text-dim)",
+                  marginTop: "8px",
+                }}
+              >
                 Branch: {selectedRequest.branch}
               </p>
             </div>
 
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
-              <button className="btn-cancel" onClick={() => { setShowApproveModal(false); setSelectedRequest(null); }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
+              <button
+                className="btn-cancel"
+                onClick={() => {
+                  setShowApproveModal(false);
+                  setSelectedRequest(null);
+                }}
+              >
                 Cancel
               </button>
-              <button className="btn-confirm btn-confirm-approve" onClick={() => { handleApprove(selectedRequest); setShowApproveModal(false); }}>
+              <button
+                className="btn-confirm btn-confirm-approve"
+                onClick={() => {
+                  handleApprove(selectedRequest);
+                  setShowApproveModal(false);
+                }}
+              >
                 Yes, Approve
               </button>
             </div>
@@ -777,15 +1078,33 @@ const AdminPending = () => {
           <div className="modal-content">
             <div className="modal-header">
               <h3 className="modal-title">Reject Request</h3>
-              <button className="modal-close" onClick={() => { setShowRejectModal(false); setSelectedRequest(null); setRejectReason(""); }}>✕</button>
+              <button
+                className="modal-close"
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setSelectedRequest(null);
+                  setRejectReason("");
+                }}
+              >
+                ✕
+              </button>
             </div>
 
-            <div style={{ paddingBottom: "16px", borderBottom: "1px solid var(--border)", marginBottom: "16px" }}>
+            <div
+              style={{
+                paddingBottom: "16px",
+                borderBottom: "1px solid var(--border)",
+                marginBottom: "16px",
+              }}
+            >
               <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
                 Customer: <strong>{selectedRequest.customer}</strong>
               </div>
               <div style={{ fontSize: "14px", color: "var(--text-muted)" }}>
-                Amount: <strong style={{ color: "var(--debit)" }}>{formatNaira(selectedRequest.amount)}</strong>
+                Amount:{" "}
+                <strong style={{ color: "var(--debit)" }}>
+                  {formatNaira(selectedRequest.amount)}
+                </strong>
               </div>
               <div style={{ fontSize: "12px", color: "var(--text-dim)" }}>
                 Branch: {selectedRequest.branch}
@@ -812,16 +1131,31 @@ const AdminPending = () => {
               />
             </div>
 
-            <div style={{ display: "flex", gap: "8px", marginTop: "16px", paddingTop: "16px", borderTop: "1px solid var(--border)" }}>
+            <div
+              style={{
+                display: "flex",
+                gap: "8px",
+                marginTop: "16px",
+                paddingTop: "16px",
+                borderTop: "1px solid var(--border)",
+              }}
+            >
               <button
                 className="btn-cancel"
-                onClick={() => { setShowRejectModal(false); setSelectedRequest(null); setRejectReason(""); }}
+                onClick={() => {
+                  setShowRejectModal(false);
+                  setSelectedRequest(null);
+                  setRejectReason("");
+                }}
               >
                 Cancel
               </button>
               <button
                 className="btn-confirm btn-confirm-reject"
-                onClick={() => { handleReject(selectedRequest); setShowRejectModal(false); }}
+                onClick={() => {
+                  handleReject(selectedRequest);
+                  setShowRejectModal(false);
+                }}
                 disabled={!rejectReason.trim()}
                 style={{
                   opacity: !rejectReason.trim() ? 0.5 : 1,

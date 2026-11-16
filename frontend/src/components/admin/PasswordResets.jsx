@@ -1,4 +1,4 @@
-// src/components/admin/PasswordResets.jsx
+﻿// src/components/admin/PasswordResets.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 import { useAuth } from "../../context/AuthContext";
@@ -6,7 +6,8 @@ import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const TABS = [
   { value: "pending", label: "⏳ Pending" },

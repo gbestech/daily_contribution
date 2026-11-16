@@ -1,4 +1,4 @@
-// src/components/admin/Permissions.jsx
+﻿// src/components/admin/Permissions.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import toast from "react-hot-toast";
 import { usePermission } from "../../context/PermissionsContext";
@@ -7,7 +7,8 @@ import { useAuth } from "../../context/AuthContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const pickBranchFromResponse = (data, id) => {
   if (!data || typeof data !== "object") return null;

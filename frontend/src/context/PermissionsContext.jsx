@@ -1,4 +1,4 @@
-// src/context/PermissionsContext.jsx
+﻿// src/context/PermissionsContext.jsx
 import React, {
   createContext,
   useContext,
@@ -8,14 +8,14 @@ import React, {
   useMemo,
 } from "react";
 import { useAuth } from "./AuthContext";
-import { useBranch } from "./BranchContext"; // 🆕
+import { useBranch } from "./BranchContext"; // ðŸ†•
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 const PermissionsContext = createContext(null);
 
 export const PermissionsProvider = ({ children }) => {
   const { user } = useAuth();
-  const { activeBranchId } = useBranch(); // 🆕
+  const { activeBranchId } = useBranch(); // ðŸ†•
 
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -27,7 +27,7 @@ export const PermissionsProvider = ({ children }) => {
     .toLowerCase();
 
   const refreshPermissions = useCallback(async () => {
-    // No user → nothing to load
+    // No user â†’ nothing to load
     if (!user) {
       setPermissions([]);
       setLoading(false);
@@ -38,7 +38,7 @@ export const PermissionsProvider = ({ children }) => {
     setError(null);
 
     try {
-      // 🆕 Pass branch_id so we load this branch's permissions.
+      // ðŸ†• Pass branch_id so we load this branch's permissions.
       const url = activeBranchId
         ? `${API_BASE_URL}/api/permissions.php?branch_id=${activeBranchId}`
         : `${API_BASE_URL}/api/permissions.php`;
@@ -66,13 +66,13 @@ export const PermissionsProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [role, user, activeBranchId]); // 🆕 refetch when branch changes
+  }, [role, user, activeBranchId]); // ðŸ†• refetch when branch changes
 
   useEffect(() => {
     refreshPermissions();
   }, [refreshPermissions]);
 
-  // can(key) → true if the current role has that permission
+  // can(key) â†’ true if the current role has that permission
   const can = useCallback(
     (key) => {
       if (!key) return false;
@@ -91,7 +91,7 @@ export const PermissionsProvider = ({ children }) => {
       role,
       can,
       refreshPermissions,
-      branchId: activeBranchId, // 🆕 expose for debugging
+      branchId: activeBranchId, // ðŸ†• expose for debugging
     }),
     [
       permissions,

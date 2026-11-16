@@ -1,9 +1,10 @@
-// src/components/member/Deposit.jsx
+﻿// src/components/member/Deposit.jsx
 import React, { useState, useEffect, useRef } from "react";
 import toast from "react-hot-toast";
 import { useNavigate } from "react-router-dom";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 const MAX_SLIP_SIZE_MB = 2;
 
 // ⚠️ TEMPORARY fallback — update once the real plan column is confirmed

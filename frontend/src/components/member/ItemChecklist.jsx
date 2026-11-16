@@ -1,8 +1,9 @@
-// src/components/member/ItemChecklist.jsx
+﻿// src/components/member/ItemChecklist.jsx
 import React, { useState, useEffect, useCallback } from "react";
 import toast from "react-hot-toast";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL =
+  import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 
 const ItemChecklist = ({ memberId }) => {
   const [items, setItems] = useState([]);

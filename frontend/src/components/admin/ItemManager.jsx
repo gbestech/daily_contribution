@@ -1,11 +1,12 @@
-// src/components/admin/ItemManager.jsx
+﻿// src/components/admin/ItemManager.jsx
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const ItemManager = () => {
   const { activeBranch, activeBranchId } = useBranch();

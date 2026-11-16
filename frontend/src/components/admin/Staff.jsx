@@ -1,4 +1,4 @@
-// src/components/admin/Staff.jsx
+﻿// src/components/admin/Staff.jsx
 import React, {
   useState,
   useEffect,
@@ -11,7 +11,8 @@ import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const ROLES = [
   {

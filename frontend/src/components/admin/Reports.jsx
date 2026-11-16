@@ -1,11 +1,12 @@
-// src/components/admin/AdminReports.jsx
+﻿// src/components/admin/AdminReports.jsx
 import React, { useState, useEffect } from "react";
 import toast from "react-hot-toast";
 import { useBranch } from "../../context/BranchContext";
 
 const API_BASE_URL =
   (import.meta.env && import.meta.env.VITE_API_BASE_URL) ||
-  "https://baleeg.onrender.com";
+  import.meta.env.VITE_API_BASE_URL ||
+  "http://localhost/baleeg";
 
 const AdminReports = () => {
   const { activeBranch, activeBranchId } = useBranch();

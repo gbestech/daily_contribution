@@ -1,4 +1,4 @@
-// src/components/admin/Reshuffle.jsx
+﻿// src/components/admin/Reshuffle.jsx
 import React, {
   useState,
   useEffect,
@@ -16,7 +16,7 @@ import {
   durationToMonths,
 } from "../../utils/payoutRotation";
 
-const API_BASE_URL = "https://baleeg.onrender.com";
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost/baleeg";
 const MEMBERS_PER_PAGE = 10;
 
 // ────────────────────────────────────────────────────────────
